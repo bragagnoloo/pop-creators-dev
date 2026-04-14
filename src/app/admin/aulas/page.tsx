@@ -1,0 +1,225 @@
+'use client';
+
+import { useState, useEffect, useRef } from 'react';
+import { Lesson } from '@/types';
+import * as lessonService from '@/services/lessons';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
+import Input from '@/components/ui/Input';
+import Textarea from '@/components/ui/Textarea';
+
+export default function AdminAulasPage() {
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Lesson | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState('');
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const load = () => setLessons(lessonService.getAllLessons());
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 800 * 1024) {
+      alert('Imagem muito grande. Máximo 800KB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setThumbnailUrl(reader.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const openCreate = () => {
+    setEditing(null);
+    setTitle('');
+    setDescription('');
+    setYoutubeUrl('');
+    setThumbnailUrl(null);
+    setUrlError(null);
+    setShowForm(true);
+  };
+
+  const openEdit = (lesson: Lesson) => {
+    setEditing(lesson);
+    setTitle(lesson.title);
+    setDescription(lesson.description);
+    setYoutubeUrl(lesson.youtubeUrl);
+    setThumbnailUrl(lesson.thumbnailUrl);
+    setUrlError(null);
+    setShowForm(true);
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lessonService.extractYoutubeId(youtubeUrl)) {
+      setUrlError('URL do YouTube inválida. Use um link como https://youtube.com/watch?v=...');
+      return;
+    }
+    const data = { title, description, youtubeUrl, thumbnailUrl };
+    if (editing) {
+      lessonService.updateLesson(editing.id, data);
+    } else {
+      lessonService.createLesson(data);
+    }
+    setShowForm(false);
+    load();
+  };
+
+  const handleDelete = (id: string) => {
+    lessonService.deleteLesson(id);
+    setConfirmDelete(null);
+    load();
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold">Aulas</h1>
+        <Button onClick={openCreate}>Nova Aula</Button>
+      </div>
+
+      {showForm && (
+        <Modal isOpen onClose={() => setShowForm(false)} title={editing ? 'Editar Aula' : 'Nova Aula'}>
+          <form onSubmit={handleSave} className="space-y-4">
+            {/* Thumbnail 4:5 */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm text-text-secondary font-medium">Thumbnail (formato 4:5)</label>
+              <div className="flex items-start gap-4">
+                <div className="w-24 aspect-[4/5] rounded-xl bg-background border border-border overflow-hidden flex items-center justify-center shrink-0">
+                  {thumbnailUrl ? (
+                    <img src={thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                  ) : (
+                    <svg className="w-6 h-6 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleThumbnailUpload}
+                    className="hidden"
+                  />
+                  <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
+                    {thumbnailUrl ? 'Trocar imagem' : 'Carregar imagem'}
+                  </Button>
+                  {thumbnailUrl && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setThumbnailUrl(null)}>
+                      Remover
+                    </Button>
+                  )}
+                  <p className="text-xs text-text-secondary">Máx 800KB. Proporção 4:5.</p>
+                </div>
+              </div>
+            </div>
+
+            <Input
+              label="Título"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              required
+            />
+            <Textarea
+              label="Descrição"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              rows={4}
+              required
+            />
+            <div>
+              <Input
+                label="URL do YouTube"
+                value={youtubeUrl}
+                onChange={e => {
+                  setYoutubeUrl(e.target.value);
+                  setUrlError(null);
+                }}
+                placeholder="https://youtube.com/watch?v=..."
+                required
+              />
+              {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
+            </div>
+
+            <div className="flex gap-3">
+              <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForm(false)}>
+                Cancelar
+              </Button>
+              <Button type="submit" className="flex-1">
+                {editing ? 'Salvar' : 'Criar'}
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {confirmDelete && (
+        <Modal isOpen onClose={() => setConfirmDelete(null)} title="Confirmar Exclusão">
+          <p className="text-text-secondary mb-6">Tem certeza que deseja excluir esta aula?</p>
+          <div className="flex gap-3">
+            <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(null)}>
+              Cancelar
+            </Button>
+            <Button variant="danger" className="flex-1" onClick={() => handleDelete(confirmDelete)}>
+              Excluir
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      <div className="space-y-4">
+        {lessons.map(lesson => (
+          <Card key={lesson.id}>
+            <div className="flex gap-4">
+              <div className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-border bg-background shrink-0">
+                {lesson.thumbnailUrl ? (
+                  <img src={lesson.thumbnailUrl} alt={lesson.title} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <polygon points="23 7 16 12 23 17 23 7" />
+                      <rect x="1" y="5" width="15" height="14" rx="2" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold mb-1">{lesson.title}</h3>
+                <p className="text-sm text-text-secondary line-clamp-2 mb-2">{lesson.description}</p>
+                <p className="text-xs text-text-secondary truncate">{lesson.youtubeUrl}</p>
+              </div>
+              <div className="flex flex-col gap-2 shrink-0">
+                <Button variant="secondary" size="sm" onClick={() => openEdit(lesson)}>
+                  Editar
+                </Button>
+                <Button variant="danger" size="sm" onClick={() => setConfirmDelete(lesson.id)}>
+                  Excluir
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
+
+        {lessons.length === 0 && (
+          <Card>
+            <p className="text-center text-text-secondary">
+              Nenhuma aula criada. Clique em &quot;Nova Aula&quot; para começar.
+            </p>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}

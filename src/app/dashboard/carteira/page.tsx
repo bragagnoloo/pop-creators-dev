@@ -35,15 +35,21 @@ export default function CarteiraPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!user) return;
-    setProfile(userService.getProfile(user.id));
-    setSummary(walletService.getUserWalletSummary(user.id));
-    setCredits(walletService.getUserCredits(user.id));
-    setWithdrawals(walletService.getUserWithdrawals(user.id));
-    const all = campaignService.getAllCampaigns();
+    const [p, s, c, w, all] = await Promise.all([
+      userService.getProfile(user.id),
+      walletService.getUserWalletSummary(user.id),
+      walletService.getUserCredits(user.id),
+      walletService.getUserWithdrawals(user.id),
+      campaignService.getAllCampaigns(),
+    ]);
+    setProfile(p);
+    setSummary(s);
+    setCredits(c);
+    setWithdrawals(w);
     const map: Record<string, Campaign> = {};
-    for (const c of all) map[c.id] = c;
+    for (const camp of all) map[camp.id] = camp;
     setCampaigns(map);
   }, [user]);
 
@@ -78,9 +84,9 @@ export default function CarteiraPage() {
     setPixConfirm(true);
   };
 
-  const confirmPix = () => {
+  const confirmPix = async () => {
     if (!user) return;
-    userService.updateProfile(user.id, { pixKey, pixKeyType });
+    await userService.updateProfile(user.id, { pixKey, pixKeyType });
     setShowPixForm(false);
     setPixConfirm(false);
     load();
@@ -92,11 +98,11 @@ export default function CarteiraPage() {
     setShowWithdraw(true);
   };
 
-  const handleWithdraw = (e: React.FormEvent) => {
+  const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile.pixKey || !profile.pixKeyType) return;
     const amount = Number(withdrawAmount);
-    const result = walletService.requestWithdrawal(user.id, amount, profile.pixKey, profile.pixKeyType);
+    const result = await walletService.requestWithdrawal(user.id, amount, profile.pixKey, profile.pixKeyType);
     if (!result.success) {
       setWithdrawError(result.error);
       return;

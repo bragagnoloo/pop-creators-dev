@@ -31,30 +31,31 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
 
-  const load = useCallback(() => {
-    const c = campaignService.getCampaignById(id);
+  const load = useCallback(async () => {
+    const c = await campaignService.getCampaignById(id);
     if (c) {
       c.cache = c.cache ?? 0;
       c.deliveryCount = c.deliveryCount ?? 1;
     }
     setCampaign(c);
     if (!c) return;
-    const apps = campaignService.getCampaignApplications(id);
-    setRows(
-      apps.map(app => {
+    const apps = await campaignService.getCampaignApplications(id);
+    const rows = await Promise.all(
+      apps.map(async app => {
         const deliveries =
           app.status === 'approved'
-            ? deliveryService.ensureDeliveries(id, app.userId, c.deliveryCount)
-            : deliveryService.getDeliveriesForUser(id, app.userId);
+            ? await deliveryService.ensureDeliveries(id, app.userId, c.deliveryCount)
+            : await deliveryService.getDeliveriesForUser(id, app.userId);
         return {
           application: app,
-          profile: userService.getProfile(app.userId),
-          credit: walletService.getCreditForUserCampaign(app.userId, id),
+          profile: await userService.getProfile(app.userId),
+          credit: await walletService.getCreditForUserCampaign(app.userId, id),
           deliveries,
-          plan: subService.getUserPlan(app.userId),
+          plan: await subService.getUserPlan(app.userId),
         };
       })
     );
+    setRows(rows);
   }, [id]);
 
   useEffect(() => {
@@ -74,18 +75,18 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     );
   }
 
-  const handleCreate = (userId: string) => {
-    walletService.createCredit(userId, campaign.id, campaign.cache);
+  const handleCreate = async (userId: string) => {
+    await walletService.createCredit(userId, campaign.id, campaign.cache);
     load();
   };
 
-  const handleRelease = (creditId: string) => {
-    walletService.releaseCredit(creditId);
+  const handleRelease = async (creditId: string) => {
+    await walletService.releaseCredit(creditId);
     load();
   };
 
-  const handleDeliveryDate = (deliveryId: string, date: string) => {
-    deliveryService.updateDelivery(deliveryId, { scheduledDate: date ? new Date(date).toISOString() : null });
+  const handleDeliveryDate = async (deliveryId: string, date: string) => {
+    await deliveryService.updateDelivery(deliveryId, { scheduledDate: date ? new Date(date).toISOString() : null });
     load();
   };
 

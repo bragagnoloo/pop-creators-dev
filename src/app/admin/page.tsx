@@ -24,12 +24,14 @@ export default function AdminDashboard() {
   });
 
   useEffect(() => {
-    const users = analyticsService.nonAdminUsers(authService.getAllUsers());
-    const profiles = userService.getAllProfiles();
-    const campaigns = campaignService.getAllCampaigns();
-    const applications = campaignService.getAllApplications();
-    const withdrawals = walletService.getAllWithdrawals();
-    const credits = walletService.getAllCredits();
+    (async () => {
+    const allUsers = await authService.getAllUsers();
+    const users = analyticsService.nonAdminUsers(allUsers);
+    const profiles = await userService.getAllProfiles();
+    const campaigns = await campaignService.getAllCampaigns();
+    const applications = await campaignService.getAllApplications();
+    const withdrawals = await walletService.getAllWithdrawals();
+    const credits = await walletService.getAllCredits();
 
     const totalDistributed = credits
       .filter(c => c.status === 'available' || c.status === 'withdrawn')
@@ -52,6 +54,7 @@ export default function AdminDashboard() {
         .map(({ label, value }) => ({ label, value })),
       approvalCounts: analyticsService.applicationStatusCounts(applications),
     });
+    })();
   }, []);
 
   const summaryCards = [

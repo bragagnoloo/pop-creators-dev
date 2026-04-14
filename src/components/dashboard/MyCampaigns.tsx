@@ -49,9 +49,10 @@ export default function MyCampaigns({ userId }: MyCampaignsProps) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
   useEffect(() => {
-    const apps = campaignService.getUserApplications(userId);
-    setApplications(apps);
-    setCampaigns(campaignService.getAllCampaigns());
+    (async () => {
+      setApplications(await campaignService.getUserApplications(userId));
+      setCampaigns(await campaignService.getAllCampaigns());
+    })();
   }, [userId]);
 
   const getCampaign = (id: string) => campaigns.find(c => c.id === id);

@@ -15,7 +15,7 @@ export default function PlanosPage() {
   const [showSubscribe, setShowSubscribe] = useState<PlanId | null>(null);
 
   useEffect(() => {
-    if (user) setSub(subService.getUserSubscription(user.id));
+    if (user) subService.getUserSubscription(user.id).then(setSub);
   }, [user]);
 
   const currentPlan = sub?.plan ?? 'free';
@@ -127,10 +127,10 @@ export default function PlanosPage() {
               </Button>
               <Button
                 className="flex-1"
-                onClick={() => {
+                onClick={async () => {
                   // Dev-only shortcut: self-assign to let UX flow be tested
-                  subService.setUserPlan(user.id, showSubscribe, 'system');
-                  setSub(subService.getUserSubscription(user.id));
+                  await subService.setUserPlan(user.id, showSubscribe, 'system');
+                  setSub(await subService.getUserSubscription(user.id));
                   setShowSubscribe(null);
                 }}
               >

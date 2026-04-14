@@ -1,57 +1,87 @@
 import { CampaignDelivery } from '@/types';
-import { getItem, setItem, generateId } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
 
-function getAll(): CampaignDelivery[] {
-  return getItem<CampaignDelivery[]>(STORAGE_KEYS.DELIVERIES) || [];
+type Row = {
+  id: string;
+  campaign_id: string;
+  user_id: string;
+  index: number;
+  scheduled_date: string | null;
+  content_url: string | null;
+};
+
+function toDelivery(r: Row): CampaignDelivery {
+  return {
+    id: r.id,
+    campaignId: r.campaign_id,
+    userId: r.user_id,
+    index: r.index,
+    scheduledDate: r.scheduled_date,
+    contentUrl: r.content_url,
+  };
 }
 
-function saveAll(list: CampaignDelivery[]): void {
-  setItem(STORAGE_KEYS.DELIVERIES, list);
+const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url';
+
+export async function getDeliveriesForUser(campaignId: string, userId: string): Promise<CampaignDelivery[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('campaign_deliveries')
+    .select(SELECT)
+    .eq('campaign_id', campaignId)
+    .eq('user_id', userId)
+    .order('index', { ascending: true });
+  if (!data) return [];
+  return (data as Row[]).map(toDelivery);
 }
 
-export function getDeliveriesForUser(campaignId: string, userId: string): CampaignDelivery[] {
-  return getAll()
-    .filter(d => d.campaignId === campaignId && d.userId === userId)
-    .sort((a, b) => a.index - b.index);
-}
-
-export function getCampaignDeliveries(campaignId: string): CampaignDelivery[] {
-  return getAll().filter(d => d.campaignId === campaignId);
+export async function getCampaignDeliveries(campaignId: string): Promise<CampaignDelivery[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('campaign_deliveries')
+    .select(SELECT)
+    .eq('campaign_id', campaignId);
+  if (!data) return [];
+  return (data as Row[]).map(toDelivery);
 }
 
 /**
- * Garante N slots de entrega para (campaignId, userId).
- * Cria os que faltam; não remove os excedentes (preserva histórico se admin reduzir a quantidade depois).
+ * Garante N slots de entrega para (campaignId, userId). Cria os que faltam.
  */
-export function ensureDeliveries(campaignId: string, userId: string, count: number): CampaignDelivery[] {
-  const all = getAll();
-  const existing = all.filter(d => d.campaignId === campaignId && d.userId === userId);
+export async function ensureDeliveries(
+  campaignId: string,
+  userId: string,
+  count: number
+): Promise<CampaignDelivery[]> {
+  const existing = await getDeliveriesForUser(campaignId, userId);
   const existingIdx = new Set(existing.map(d => d.index));
-  const toCreate: CampaignDelivery[] = [];
+  const toCreate = [];
   for (let i = 1; i <= count; i++) {
     if (!existingIdx.has(i)) {
-      toCreate.push({
-        id: generateId(),
-        campaignId,
-        userId,
-        index: i,
-        scheduledDate: null,
-        contentUrl: null,
-      });
+      toCreate.push({ campaign_id: campaignId, user_id: userId, index: i });
     }
   }
   if (toCreate.length > 0) {
-    saveAll([...all, ...toCreate]);
+    const supabase = createClient();
+    await supabase.from('campaign_deliveries').insert(toCreate);
   }
-  return getDeliveriesForUser(campaignId, userId);
+  return await getDeliveriesForUser(campaignId, userId);
 }
 
-export function updateDelivery(id: string, data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl'>>): CampaignDelivery | null {
-  const all = getAll();
-  const idx = all.findIndex(d => d.id === id);
-  if (idx === -1) return null;
-  all[idx] = { ...all[idx], ...data };
-  saveAll(all);
-  return all[idx];
+export async function updateDelivery(
+  id: string,
+  data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl'>>
+): Promise<CampaignDelivery | null> {
+  const supabase = createClient();
+  const patch: Record<string, unknown> = {};
+  if (data.scheduledDate !== undefined) patch.scheduled_date = data.scheduledDate;
+  if (data.contentUrl !== undefined) patch.content_url = data.contentUrl;
+
+  const { data: updated } = await supabase
+    .from('campaign_deliveries')
+    .update(patch)
+    .eq('id', id)
+    .select(SELECT)
+    .single();
+  return updated ? toDelivery(updated as Row) : null;
 }

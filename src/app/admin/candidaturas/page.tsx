@@ -110,32 +110,36 @@ export default function AdminCandidaturasPage() {
   const [applications, setApplications] = useState<EnrichedApplication[]>([]);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
+  const [appCountsState, setAppCountsState] = useState<Record<string, number>>({});
+
   useEffect(() => {
-    setCampaigns(campaignService.getAllCampaigns());
+    (async () => {
+      setCampaigns(await campaignService.getAllCampaigns());
+      const all = await campaignService.getAllApplications();
+      const counts: Record<string, number> = {};
+      for (const a of all) counts[a.campaignId] = (counts[a.campaignId] || 0) + 1;
+      setAppCountsState(counts);
+    })();
   }, []);
 
-  const openCampaign = (campaign: Campaign) => {
-    const apps = campaignService.getCampaignApplications(campaign.id);
-    const enriched: EnrichedApplication[] = apps.map(app => ({
-      ...app,
-      profile: userService.getProfile(app.userId),
-    }));
+  const openCampaign = async (campaign: Campaign) => {
+    const apps = await campaignService.getCampaignApplications(campaign.id);
+    const enriched: EnrichedApplication[] = await Promise.all(
+      apps.map(async app => ({
+        ...app,
+        profile: await userService.getProfile(app.userId),
+      }))
+    );
     setApplications(enriched);
     setSelectedCampaign(campaign);
   };
 
-  const handleStatusChange = (appId: string, status: CampaignApplication['status']) => {
-    campaignService.updateApplicationStatus(appId, status);
+  const handleStatusChange = async (appId: string, status: CampaignApplication['status']) => {
+    await campaignService.updateApplicationStatus(appId, status);
     if (selectedCampaign) openCampaign(selectedCampaign);
   };
 
-  const appCounts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const c of campaigns) {
-      map[c.id] = campaignService.getCampaignApplications(c.id).length;
-    }
-    return map;
-  }, [campaigns]);
+  const appCounts = appCountsState;
 
   return (
     <div>
@@ -167,8 +171,7 @@ export default function AdminCandidaturasPage() {
                     </Badge>
                   </div>
                 </div>
-                <div className="flex items-center justify-between text-sm text-text-secondary">
-                  <span>Prazo: {new Date(campaign.deadline).toLocaleDateString('pt-BR')}</span>
+                <div className="flex items-center justify-end text-sm text-text-secondary">
                   <span className="font-medium text-text-primary">{appCounts[campaign.id] || 0} candidatura{(appCounts[campaign.id] || 0) !== 1 ? 's' : ''}</span>
                 </div>
               </div>

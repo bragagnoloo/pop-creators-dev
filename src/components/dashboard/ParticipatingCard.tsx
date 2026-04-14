@@ -27,13 +27,13 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
   const [savedId, setSavedId] = useState<string | null>(null);
   const [showBriefing, setShowBriefing] = useState(false);
 
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (application.status !== 'approved') {
       setDeliveries([]);
       return;
     }
     const count = campaign.deliveryCount ?? 1;
-    const list = deliveryService.ensureDeliveries(campaign.id, userId, count);
+    const list = await deliveryService.ensureDeliveries(campaign.id, userId, count);
     setDeliveries(list);
     setUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.contentUrl || ''])));
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
@@ -45,9 +45,9 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
   const status = appStatusMap[application.status];
   const canShowDeliveries = application.status === 'approved';
 
-  const handleSaveUrl = (deliveryId: string) => {
+  const handleSaveUrl = async (deliveryId: string) => {
     const url = urlDrafts[deliveryId]?.trim() || null;
-    deliveryService.updateDelivery(deliveryId, { contentUrl: url });
+    await deliveryService.updateDelivery(deliveryId, { contentUrl: url });
     setSavedId(deliveryId);
     setTimeout(() => setSavedId(null), 1500);
     load();

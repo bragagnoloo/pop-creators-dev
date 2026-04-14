@@ -1,7 +1,6 @@
 export interface AuthUser {
   id: string;
   email: string;
-  password: string; // base64 for MVP only
   role: 'creator' | 'admin';
   createdAt: string;
 }

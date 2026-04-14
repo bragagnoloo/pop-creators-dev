@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
+import * as authService from '@/services/auth';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { ROUTES } from '@/lib/constants';
@@ -16,16 +17,15 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const result = login(email, password);
+    const result = await login(email, password);
     if (result.success) {
-      // Check if admin
-      const session = JSON.parse(localStorage.getItem('popline_session') || '{}');
-      if (session.role === 'admin') {
+      const current = await authService.getCurrentUser();
+      if (current?.role === 'admin') {
         router.push(ROUTES.ADMIN);
       } else {
         router.push(ROUTES.DASHBOARD);

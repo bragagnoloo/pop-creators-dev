@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { NextResponse } from 'next/server';
+import { requirePaidUser } from '@/lib/auth-guard';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -81,6 +83,19 @@ export async function POST(request: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: 'API key não configurada.' }, { status: 500 });
+  }
+
+  // Auth + plano pago
+  const guard = await requirePaidUser();
+  if (guard instanceof NextResponse) return guard;
+
+  // Rate limit: 10 gerações por minuto por usuário
+  const rl = checkRateLimit(`gen:${guard.userId}`, 10, 60_000);
+  if (!rl.allowed) {
+    return NextResponse.json(
+      { error: `Muitas requisições. Tente novamente em ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+      { status: 429 }
+    );
   }
 
   let body: GenerateRequest;

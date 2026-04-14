@@ -25,16 +25,19 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
   const [paywallOpen, setPaywallOpen] = useState(false);
 
   useEffect(() => {
-    setCampaigns(campaignService.getAllCampaigns().filter(c => c.status === 'open'));
-    setApplications(campaignService.getUserApplications(userId));
+    (async () => {
+      const all = await campaignService.getAllCampaigns();
+      setCampaigns(all.filter(c => c.status === 'open'));
+      setApplications(await campaignService.getUserApplications(userId));
+    })();
   }, [userId]);
 
-  const handleApply = (campaignId: string) => {
-    if (!subService.isPaid(userId)) {
+  const handleApply = async (campaignId: string) => {
+    if (!(await subService.isPaid(userId))) {
       setPaywallOpen(true);
       return;
     }
-    const profile = userService.getProfile(userId);
+    const profile = await userService.getProfile(userId);
     if (!profile) return;
 
     const { complete, missing } = getProfileCompleteness(profile);
@@ -44,8 +47,8 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
       return;
     }
 
-    campaignService.applyToCampaign(campaignId, userId);
-    setApplications(campaignService.getUserApplications(userId));
+    await campaignService.applyToCampaign(campaignId, userId);
+    setApplications(await campaignService.getUserApplications(userId));
   };
 
   if (campaigns.length === 0) {

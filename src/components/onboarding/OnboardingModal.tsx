@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import * as userService from '@/services/users';
+import { uploadImage, avatarPath } from '@/lib/supabase/storage';
 
 interface OnboardingModalProps {
   userId: string;
@@ -16,19 +17,22 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
   const [fullName, setFullName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) {
-      setError('A imagem deve ter no maximo 500KB.');
+    if (file.size > 800 * 1024) {
+      setError('A imagem deve ter no máximo 800KB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setPhotoUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setPhotoFile(file);
+    setPreview(URL.createObjectURL(file));
+    setError('');
   };
 
   const formatWhatsapp = (value: string) => {
@@ -38,7 +42,7 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -51,13 +55,26 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
       return;
     }
 
-    userService.updateProfile(userId, {
+    setUploading(true);
+    let finalPhoto = photoUrl;
+    if (photoFile) {
+      const uploaded = await uploadImage('avatars', avatarPath(userId, photoFile), photoFile);
+      if (!uploaded) {
+        setError('Falha ao enviar foto. Tente novamente.');
+        setUploading(false);
+        return;
+      }
+      finalPhoto = uploaded;
+    }
+
+    await userService.updateProfile(userId, {
       fullName: fullName.trim(),
       whatsapp,
-      photoUrl,
+      photoUrl: finalPhoto,
       onboardingComplete: true,
     });
 
+    setUploading(false);
     onComplete();
   };
 
@@ -76,7 +93,7 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
 
         {/* Photo upload */}
         <div className="flex flex-col items-center gap-3">
-          <Avatar src={photoUrl} name={fullName} size="xl" />
+          <Avatar src={preview || photoUrl} name={fullName} size="xl" />
           <input
             ref={fileRef}
             type="file"
@@ -90,7 +107,7 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
             size="sm"
             onClick={() => fileRef.current?.click()}
           >
-            {photoUrl ? 'Trocar Foto' : 'Carregar Foto'}
+            {preview || photoUrl ? 'Trocar Foto' : 'Carregar Foto'}
           </Button>
         </div>
 
@@ -110,8 +127,8 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
           required
         />
 
-        <Button type="submit" className="w-full">
-          Salvar e Continuar
+        <Button type="submit" className="w-full" disabled={uploading}>
+          {uploading ? 'Enviando...' : 'Salvar e Continuar'}
         </Button>
       </form>
     </Modal>

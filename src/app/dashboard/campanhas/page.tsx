@@ -26,8 +26,10 @@ export default function CampanhasPage() {
 
   useEffect(() => {
     if (!user) return;
-    setCampaigns(campaignService.getAllCampaigns());
-    setApplications(campaignService.getUserApplications(user.id));
+    (async () => {
+      setCampaigns(await campaignService.getAllCampaigns());
+      setApplications(await campaignService.getUserApplications(user.id));
+    })();
   }, [user]);
 
   const appliedIds = useMemo(
@@ -42,13 +44,13 @@ export default function CampanhasPage() {
     return campaigns.filter(c => appliedIds.has(c.id));
   }, [campaigns, appliedIds, filter]);
 
-  const handleApply = (campaignId: string) => {
+  const handleApply = async (campaignId: string) => {
     if (!user) return;
-    if (!subService.isPaid(user.id)) {
+    if (!(await subService.isPaid(user.id))) {
       setPaywallOpen(true);
       return;
     }
-    const profile = userService.getProfile(user.id);
+    const profile = await userService.getProfile(user.id);
     if (!profile) return;
 
     const { complete, missing } = getProfileCompleteness(profile);
@@ -58,8 +60,8 @@ export default function CampanhasPage() {
       return;
     }
 
-    campaignService.applyToCampaign(campaignId, user.id);
-    setApplications(campaignService.getUserApplications(user.id));
+    await campaignService.applyToCampaign(campaignId, user.id);
+    setApplications(await campaignService.getUserApplications(user.id));
   };
 
   const counts = {

@@ -9,10 +9,11 @@ import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { InstagramIcon, TikTokIcon } from '@/components/ui/SocialIcons';
 import { useCepLookup, formatCep } from '@/hooks/useCepLookup';
+import { uploadImage, avatarPath } from '@/lib/supabase/storage';
 
 interface ProfileEditModalProps {
   profile: UserProfile;
-  onSave: (data: Partial<UserProfile>) => void;
+  onSave: (data: Partial<UserProfile>) => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -21,6 +22,9 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
   const [whatsapp, setWhatsapp] = useState(profile.whatsapp);
   const [bio, setBio] = useState(profile.bio);
   const [photoUrl, setPhotoUrl] = useState(profile.photoUrl);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const [instagram, setInstagram] = useState(profile.instagram);
   const [instagramFollowers, setInstagramFollowers] = useState(profile.instagramFollowers);
   const [tiktok, setTiktok] = useState(profile.tiktok);
@@ -37,10 +41,12 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
   const handlePhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) return;
-    const reader = new FileReader();
-    reader.onload = () => setPhotoUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    if (file.size > 800 * 1024) {
+      alert('A imagem deve ter no máximo 800KB.');
+      return;
+    }
+    setPhotoFile(file);
+    setPreview(URL.createObjectURL(file));
   };
 
   const formatWhatsapp = (value: string) => {
@@ -70,13 +76,25 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({
-      fullName, whatsapp, bio, photoUrl,
+    setUploading(true);
+    let finalPhoto = photoUrl;
+    if (photoFile) {
+      const uploaded = await uploadImage(
+        'avatars',
+        avatarPath(profile.userId, photoFile),
+        photoFile,
+        profile.photoUrl
+      );
+      if (uploaded) finalPhoto = uploaded;
+    }
+    await onSave({
+      fullName, whatsapp, bio, photoUrl: finalPhoto,
       instagram, instagramFollowers, tiktok, tiktokFollowers,
       cep, state, city, neighborhood, address,
     });
+    setUploading(false);
     onClose();
   };
 
@@ -84,7 +102,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
     <Modal isOpen onClose={onClose} title="Editar Perfil">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex flex-col items-center gap-3">
-          <Avatar src={photoUrl} name={fullName} size="lg" />
+          <Avatar src={preview || photoUrl} name={fullName} size="lg" />
           <input
             ref={fileRef}
             type="file"
@@ -226,8 +244,8 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" className="flex-1">
-            Salvar
+          <Button type="submit" className="flex-1" disabled={uploading}>
+            {uploading ? 'Enviando...' : 'Salvar'}
           </Button>
         </div>
       </form>

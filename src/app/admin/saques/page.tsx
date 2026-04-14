@@ -16,12 +16,12 @@ export default function AdminSaquesPage() {
   const [profiles, setProfiles] = useState<Record<string, UserProfile | null>>({});
   const [filter, setFilter] = useState<Filter>('requested');
 
-  const load = () => {
-    const all = walletService.getAllWithdrawals();
+  const load = async () => {
+    const all = await walletService.getAllWithdrawals();
     setWithdrawals(all);
     const map: Record<string, UserProfile | null> = {};
     for (const w of all) {
-      if (!(w.userId in map)) map[w.userId] = userService.getProfile(w.userId);
+      if (!(w.userId in map)) map[w.userId] = await userService.getProfile(w.userId);
     }
     setProfiles(map);
   };
@@ -30,8 +30,8 @@ export default function AdminSaquesPage() {
     load();
   }, []);
 
-  const handlePaid = (id: string) => {
-    walletService.markWithdrawalPaid(id);
+  const handlePaid = async (id: string) => {
+    await walletService.markWithdrawalPaid(id);
     load();
   };
 

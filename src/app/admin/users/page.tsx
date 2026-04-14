@@ -19,26 +19,32 @@ export default function AdminUsersPage() {
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
 
-  const refreshPlans = (list: UserProfile[]) => {
+  const refreshPlans = async (list: UserProfile[]) => {
     const map: Record<string, PlanId> = {};
-    for (const p of list) map[p.userId] = subService.getUserPlan(p.userId);
+    await Promise.all(
+      list.map(async p => {
+        map[p.userId] = await subService.getUserPlan(p.userId);
+      })
+    );
     setPlansMap(map);
   };
 
   useEffect(() => {
-    const list = userService.getAllProfiles();
-    setProfiles(list);
-    refreshPlans(list);
+    (async () => {
+      const list = await userService.getAllProfiles();
+      setProfiles(list);
+      refreshPlans(list);
+    })();
   }, []);
 
-  const openPlanEditor = (profile: UserProfile) => {
+  const openPlanEditor = async (profile: UserProfile) => {
     setPlanFor(profile);
-    setPlanChoice(subService.getUserPlan(profile.userId));
+    setPlanChoice(await subService.getUserPlan(profile.userId));
   };
 
-  const savePlan = () => {
+  const savePlan = async () => {
     if (!planFor) return;
-    subService.setUserPlan(planFor.userId, planChoice, 'admin');
+    await subService.setUserPlan(planFor.userId, planChoice, 'admin');
     refreshPlans(profiles);
     setPlanFor(null);
   };

@@ -99,13 +99,14 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
   useEffect(() => {
     if (!user) return;
-    const p = userService.getProfile(user.id);
-    setPhotoUrl(p?.photoUrl ?? null);
-    setFullName(p?.fullName ?? '');
+    userService.getProfile(user.id).then(p => {
+      setPhotoUrl(p?.photoUrl ?? null);
+      setFullName(p?.fullName ?? '');
+    });
   }, [user]);
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push(ROUTES.HOME);
   };
 

@@ -22,11 +22,11 @@ export default function AulasPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  const load = useCallback(() => {
-    setLessons(lessonService.getAllLessons());
+  const load = useCallback(async () => {
+    setLessons(await lessonService.getAllLessons());
     if (user) {
-      setWatched(lessonService.getWatchedIds(user.id));
-      setProfile(userService.getProfile(user.id));
+      setWatched(await lessonService.getWatchedIds(user.id));
+      setProfile(await userService.getProfile(user.id));
     }
   }, [user]);
 
@@ -49,14 +49,14 @@ export default function AulasPage() {
   const hero = lessons[0] || null;
   const grid = hero ? filtered.filter(l => l.id !== hero.id) : filtered;
 
-  const handlePlay = (lesson: Lesson) => {
-    if (user && !subService.isPaid(user.id)) {
+  const handlePlay = async (lesson: Lesson) => {
+    if (user && !(await subService.isPaid(user.id))) {
       setPaywallOpen(true);
       return;
     }
     setExpandedId(prev => (prev === lesson.id ? null : lesson.id));
     if (user && !watched.has(lesson.id)) {
-      lessonService.markWatched(user.id, lesson.id);
+      await lessonService.markWatched(user.id, lesson.id);
       setWatched(prev => new Set(prev).add(lesson.id));
     }
   };
@@ -210,7 +210,10 @@ function HeroLesson({
   isNew: boolean;
   onPlay: () => void;
 }) {
-  const summary = lessonService.getLessonRatingSummary(lesson.id);
+  const [summary, setSummary] = useState({ average: 0, count: 0 });
+  useEffect(() => {
+    lessonService.getLessonRatingSummary(lesson.id).then(setSummary);
+  }, [lesson.id]);
   return (
     <button
       onClick={onPlay}
@@ -292,7 +295,10 @@ function LessonCard({
   isNew: boolean;
   onPlay: () => void;
 }) {
-  const summary = lessonService.getLessonRatingSummary(lesson.id);
+  const [summary, setSummary] = useState({ average: 0, count: 0 });
+  useEffect(() => {
+    lessonService.getLessonRatingSummary(lesson.id).then(setSummary);
+  }, [lesson.id]);
   return (
     <button
       onClick={onPlay}
@@ -427,20 +433,21 @@ function ExpandedLesson({
 // -----------------------------
 
 function RatingSection({ lessonId, userId }: { lessonId: string; userId: string | null }) {
-  const [summary, setSummary] = useState(lessonService.getLessonRatingSummary(lessonId));
-  const [myRating, setMyRating] = useState<number | null>(userId ? lessonService.getUserRating(userId, lessonId) : null);
+  const [summary, setSummary] = useState({ average: 0, count: 0 });
+  const [myRating, setMyRating] = useState<number | null>(null);
   const [hover, setHover] = useState(0);
 
   useEffect(() => {
-    setSummary(lessonService.getLessonRatingSummary(lessonId));
-    setMyRating(userId ? lessonService.getUserRating(userId, lessonId) : null);
+    lessonService.getLessonRatingSummary(lessonId).then(setSummary);
+    if (userId) lessonService.getUserRating(userId, lessonId).then(setMyRating);
+    else setMyRating(null);
   }, [lessonId, userId]);
 
-  const handleSet = (stars: 1 | 2 | 3 | 4 | 5) => {
+  const handleSet = async (stars: 1 | 2 | 3 | 4 | 5) => {
     if (!userId) return;
-    lessonService.setRating(userId, lessonId, stars);
+    await lessonService.setRating(userId, lessonId, stars);
     setMyRating(stars);
-    setSummary(lessonService.getLessonRatingSummary(lessonId));
+    setSummary(await lessonService.getLessonRatingSummary(lessonId));
   };
 
   const display = hover || myRating || 0;
@@ -530,18 +537,18 @@ function CommentsSection({
   const [comments, setComments] = useState<LessonComment[]>([]);
   const [draft, setDraft] = useState('');
 
-  const load = useCallback(() => {
-    setComments(lessonService.getLessonComments(lesson.id));
+  const load = useCallback(async () => {
+    setComments(await lessonService.getLessonComments(lesson.id));
   }, [lesson.id]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !draft.trim()) return;
-    lessonService.addComment({
+    await lessonService.addComment({
       lessonId: lesson.id,
       userId: user.id,
       authorName: profile?.fullName || user.email,
@@ -552,8 +559,8 @@ function CommentsSection({
     load();
   };
 
-  const handleDelete = (id: string) => {
-    lessonService.deleteComment(id);
+  const handleDelete = async (id: string) => {
+    await lessonService.deleteComment(id);
     load();
   };
 

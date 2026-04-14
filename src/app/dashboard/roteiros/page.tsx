@@ -79,9 +79,9 @@ export default function RoteirosPage() {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const loadSaved = useCallback(() => {
+  const loadSaved = useCallback(async () => {
     if (!user) return;
-    setSavedScripts(scriptsService.getUserScripts(user.id));
+    setSavedScripts(await scriptsService.getUserScripts(user.id));
   }, [user]);
 
   useEffect(() => {
@@ -102,7 +102,7 @@ export default function RoteirosPage() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user && !subService.isPaid(user.id)) {
+    if (user && !(await subService.isPaid(user.id))) {
       setPaywallOpen(true);
       return;
     }
@@ -129,10 +129,10 @@ export default function RoteirosPage() {
     }
   };
 
-  const handleSave = (idx: number) => {
+  const handleSave = async (idx: number) => {
     if (!user) return;
     const item = variations[idx];
-    scriptsService.saveScript({
+    await scriptsService.saveScript({
       userId: user.id,
       title: item.variation.title,
       inputs: currentInputs(),
@@ -144,7 +144,7 @@ export default function RoteirosPage() {
 
   const handleRefine = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (user && !subService.isPaid(user.id)) {
+    if (user && !(await subService.isPaid(user.id))) {
       setPaywallOpen(true);
       return;
     }
@@ -195,8 +195,8 @@ export default function RoteirosPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDelete = (id: string) => {
-    scriptsService.deleteScript(id);
+  const handleDelete = async (id: string) => {
+    await scriptsService.deleteScript(id);
     if (expandedId === id) setExpandedId(null);
     loadSaved();
   };

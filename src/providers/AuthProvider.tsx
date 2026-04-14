@@ -3,13 +3,14 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { AuthUser } from '@/types';
 import * as authService from '@/services/auth';
+import { createClient } from '@/lib/supabase/client';
 
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
-  login: (email: string, password: string) => { success: boolean; error?: string };
-  register: (email: string, password: string) => { success: boolean; error?: string };
-  logout: () => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  register: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -19,14 +20,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    authService.seedAdmin();
-    const current = authService.getCurrentUser();
-    setUser(current);
-    setIsLoading(false);
+    let mounted = true;
+
+    authService.getCurrentUser().then(current => {
+      if (!mounted) return;
+      setUser(current);
+      setIsLoading(false);
+    });
+
+    // Reage a mudanças de sessão (login em outra aba, logout, refresh)
+    const supabase = createClient();
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!mounted) return;
+      if (!session) {
+        setUser(null);
+      } else {
+        authService.getCurrentUser().then(u => mounted && setUser(u));
+      }
+    });
+
+    return () => {
+      mounted = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
-  const login = useCallback((email: string, password: string) => {
-    const result = authService.login(email, password);
+  const login = useCallback(async (email: string, password: string) => {
+    const result = await authService.login(email, password);
     if (result.success) {
       setUser(result.user);
       return { success: true };
@@ -34,17 +54,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { success: false, error: result.error };
   }, []);
 
-  const register = useCallback((email: string, password: string) => {
-    const result = authService.register(email, password);
-    if (result.success) {
-      setUser(result.user);
-      return { success: true };
+  const register = useCallback(async (email: string, password: string) => {
+    const result = await authService.register(email, password);
+    if (!result.success) {
+      return { success: false, error: result.error };
     }
-    return { success: false, error: result.error };
+    if ('needsConfirmation' in result && result.needsConfirmation) {
+      return { success: true, needsConfirmation: true };
+    }
+    if ('user' in result) {
+      setUser(result.user);
+    }
+    return { success: true };
   }, []);
 
-  const logout = useCallback(() => {
-    authService.logout();
+  const logout = useCallback(async () => {
+    await authService.logout();
     setUser(null);
   }, []);
 

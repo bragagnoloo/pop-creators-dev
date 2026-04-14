@@ -16,9 +16,9 @@ export default function DashboardPage() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
 
-  const loadProfile = useCallback(() => {
+  const loadProfile = useCallback(async () => {
     if (!user) return;
-    const p = userService.getProfile(user.id);
+    const p = await userService.getProfile(user.id);
     setProfile(p);
     if (p && !p.onboardingComplete) {
       setShowOnboarding(true);
@@ -46,8 +46,8 @@ export default function DashboardPage() {
       {showEditProfile && (
         <ProfileEditModal
           profile={profile}
-          onSave={(data) => {
-            userService.updateProfile(user.id, data);
+          onSave={async (data) => {
+            await userService.updateProfile(user.id, data);
             loadProfile();
           }}
           onClose={() => setShowEditProfile(false)}

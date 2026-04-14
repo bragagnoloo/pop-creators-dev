@@ -1,14 +1,13 @@
 import { Subscription, PlanId } from '@/types';
-import { getItem, setItem } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
 
 export interface PlanInfo {
   id: PlanId;
   name: string;
-  priceTotal: number; // total paid upfront
+  priceTotal: number;
   durationMonths: number;
   monthlyEquivalent: number;
-  modifier: number; // 1x, 2x, 5x approval modifier
+  modifier: number;
   prizes: boolean;
   tagline: string;
 }
@@ -58,17 +57,33 @@ export const PLANS: Record<PlanId, PlanInfo> = {
 
 export const PLAN_ORDER: PlanId[] = ['yearly', 'semester', 'monthly', 'free'];
 
-function getAll(): Subscription[] {
-  return getItem<Subscription[]>(STORAGE_KEYS.SUBSCRIPTIONS) || [];
+type Row = {
+  user_id: string;
+  plan: PlanId;
+  started_at: string;
+  expires_at: string | null;
+  assigned_by: 'system' | 'admin';
+};
+
+function toSubscription(r: Row): Subscription {
+  return {
+    userId: r.user_id,
+    plan: r.plan,
+    startedAt: r.started_at,
+    expiresAt: r.expires_at,
+    assignedBy: r.assigned_by,
+  };
 }
 
-function saveAll(list: Subscription[]): void {
-  setItem(STORAGE_KEYS.SUBSCRIPTIONS, list);
-}
+export async function getUserSubscription(userId: string): Promise<Subscription> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('user_id, plan, started_at, expires_at, assigned_by')
+    .eq('user_id', userId)
+    .single();
 
-export function getUserSubscription(userId: string): Subscription {
-  const sub = getAll().find(s => s.userId === userId);
-  if (!sub) {
+  if (!data) {
     return {
       userId,
       plan: 'free',
@@ -77,42 +92,49 @@ export function getUserSubscription(userId: string): Subscription {
       assignedBy: 'system',
     };
   }
-  // Expire if past expiresAt
+
+  const sub = toSubscription(data as Row);
+  // Expira em free se passou a data
   if (sub.expiresAt && new Date(sub.expiresAt).getTime() < Date.now()) {
-    return { ...sub, plan: 'free', expiresAt: sub.expiresAt };
+    return { ...sub, plan: 'free' };
   }
   return sub;
 }
 
-export function getUserPlan(userId: string): PlanId {
-  return getUserSubscription(userId).plan;
+export async function getUserPlan(userId: string): Promise<PlanId> {
+  return (await getUserSubscription(userId)).plan;
 }
 
-export function isPaid(userId: string): boolean {
-  return getUserPlan(userId) !== 'free';
+export async function isPaid(userId: string): Promise<boolean> {
+  return (await getUserPlan(userId)) !== 'free';
 }
 
-export function setUserPlan(userId: string, plan: PlanId, assignedBy: 'admin' | 'system' = 'admin'): Subscription {
-  const all = getAll();
-  const now = new Date();
+export async function setUserPlan(
+  userId: string,
+  plan: PlanId,
+  assignedBy: 'admin' | 'system' = 'admin'
+): Promise<Subscription> {
+  const supabase = createClient();
   const info = PLANS[plan];
+  const now = new Date();
   const expiresAt =
     plan === 'free' || info.durationMonths === 0
       ? null
       : new Date(now.getTime() + info.durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
 
-  const record: Subscription = {
-    userId,
-    plan,
-    startedAt: now.toISOString(),
-    expiresAt,
-    assignedBy,
-  };
-  const idx = all.findIndex(s => s.userId === userId);
-  if (idx === -1) all.push(record);
-  else all[idx] = record;
-  saveAll(all);
-  return record;
+  const { data } = await supabase
+    .from('subscriptions')
+    .upsert({
+      user_id: userId,
+      plan,
+      started_at: now.toISOString(),
+      expires_at: expiresAt,
+      assigned_by: assignedBy,
+    })
+    .select('user_id, plan, started_at, expires_at, assigned_by')
+    .single();
+
+  return toSubscription(data as Row);
 }
 
 export function formatBRL(value: number): string {

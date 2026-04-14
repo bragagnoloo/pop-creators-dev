@@ -1,41 +1,79 @@
-import { Lesson, LessonRating, LessonComment } from '@/types';
-import { getItem, setItem, generateId } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { Lesson, LessonComment } from '@/types';
+import { createClient } from '@/lib/supabase/client';
 
-function getLessons(): Lesson[] {
-  return getItem<Lesson[]>(STORAGE_KEYS.LESSONS) || [];
-}
+type LessonRow = {
+  id: string;
+  title: string;
+  description: string;
+  thumbnail_url: string | null;
+  youtube_url: string;
+  created_at: string;
+};
 
-function saveLessons(lessons: Lesson[]): void {
-  setItem(STORAGE_KEYS.LESSONS, lessons);
-}
+type CommentRow = {
+  id: string;
+  lesson_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author: { full_name: string; photo_url: string | null; email: string } | null;
+};
 
-export function getAllLessons(): Lesson[] {
-  return getLessons().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export function createLesson(data: Omit<Lesson, 'id' | 'createdAt'>): Lesson {
-  const lesson: Lesson = {
-    ...data,
-    id: generateId(),
-    createdAt: new Date().toISOString(),
+function toLesson(r: LessonRow): Lesson {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    thumbnailUrl: r.thumbnail_url,
+    youtubeUrl: r.youtube_url,
+    createdAt: r.created_at,
   };
-  saveLessons([...getLessons(), lesson]);
-  return lesson;
 }
 
-export function updateLesson(id: string, data: Partial<Lesson>): Lesson | null {
-  const lessons = getLessons();
-  const index = lessons.findIndex(l => l.id === id);
-  if (index === -1) return null;
-  lessons[index] = { ...lessons[index], ...data };
-  saveLessons(lessons);
-  return lessons[index];
+const L_SELECT = 'id, title, description, thumbnail_url, youtube_url, created_at';
+
+// ---------- Lessons CRUD ----------
+
+export async function getAllLessons(): Promise<Lesson[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from('lessons').select(L_SELECT).order('created_at', { ascending: false });
+  if (!data) return [];
+  return (data as LessonRow[]).map(toLesson);
 }
 
-export function deleteLesson(id: string): void {
-  saveLessons(getLessons().filter(l => l.id !== id));
+export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt'>): Promise<Lesson | null> {
+  const supabase = createClient();
+  const { data: inserted } = await supabase
+    .from('lessons')
+    .insert({
+      title: data.title,
+      description: data.description,
+      thumbnail_url: data.thumbnailUrl,
+      youtube_url: data.youtubeUrl,
+    })
+    .select(L_SELECT)
+    .single();
+  return inserted ? toLesson(inserted as LessonRow) : null;
 }
+
+export async function updateLesson(id: string, data: Partial<Lesson>): Promise<Lesson | null> {
+  const supabase = createClient();
+  const patch: Record<string, unknown> = {};
+  if (data.title !== undefined) patch.title = data.title;
+  if (data.description !== undefined) patch.description = data.description;
+  if (data.thumbnailUrl !== undefined) patch.thumbnail_url = data.thumbnailUrl;
+  if (data.youtubeUrl !== undefined) patch.youtube_url = data.youtubeUrl;
+
+  const { data: updated } = await supabase.from('lessons').update(patch).eq('id', id).select(L_SELECT).single();
+  return updated ? toLesson(updated as LessonRow) : null;
+}
+
+export async function deleteLesson(id: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from('lessons').delete().eq('id', id);
+}
+
+// ---------- YouTube helpers ----------
 
 export function extractYoutubeId(url: string): string | null {
   if (!url) return null;
@@ -55,28 +93,17 @@ export function getYoutubeEmbedUrl(url: string): string | null {
   return id ? `https://www.youtube.com/embed/${id}` : null;
 }
 
-// --- Watched state (per user) ---
+// ---------- Watched ----------
 
-type WatchedMap = Record<string, string[]>; // userId -> [lessonId...]
-
-function getWatchedMap(): WatchedMap {
-  return getItem<WatchedMap>(STORAGE_KEYS.WATCHED_LESSONS) || {};
+export async function getWatchedIds(userId: string): Promise<Set<string>> {
+  const supabase = createClient();
+  const { data } = await supabase.from('watched_lessons').select('lesson_id').eq('user_id', userId);
+  return new Set((data || []).map(r => r.lesson_id));
 }
 
-function saveWatchedMap(m: WatchedMap): void {
-  setItem(STORAGE_KEYS.WATCHED_LESSONS, m);
-}
-
-export function getWatchedIds(userId: string): Set<string> {
-  return new Set(getWatchedMap()[userId] || []);
-}
-
-export function markWatched(userId: string, lessonId: string): void {
-  const map = getWatchedMap();
-  const list = new Set(map[userId] || []);
-  list.add(lessonId);
-  map[userId] = Array.from(list);
-  saveWatchedMap(map);
+export async function markWatched(userId: string, lessonId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from('watched_lessons').upsert({ user_id: userId, lesson_id: lessonId });
 }
 
 export function isNew(lesson: Lesson, days = 7): boolean {
@@ -84,62 +111,76 @@ export function isNew(lesson: Lesson, days = 7): boolean {
   return Date.now() - created <= days * 24 * 60 * 60 * 1000;
 }
 
-// --- Ratings ---
+// ---------- Ratings ----------
 
-function getRatings(): LessonRating[] {
-  return getItem<LessonRating[]>(STORAGE_KEYS.LESSON_RATINGS) || [];
+export async function setRating(userId: string, lessonId: string, stars: 1 | 2 | 3 | 4 | 5): Promise<void> {
+  const supabase = createClient();
+  await supabase.from('lesson_ratings').upsert({ user_id: userId, lesson_id: lessonId, stars });
 }
 
-function saveRatings(list: LessonRating[]): void {
-  setItem(STORAGE_KEYS.LESSON_RATINGS, list);
+export async function getUserRating(userId: string, lessonId: string): Promise<number | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('lesson_ratings')
+    .select('stars')
+    .eq('user_id', userId)
+    .eq('lesson_id', lessonId)
+    .maybeSingle();
+  return data?.stars ?? null;
 }
 
-export function setRating(userId: string, lessonId: string, stars: 1 | 2 | 3 | 4 | 5): void {
-  const all = getRatings();
-  const idx = all.findIndex(r => r.userId === userId && r.lessonId === lessonId);
-  const record: LessonRating = { userId, lessonId, stars, updatedAt: new Date().toISOString() };
-  if (idx === -1) all.push(record);
-  else all[idx] = record;
-  saveRatings(all);
+export async function getLessonRatingSummary(lessonId: string): Promise<{ average: number; count: number }> {
+  const supabase = createClient();
+  const { data } = await supabase.from('lesson_ratings').select('stars').eq('lesson_id', lessonId);
+  if (!data || data.length === 0) return { average: 0, count: 0 };
+  const sum = data.reduce((acc, r) => acc + r.stars, 0);
+  return { average: sum / data.length, count: data.length };
 }
 
-export function getUserRating(userId: string, lessonId: string): number | null {
-  return getRatings().find(r => r.userId === userId && r.lessonId === lessonId)?.stars || null;
+// ---------- Comments ----------
+
+export async function getLessonComments(lessonId: string): Promise<LessonComment[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('lesson_comments')
+    .select('id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)')
+    .eq('lesson_id', lessonId)
+    .order('created_at', { ascending: false });
+  if (!data) return [];
+  return (data as unknown as CommentRow[]).map(r => ({
+    id: r.id,
+    lessonId: r.lesson_id,
+    userId: r.user_id,
+    content: r.content,
+    createdAt: r.created_at,
+    authorName: r.author?.full_name || r.author?.email || 'Usuário',
+    authorPhoto: r.author?.photo_url ?? null,
+  }));
 }
 
-export function getLessonRatingSummary(lessonId: string): { average: number; count: number } {
-  const ratings = getRatings().filter(r => r.lessonId === lessonId);
-  if (ratings.length === 0) return { average: 0, count: 0 };
-  const sum = ratings.reduce((acc, r) => acc + r.stars, 0);
-  return { average: sum / ratings.length, count: ratings.length };
-}
-
-// --- Comments ---
-
-function getComments(): LessonComment[] {
-  return getItem<LessonComment[]>(STORAGE_KEYS.LESSON_COMMENTS) || [];
-}
-
-function saveComments(list: LessonComment[]): void {
-  setItem(STORAGE_KEYS.LESSON_COMMENTS, list);
-}
-
-export function getLessonComments(lessonId: string): LessonComment[] {
-  return getComments()
-    .filter(c => c.lessonId === lessonId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export function addComment(data: Omit<LessonComment, 'id' | 'createdAt'>): LessonComment {
-  const comment: LessonComment = {
-    ...data,
-    id: generateId(),
-    createdAt: new Date().toISOString(),
+export async function addComment(
+  data: Omit<LessonComment, 'id' | 'createdAt'>
+): Promise<LessonComment | null> {
+  const supabase = createClient();
+  const { data: inserted } = await supabase
+    .from('lesson_comments')
+    .insert({ lesson_id: data.lessonId, user_id: data.userId, content: data.content })
+    .select('id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)')
+    .single();
+  if (!inserted) return null;
+  const r = inserted as unknown as CommentRow;
+  return {
+    id: r.id,
+    lessonId: r.lesson_id,
+    userId: r.user_id,
+    content: r.content,
+    createdAt: r.created_at,
+    authorName: r.author?.full_name || r.author?.email || 'Usuário',
+    authorPhoto: r.author?.photo_url ?? null,
   };
-  saveComments([...getComments(), comment]);
-  return comment;
 }
 
-export function deleteComment(id: string): void {
-  saveComments(getComments().filter(c => c.id !== id));
+export async function deleteComment(id: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from('lesson_comments').delete().eq('id', id);
 }

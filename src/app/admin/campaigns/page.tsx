@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { Campaign, CampaignApplication, UserProfile } from '@/types';
+import { uploadImage, campaignLogoPath } from '@/lib/supabase/storage';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import Card from '@/components/ui/Card';
@@ -32,6 +33,7 @@ export default function AdminCampaignsPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [viewingApplications, setViewingApplications] = useState<string | null>(null);
   const [applications, setApplications] = useState<(CampaignApplication & { profile: UserProfile | null })[]>([]);
+  const [appCounts, setAppCounts] = useState<Record<string, number>>({});
 
   // Form state
   const [title, setTitle] = useState('');
@@ -41,10 +43,18 @@ export default function AdminCampaignsPage() {
   const [deliveryCount, setDeliveryCount] = useState<string>('1');
   const [briefing, setBriefing] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const loadCampaigns = () => {
-    setCampaigns(campaignService.getAllCampaigns());
+  const loadCampaigns = async () => {
+    const list = await campaignService.getAllCampaigns();
+    setCampaigns(list);
+    const allApps = await campaignService.getAllApplications();
+    const counts: Record<string, number> = {};
+    for (const a of allApps) counts[a.campaignId] = (counts[a.campaignId] || 0) + 1;
+    setAppCounts(counts);
   };
 
   useEffect(() => {
@@ -54,10 +64,12 @@ export default function AdminCampaignsPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) return;
-    const reader = new FileReader();
-    reader.onload = () => setImageUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    if (file.size > 800 * 1024) {
+      alert('Imagem muito grande. Máximo 800KB.');
+      return;
+    }
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const openCreate = () => {
@@ -69,6 +81,8 @@ export default function AdminCampaignsPage() {
     setDeliveryCount('1');
     setBriefing('');
     setImageUrl(null);
+    setImageFile(null);
+    setImagePreview(null);
     setShowForm(true);
   };
 
@@ -81,11 +95,25 @@ export default function AdminCampaignsPage() {
     setDeliveryCount(String(campaign.deliveryCount ?? 1));
     setBriefing(campaign.briefing ?? '');
     setImageUrl(campaign.imageUrl);
+    setImageFile(null);
+    setImagePreview(null);
     setShowForm(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
+    let finalUrl = imageUrl;
+    if (imageFile) {
+      const uploaded = await uploadImage(
+        'campaign-logos',
+        campaignLogoPath(imageFile),
+        imageFile,
+        editing?.imageUrl || null
+      );
+      if (uploaded) finalUrl = uploaded;
+    }
+
     const data = {
       title,
       description,
@@ -94,36 +122,37 @@ export default function AdminCampaignsPage() {
       cache: Number(cache) || 0,
       deliveryCount: Math.max(1, Number(deliveryCount) || 1),
       briefing: briefing.trim() || null,
-      imageUrl,
+      imageUrl: finalUrl,
     };
 
     if (editing) {
-      campaignService.updateCampaign(editing.id, data);
+      await campaignService.updateCampaign(editing.id, data);
     } else {
-      campaignService.createCampaign(data);
+      await campaignService.createCampaign(data);
     }
 
+    setSaving(false);
     setShowForm(false);
     loadCampaigns();
   };
 
-  const openApplications = (campaignId: string) => {
-    const apps = campaignService.getCampaignApplications(campaignId);
-    const enriched = apps.map(app => ({
+  const openApplications = async (campaignId: string) => {
+    const apps = await campaignService.getCampaignApplications(campaignId);
+    const enriched = await Promise.all(apps.map(async app => ({
       ...app,
-      profile: userService.getProfile(app.userId),
-    }));
+      profile: await userService.getProfile(app.userId),
+    })));
     setApplications(enriched);
     setViewingApplications(campaignId);
   };
 
-  const handleAppStatusChange = (applicationId: string, appStatus: CampaignApplication['status']) => {
-    campaignService.updateApplicationStatus(applicationId, appStatus);
+  const handleAppStatusChange = async (applicationId: string, appStatus: CampaignApplication['status']) => {
+    await campaignService.updateApplicationStatus(applicationId, appStatus);
     if (viewingApplications) openApplications(viewingApplications);
   };
 
-  const handleDelete = (id: string) => {
-    campaignService.deleteCampaign(id);
+  const handleDelete = async (id: string) => {
+    await campaignService.deleteCampaign(id);
     setConfirmDelete(null);
     loadCampaigns();
   };
@@ -143,8 +172,8 @@ export default function AdminCampaignsPage() {
             <div className="flex flex-col gap-1.5">
               <label className="text-sm text-text-secondary font-medium">Logo da Campanha</label>
               <div className="flex items-center gap-4">
-                {imageUrl ? (
-                  <img src={imageUrl} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-border" />
+                {imagePreview || imageUrl ? (
+                  <img src={imagePreview || imageUrl!} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-border" />
                 ) : (
                   <div className="w-16 h-16 rounded-xl bg-background border border-border flex items-center justify-center">
                     <svg className="w-6 h-6 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,10 +190,10 @@ export default function AdminCampaignsPage() {
                     className="hidden"
                   />
                   <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
-                    {imageUrl ? 'Trocar Logo' : 'Carregar Logo'}
+                    {imagePreview || imageUrl ? 'Trocar Logo' : 'Carregar Logo'}
                   </Button>
-                  {imageUrl && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setImageUrl(null)}>
+                  {(imagePreview || imageUrl) && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setImageUrl(null); setImageFile(null); setImagePreview(null); }}>
                       Remover
                     </Button>
                   )}
@@ -226,8 +255,8 @@ export default function AdminCampaignsPage() {
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForm(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" className="flex-1">
-                {editing ? 'Salvar' : 'Criar'}
+              <Button type="submit" className="flex-1" disabled={saving}>
+                {saving ? 'Enviando...' : editing ? 'Salvar' : 'Criar'}
               </Button>
             </div>
           </form>
@@ -319,7 +348,7 @@ export default function AdminCampaignsPage() {
                   <p className="text-sm text-text-secondary line-clamp-2">{campaign.description}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">
                     <span>
-                      Inscricoes: {campaignService.getCampaignApplications(campaign.id).length}
+                      Inscricoes: {appCounts[campaign.id] || 0}
                     </span>
                   </div>
                 </div>

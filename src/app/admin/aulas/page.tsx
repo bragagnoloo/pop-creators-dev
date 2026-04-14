@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
+import { uploadImage, lessonThumbnailPath } from '@/lib/supabase/storage';
 
 export default function AdminAulasPage() {
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -19,10 +20,13 @@ export default function AdminAulasPage() {
   const [description, setDescription] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const load = () => setLessons(lessonService.getAllLessons());
+  const load = async () => setLessons(await lessonService.getAllLessons());
 
   useEffect(() => {
     load();
@@ -35,9 +39,8 @@ export default function AdminAulasPage() {
       alert('Imagem muito grande. Máximo 800KB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setThumbnailUrl(reader.result as string);
-    reader.readAsDataURL(file);
+    setThumbnailFile(file);
+    setThumbnailPreview(URL.createObjectURL(file));
   };
 
   const openCreate = () => {
@@ -46,6 +49,8 @@ export default function AdminAulasPage() {
     setDescription('');
     setYoutubeUrl('');
     setThumbnailUrl(null);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
     setUrlError(null);
     setShowForm(true);
   };
@@ -56,28 +61,42 @@ export default function AdminAulasPage() {
     setDescription(lesson.description);
     setYoutubeUrl(lesson.youtubeUrl);
     setThumbnailUrl(lesson.thumbnailUrl);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
     setUrlError(null);
     setShowForm(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lessonService.extractYoutubeId(youtubeUrl)) {
       setUrlError('URL do YouTube inválida. Use um link como https://youtube.com/watch?v=...');
       return;
     }
-    const data = { title, description, youtubeUrl, thumbnailUrl };
-    if (editing) {
-      lessonService.updateLesson(editing.id, data);
-    } else {
-      lessonService.createLesson(data);
+    setSaving(true);
+    let finalThumb = thumbnailUrl;
+    if (thumbnailFile) {
+      const uploaded = await uploadImage(
+        'lesson-thumbnails',
+        lessonThumbnailPath(thumbnailFile),
+        thumbnailFile,
+        editing?.thumbnailUrl || null
+      );
+      if (uploaded) finalThumb = uploaded;
     }
+    const data = { title, description, youtubeUrl, thumbnailUrl: finalThumb };
+    if (editing) {
+      await lessonService.updateLesson(editing.id, data);
+    } else {
+      await lessonService.createLesson(data);
+    }
+    setSaving(false);
     setShowForm(false);
     load();
   };
 
-  const handleDelete = (id: string) => {
-    lessonService.deleteLesson(id);
+  const handleDelete = async (id: string) => {
+    await lessonService.deleteLesson(id);
     setConfirmDelete(null);
     load();
   };
@@ -97,8 +116,8 @@ export default function AdminAulasPage() {
               <label className="text-sm text-text-secondary font-medium">Thumbnail (formato 4:5)</label>
               <div className="flex items-start gap-4">
                 <div className="w-24 aspect-[4/5] rounded-xl bg-background border border-border overflow-hidden flex items-center justify-center shrink-0">
-                  {thumbnailUrl ? (
-                    <img src={thumbnailUrl} alt="Thumbnail" className="w-full h-full object-cover" />
+                  {thumbnailPreview || thumbnailUrl ? (
+                    <img src={thumbnailPreview || thumbnailUrl!} alt="Thumbnail" className="w-full h-full object-cover" />
                   ) : (
                     <svg className="w-6 h-6 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -114,10 +133,10 @@ export default function AdminAulasPage() {
                     className="hidden"
                   />
                   <Button type="button" variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>
-                    {thumbnailUrl ? 'Trocar imagem' : 'Carregar imagem'}
+                    {thumbnailPreview || thumbnailUrl ? 'Trocar imagem' : 'Carregar imagem'}
                   </Button>
-                  {thumbnailUrl && (
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setThumbnailUrl(null)}>
+                  {(thumbnailPreview || thumbnailUrl) && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => { setThumbnailUrl(null); setThumbnailFile(null); setThumbnailPreview(null); }}>
                       Remover
                     </Button>
                   )}
@@ -157,8 +176,8 @@ export default function AdminAulasPage() {
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForm(false)}>
                 Cancelar
               </Button>
-              <Button type="submit" className="flex-1">
-                {editing ? 'Salvar' : 'Criar'}
+              <Button type="submit" className="flex-1" disabled={saving}>
+                {saving ? 'Enviando...' : editing ? 'Salvar' : 'Criar'}
               </Button>
             </div>
           </form>

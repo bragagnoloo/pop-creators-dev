@@ -1,33 +1,60 @@
 import { SavedScript } from '@/types';
-import { getItem, setItem, generateId } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
 
-function getAll(): SavedScript[] {
-  return getItem<SavedScript[]>(STORAGE_KEYS.SCRIPTS) || [];
-}
+type Row = {
+  id: string;
+  user_id: string;
+  title: string;
+  inputs: SavedScript['inputs'];
+  variation: SavedScript['variation'];
+  refinement_level: number;
+  created_at: string;
+};
 
-function saveAll(list: SavedScript[]): void {
-  setItem(STORAGE_KEYS.SCRIPTS, list);
-}
-
-export function getUserScripts(userId: string): SavedScript[] {
-  return getAll()
-    .filter(s => s.userId === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export function saveScript(data: Omit<SavedScript, 'id' | 'createdAt'>): SavedScript {
-  const script: SavedScript = {
-    ...data,
-    id: generateId(),
-    createdAt: new Date().toISOString(),
+function toScript(r: Row): SavedScript {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    title: r.title,
+    inputs: r.inputs,
+    variation: r.variation,
+    refinementLevel: r.refinement_level,
+    createdAt: r.created_at,
   };
-  saveAll([...getAll(), script]);
-  return script;
 }
 
-export function deleteScript(id: string): void {
-  saveAll(getAll().filter(s => s.id !== id));
+const SELECT = 'id, user_id, title, inputs, variation, refinement_level, created_at';
+
+export async function getUserScripts(userId: string): Promise<SavedScript[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('saved_scripts')
+    .select(SELECT)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (!data) return [];
+  return (data as Row[]).map(toScript);
+}
+
+export async function saveScript(data: Omit<SavedScript, 'id' | 'createdAt'>): Promise<SavedScript | null> {
+  const supabase = createClient();
+  const { data: inserted } = await supabase
+    .from('saved_scripts')
+    .insert({
+      user_id: data.userId,
+      title: data.title,
+      inputs: data.inputs,
+      variation: data.variation,
+      refinement_level: data.refinementLevel,
+    })
+    .select(SELECT)
+    .single();
+  return inserted ? toScript(inserted as Row) : null;
+}
+
+export async function deleteScript(id: string): Promise<void> {
+  const supabase = createClient();
+  await supabase.from('saved_scripts').delete().eq('id', id);
 }
 
 export function scriptToText(script: SavedScript): string {

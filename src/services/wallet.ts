@@ -1,69 +1,122 @@
 import { BalanceCredit, Withdrawal, PixKeyType } from '@/types';
-import { getItem, setItem, generateId } from '@/lib/storage';
-import { STORAGE_KEYS } from '@/lib/constants';
+import { createClient } from '@/lib/supabase/client';
 
-function getCredits(): BalanceCredit[] {
-  return getItem<BalanceCredit[]>(STORAGE_KEYS.CREDITS) || [];
+type CreditRow = {
+  id: string;
+  user_id: string;
+  campaign_id: string;
+  amount: number;
+  status: BalanceCredit['status'];
+  consumed_amount: number;
+  created_at: string;
+  released_at: string | null;
+};
+
+type WithdrawalRow = {
+  id: string;
+  user_id: string;
+  amount: number;
+  pix_key: string;
+  pix_key_type: PixKeyType;
+  status: Withdrawal['status'];
+  created_at: string;
+  paid_at: string | null;
+  consumed_credits: { creditId: string; amount: number }[];
+};
+
+function toCredit(r: CreditRow): BalanceCredit {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    campaignId: r.campaign_id,
+    amount: Number(r.amount),
+    status: r.status,
+    consumedAmount: Number(r.consumed_amount),
+    createdAt: r.created_at,
+    releasedAt: r.released_at,
+  };
 }
 
-function saveCredits(c: BalanceCredit[]): void {
-  setItem(STORAGE_KEYS.CREDITS, c);
+function toWithdrawal(r: WithdrawalRow): Withdrawal {
+  return {
+    id: r.id,
+    userId: r.user_id,
+    amount: Number(r.amount),
+    pixKey: r.pix_key,
+    pixKeyType: r.pix_key_type,
+    status: r.status,
+    createdAt: r.created_at,
+    paidAt: r.paid_at,
+    consumedCredits: r.consumed_credits || [],
+  };
 }
 
-function getWithdrawalsRaw(): Withdrawal[] {
-  return getItem<Withdrawal[]>(STORAGE_KEYS.WITHDRAWALS) || [];
-}
-
-function saveWithdrawals(w: Withdrawal[]): void {
-  setItem(STORAGE_KEYS.WITHDRAWALS, w);
-}
+const C_SELECT = 'id, user_id, campaign_id, amount, status, consumed_amount, created_at, released_at';
+const W_SELECT = 'id, user_id, amount, pix_key, pix_key_type, status, created_at, paid_at, consumed_credits';
 
 // ---------- Credits ----------
 
-export function getCreditForUserCampaign(userId: string, campaignId: string): BalanceCredit | null {
-  return getCredits().find(c => c.userId === userId && c.campaignId === campaignId) || null;
+export async function getCreditForUserCampaign(userId: string, campaignId: string): Promise<BalanceCredit | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('balance_credits')
+    .select(C_SELECT)
+    .eq('user_id', userId)
+    .eq('campaign_id', campaignId)
+    .maybeSingle();
+  return data ? toCredit(data as CreditRow) : null;
 }
 
-export function getUserCredits(userId: string): BalanceCredit[] {
-  return getCredits().filter(c => c.userId === userId);
+export async function getUserCredits(userId: string): Promise<BalanceCredit[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from('balance_credits').select(C_SELECT).eq('user_id', userId);
+  if (!data) return [];
+  return (data as CreditRow[]).map(toCredit);
 }
 
-export function getCampaignCredits(campaignId: string): BalanceCredit[] {
-  return getCredits().filter(c => c.campaignId === campaignId);
+export async function getCampaignCredits(campaignId: string): Promise<BalanceCredit[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from('balance_credits').select(C_SELECT).eq('campaign_id', campaignId);
+  if (!data) return [];
+  return (data as CreditRow[]).map(toCredit);
 }
 
-export function getAllCredits(): BalanceCredit[] {
-  return getCredits();
+export async function getAllCredits(): Promise<BalanceCredit[]> {
+  const supabase = createClient();
+  const { data } = await supabase.from('balance_credits').select(C_SELECT);
+  if (!data) return [];
+  return (data as CreditRow[]).map(toCredit);
 }
 
-export function createCredit(userId: string, campaignId: string, amount: number): BalanceCredit | null {
-  const existing = getCreditForUserCampaign(userId, campaignId);
+export async function createCredit(
+  userId: string,
+  campaignId: string,
+  amount: number
+): Promise<BalanceCredit | null> {
+  const existing = await getCreditForUserCampaign(userId, campaignId);
   if (existing) return null;
-  const credit: BalanceCredit = {
-    id: generateId(),
-    userId,
-    campaignId,
-    amount,
-    status: 'processing',
-    createdAt: new Date().toISOString(),
-    releasedAt: null,
-    consumedAmount: 0,
-  };
-  saveCredits([...getCredits(), credit]);
-  return credit;
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('balance_credits')
+    .insert({ user_id: userId, campaign_id: campaignId, amount, status: 'processing' })
+    .select(C_SELECT)
+    .single();
+  return data ? toCredit(data as CreditRow) : null;
 }
 
-export function releaseCredit(creditId: string): BalanceCredit | null {
-  const credits = getCredits();
-  const idx = credits.findIndex(c => c.id === creditId);
-  if (idx === -1) return null;
-  if (credits[idx].status !== 'processing') return credits[idx];
-  credits[idx] = { ...credits[idx], status: 'available', releasedAt: new Date().toISOString() };
-  saveCredits(credits);
-  return credits[idx];
+export async function releaseCredit(creditId: string): Promise<BalanceCredit | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('balance_credits')
+    .update({ status: 'available', released_at: new Date().toISOString() })
+    .eq('id', creditId)
+    .eq('status', 'processing')
+    .select(C_SELECT)
+    .single();
+  return data ? toCredit(data as CreditRow) : null;
 }
 
-// ---------- Balances ----------
+// ---------- Balance summary ----------
 
 export interface WalletSummary {
   available: number;
@@ -71,47 +124,61 @@ export interface WalletSummary {
   totalWithdrawn: number;
 }
 
-export function getUserWalletSummary(userId: string): WalletSummary {
-  const credits = getUserCredits(userId);
+export async function getUserWalletSummary(userId: string): Promise<WalletSummary> {
+  const [credits, withdrawals] = await Promise.all([
+    getUserCredits(userId),
+    getUserWithdrawals(userId),
+  ]);
   let available = 0;
   let processing = 0;
   for (const c of credits) {
     if (c.status === 'processing') processing += c.amount;
     if (c.status === 'available') available += c.amount - c.consumedAmount;
   }
-  const totalWithdrawn = getWithdrawalsRaw()
-    .filter(w => w.userId === userId && w.status === 'paid')
-    .reduce((acc, w) => acc + w.amount, 0);
+  const totalWithdrawn = withdrawals.filter(w => w.status === 'paid').reduce((acc, w) => acc + w.amount, 0);
   return { available, processing, totalWithdrawn };
 }
 
 // ---------- Withdrawals ----------
 
-export function getUserWithdrawals(userId: string): Withdrawal[] {
-  return getWithdrawalsRaw()
-    .filter(w => w.userId === userId)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+export async function getUserWithdrawals(userId: string): Promise<Withdrawal[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('withdrawals')
+    .select(W_SELECT)
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (!data) return [];
+  return (data as WithdrawalRow[]).map(toWithdrawal);
 }
 
-export function getAllWithdrawals(): Withdrawal[] {
-  return getWithdrawalsRaw().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+export async function getAllWithdrawals(): Promise<Withdrawal[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('withdrawals')
+    .select(W_SELECT)
+    .order('created_at', { ascending: false });
+  if (!data) return [];
+  return (data as WithdrawalRow[]).map(toWithdrawal);
 }
 
-export function requestWithdrawal(
+export async function requestWithdrawal(
   userId: string,
   amount: number,
   pixKey: string,
   pixKeyType: PixKeyType
-): { success: true; withdrawal: Withdrawal } | { success: false; error: string } {
+): Promise<{ success: true; withdrawal: Withdrawal } | { success: false; error: string }> {
   if (amount <= 0) return { success: false, error: 'Valor inválido.' };
-  const summary = getUserWalletSummary(userId);
+  const supabase = createClient();
+
+  const summary = await getUserWalletSummary(userId);
   if (amount > summary.available) {
     return { success: false, error: 'Saldo disponível insuficiente.' };
   }
 
-  // FIFO consume
-  const credits = getCredits()
-    .filter(c => c.userId === userId && c.status === 'available' && c.amount - c.consumedAmount > 0)
+  // Pega créditos disponíveis FIFO
+  const credits = (await getUserCredits(userId))
+    .filter(c => c.status === 'available' && c.amount - c.consumedAmount > 0)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   let remaining = amount;
@@ -124,44 +191,50 @@ export function requestWithdrawal(
     remaining -= take;
   }
 
-  // Persist credit consumption
-  const all = getCredits();
+  // Persiste consumo por crédito
   for (const { creditId, amount: amt } of consumed) {
-    const idx = all.findIndex(c => c.id === creditId);
-    if (idx === -1) continue;
-    const newConsumed = all[idx].consumedAmount + amt;
-    const fullyConsumed = newConsumed >= all[idx].amount;
-    all[idx] = {
-      ...all[idx],
-      consumedAmount: newConsumed,
-      status: fullyConsumed ? 'withdrawn' : all[idx].status,
-    };
+    const credit = credits.find(c => c.id === creditId);
+    if (!credit) continue;
+    const newConsumed = credit.consumedAmount + amt;
+    const fullyConsumed = newConsumed >= credit.amount;
+    await supabase
+      .from('balance_credits')
+      .update({
+        consumed_amount: newConsumed,
+        status: fullyConsumed ? 'withdrawn' : credit.status,
+      })
+      .eq('id', creditId);
   }
-  saveCredits(all);
 
-  const withdrawal: Withdrawal = {
-    id: generateId(),
-    userId,
-    amount,
-    pixKey,
-    pixKeyType,
-    status: 'requested',
-    createdAt: new Date().toISOString(),
-    paidAt: null,
-    consumedCredits: consumed,
-  };
-  saveWithdrawals([...getWithdrawalsRaw(), withdrawal]);
-  return { success: true, withdrawal };
+  // Cria o saque
+  const { data, error } = await supabase
+    .from('withdrawals')
+    .insert({
+      user_id: userId,
+      amount,
+      pix_key: pixKey,
+      pix_key_type: pixKeyType,
+      consumed_credits: consumed,
+    })
+    .select(W_SELECT)
+    .single();
+
+  if (error || !data) {
+    return { success: false, error: error?.message || 'Falha ao criar saque.' };
+  }
+  return { success: true, withdrawal: toWithdrawal(data as WithdrawalRow) };
 }
 
-export function markWithdrawalPaid(withdrawalId: string): Withdrawal | null {
-  const all = getWithdrawalsRaw();
-  const idx = all.findIndex(w => w.id === withdrawalId);
-  if (idx === -1) return null;
-  if (all[idx].status === 'paid') return all[idx];
-  all[idx] = { ...all[idx], status: 'paid', paidAt: new Date().toISOString() };
-  saveWithdrawals(all);
-  return all[idx];
+export async function markWithdrawalPaid(withdrawalId: string): Promise<Withdrawal | null> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('withdrawals')
+    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .eq('id', withdrawalId)
+    .eq('status', 'requested')
+    .select(W_SELECT)
+    .single();
+  return data ? toWithdrawal(data as WithdrawalRow) : null;
 }
 
 // ---------- Formatting ----------

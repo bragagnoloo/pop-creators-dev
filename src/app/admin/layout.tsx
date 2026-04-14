@@ -64,8 +64,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
-                logout();
+              onClick={async () => {
+                await logout();
                 router.push(ROUTES.HOME);
               }}
             >

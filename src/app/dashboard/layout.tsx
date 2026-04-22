@@ -33,11 +33,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar collapsed={collapsed} onToggle={toggle} />
 
       <div className={`transition-[padding] duration-200 ${collapsed ? 'pl-16' : 'pl-60'}`}>
-        <main className="pt-8 pb-20 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+        <main className="pt-8 pb-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           {children}
         </main>
 
-        <footer className={`fixed bottom-0 right-0 py-3 bg-background/80 backdrop-blur-xl border-t border-white/5 transition-[left] duration-200 ${collapsed ? 'left-16' : 'left-60'}`}>
+        <footer
+          className={`fixed bottom-0 right-0 py-3 bg-background/80 backdrop-blur-xl border-t border-white/5 transition-[left] duration-200 ${collapsed ? 'left-16' : 'left-60'}`}
+          style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+        >
           <div className="max-w-5xl mx-auto px-4 flex items-center justify-center">
             <a
               href="https://ugcplus.com.br"

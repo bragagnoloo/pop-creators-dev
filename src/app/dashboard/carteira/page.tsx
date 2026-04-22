@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { useAuth } from '@/providers/AuthProvider';
 import { UserProfile, BalanceCredit, Withdrawal, PixKeyType, Campaign } from '@/types';
 import * as userService from '@/services/users';
@@ -53,9 +54,7 @@ export default function CarteiraPage() {
     setCampaigns(map);
   }, [user]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoadOnMount(load, [load]);
 
   const history = useMemo(() => {
     type Entry =
@@ -102,7 +101,7 @@ export default function CarteiraPage() {
     e.preventDefault();
     if (!user || !profile.pixKey || !profile.pixKeyType) return;
     const amount = Number(withdrawAmount);
-    const result = await walletService.requestWithdrawal(user.id, amount, profile.pixKey, profile.pixKeyType);
+    const result = await walletService.requestWithdrawal(amount);
     if (!result.success) {
       setWithdrawError(result.error);
       return;

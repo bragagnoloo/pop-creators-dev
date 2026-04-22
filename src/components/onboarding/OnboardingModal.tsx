@@ -16,7 +16,7 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ userId, onComplete }: OnboardingModalProps) {
   const [fullName, setFullName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [photoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -114,6 +114,7 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
         <Input
           label="Nome Completo"
           placeholder="Seu nome completo"
+          autoComplete="name"
           value={fullName}
           onChange={e => setFullName(e.target.value)}
           required
@@ -122,6 +123,9 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
         <Input
           label="WhatsApp"
           placeholder="(11) 99999-9999"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
           value={whatsapp}
           onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
           required

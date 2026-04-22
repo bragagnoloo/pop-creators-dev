@@ -21,7 +21,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
   const [fullName, setFullName] = useState(profile.fullName);
   const [whatsapp, setWhatsapp] = useState(profile.whatsapp);
   const [bio, setBio] = useState(profile.bio);
-  const [photoUrl, setPhotoUrl] = useState(profile.photoUrl);
+  const [photoUrl] = useState(profile.photoUrl);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -128,6 +128,9 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
 
         <Input
           label="WhatsApp"
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel"
           value={whatsapp}
           onChange={e => setWhatsapp(formatWhatsapp(e.target.value))}
         />
@@ -155,6 +158,8 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
               <Input
                 label="CEP"
                 placeholder="00000-000"
+                inputMode="numeric"
+                autoComplete="postal-code"
                 value={cep}
                 onChange={e => handleCepChange(e.target.value)}
                 error={cepError}
@@ -167,7 +172,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Estado"
               value={state}
@@ -206,7 +211,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
             <InstagramIcon className="w-4 h-4" />
             <span className="text-sm text-text-secondary font-medium">Instagram</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               placeholder="seu_usuario"
               value={instagram}
@@ -214,6 +219,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
             />
             <Input
               placeholder="Seguidores (ex: 15000)"
+              inputMode="numeric"
               value={instagramFollowers}
               onChange={e => setInstagramFollowers(e.target.value.replace(/\D/g, ''))}
             />
@@ -226,7 +232,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
             <TikTokIcon className="w-4 h-4" />
             <span className="text-sm text-text-secondary font-medium">TikTok</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               placeholder="seu_usuario"
               value={tiktok}
@@ -234,6 +240,7 @@ export default function ProfileEditModal({ profile, onSave, onClose }: ProfileEd
             />
             <Input
               placeholder="Seguidores (ex: 50000)"
+              inputMode="numeric"
               value={tiktokFollowers}
               onChange={e => setTiktokFollowers(e.target.value.replace(/\D/g, ''))}
             />

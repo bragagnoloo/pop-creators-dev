@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Campaign, CampaignApplication } from '@/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -22,7 +23,14 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
     <Card className="flex flex-col">
       <div className="flex items-start gap-4 mb-3">
         {campaign.imageUrl ? (
-          <img src={campaign.imageUrl} alt={campaign.title} className="w-12 h-12 rounded-xl object-cover border border-border shrink-0" />
+          <Image
+            src={campaign.imageUrl}
+            alt={campaign.title}
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded-xl object-cover border border-border shrink-0"
+            sizes="48px"
+          />
         ) : (
           <div className="w-12 h-12 rounded-xl bg-background border border-border flex items-center justify-center shrink-0">
             <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

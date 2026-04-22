@@ -37,7 +37,7 @@ export default function HeroSection() {
           <span className="text-sm text-text-secondary">powered by <span className="text-text-primary font-semibold">UGC+</span></span>
         </div>
 
-        <h1 className="animate-slide-up-delay-1 text-4xl sm:text-5xl lg:text-7xl font-bold leading-[1.1] mb-6 tracking-tight">
+        <h1 className="animate-slide-up-delay-1 text-3xl sm:text-5xl lg:text-7xl font-bold leading-[1.1] mb-6 tracking-tight">
           Crie conteudo para o{' '}
           <span className="gradient-text">maior ecossistema</span>
           <br className="hidden sm:block" />
@@ -61,7 +61,7 @@ export default function HeroSection() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-8 mt-20 max-w-lg mx-auto">
+        <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-20 max-w-lg mx-auto">
           {[
             { value: '500+', label: 'Criadores' },
             { value: '50+', label: 'Campanhas' },

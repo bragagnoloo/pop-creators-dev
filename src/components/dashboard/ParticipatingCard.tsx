@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import { useState, useCallback } from 'react';
 import { Campaign, CampaignApplication, CampaignDelivery } from '@/types';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as deliveryService from '@/services/deliveries';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -38,9 +40,7 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
     setUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.contentUrl || ''])));
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoadOnMount(load, [load]);
 
   const status = appStatusMap[application.status];
   const canShowDeliveries = application.status === 'approved';
@@ -74,7 +74,14 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
         className="w-full flex items-center gap-4 p-4 text-left hover:bg-white/[0.02] transition-colors"
       >
         {campaign.imageUrl ? (
-          <img src={campaign.imageUrl} alt={campaign.title} className="w-12 h-12 rounded-xl object-cover border border-border shrink-0" />
+          <Image
+            src={campaign.imageUrl}
+            alt={campaign.title}
+            width={48}
+            height={48}
+            className="w-12 h-12 rounded-xl object-cover border border-border shrink-0"
+            sizes="48px"
+          />
         ) : (
           <div className="w-12 h-12 rounded-xl bg-background border border-border flex items-center justify-center shrink-0">
             <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -6,5 +6,10 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/admin/:path*'],
+  matcher: [
+    // Cobre rotas de app (dashboard/admin) e APIs sensíveis. Exclui:
+    // - _next/static, _next/image, favicon e assets públicos
+    // - /api/debug (dev-only, já protegido internamente)
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico)$).*)',
+  ],
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
@@ -129,9 +129,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <span className="text-xs text-text-secondary whitespace-nowrap">Creators</span>
         </Link>
         <button
+          type="button"
           onClick={onToggle}
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className="w-9 h-9 flex items-center justify-center rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+          aria-expanded={!collapsed}
+          className="inline-flex items-center justify-center min-h-11 min-w-11 rounded-lg text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
         >
           <Icons.Collapse className={`w-4 h-4 transition-transform ${collapsed ? 'rotate-180' : ''}`} />
         </button>
@@ -196,20 +198,44 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   );
 }
 
-export function useSidebarState() {
-  const [collapsed, setCollapsed] = useState(false);
+// Flag em módulo para override do useSyncExternalStore após toggle.
+// useSyncExternalStore lê a cada render, então persistimos a última escolha aqui
+// e notificamos subscribers manualmente. Evita setState-in-effect.
+let overrideCollapsed: boolean | null = null;
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === '1') setCollapsed(true);
-  }, []);
+function notify() {
+  for (const l of listeners) l();
+}
+
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
+  return () => {
+    listeners.delete(cb);
+  };
+}
+
+function getSnapshot(): boolean {
+  if (overrideCollapsed !== null) return overrideCollapsed;
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (saved === '1') return true;
+  if (saved === '0') return false;
+  // Default: collapsed em telas < 768px para não comer a viewport mobile.
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function getServerSnapshot(): boolean {
+  return false;
+}
+
+export function useSidebarState() {
+  const collapsed = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   const toggle = () => {
-    setCollapsed(prev => {
-      const next = !prev;
-      localStorage.setItem(STORAGE_KEY, next ? '1' : '0');
-      return next;
-    });
+    const next = !collapsed;
+    overrideCollapsed = next;
+    localStorage.setItem(STORAGE_KEY, next ? '1' : '0');
+    notify();
   };
 
   return { collapsed, toggle };

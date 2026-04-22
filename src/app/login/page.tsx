@@ -58,6 +58,10 @@ export default function LoginPage() {
           <Input
             label="Email"
             type="email"
+            inputMode="email"
+            autoComplete="email"
+            autoCapitalize="none"
+            spellCheck={false}
             placeholder="seu@email.com"
             value={email}
             onChange={e => setEmail(e.target.value)}
@@ -67,6 +71,7 @@ export default function LoginPage() {
           <Input
             label="Senha"
             type="password"
+            autoComplete="current-password"
             placeholder="Sua senha"
             value={password}
             onChange={e => setPassword(e.target.value)}

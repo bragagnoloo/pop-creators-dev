@@ -16,9 +16,9 @@ const variants = {
 };
 
 const sizes = {
-  sm: 'px-3 py-1.5 text-sm rounded-lg',
-  md: 'px-5 py-2.5 text-sm rounded-xl',
-  lg: 'px-8 py-3.5 text-base rounded-xl',
+  sm: 'px-3 py-2 min-h-9 text-sm rounded-lg',
+  md: 'px-5 py-2.5 min-h-11 text-sm rounded-xl',
+  lg: 'px-8 py-3.5 min-h-12 text-base rounded-xl',
 };
 
 export default function Button({
@@ -26,11 +26,13 @@ export default function Button({
   size = 'md',
   className = '',
   children,
+  type,
   ...props
 }: ButtonProps) {
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${variants[variant]} ${sizes[size]} ${className}`}
+      type={type ?? 'button'}
+      className={`inline-flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-popline-pink/50 ${variants[variant]} ${sizes[size]} ${className}`}
       {...props}
     >
       {children}

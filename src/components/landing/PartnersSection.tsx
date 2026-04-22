@@ -39,7 +39,7 @@ export default function PartnersSection() {
                 engajamento real e resultados mensuraveis para o ecossistema musical.
               </p>
 
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-4 sm:gap-6">
                 {[
                   { value: 'UGC', label: 'Conteudo Autentico' },
                   { value: 'AI', label: 'Match Inteligente' },

@@ -1,8 +1,10 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { Lesson, LessonComment, UserProfile } from '@/types';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as lessonService from '@/services/lessons';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
@@ -30,9 +32,7 @@ export default function AulasPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoadOnMount(load, [load]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -222,10 +222,12 @@ function HeroLesson({
       <div className="grid md:grid-cols-[1.3fr_1fr] gap-0">
         <div className="relative aspect-[16/10] md:aspect-auto overflow-hidden">
           {lesson.thumbnailUrl ? (
-            <img
+            <Image
               src={lesson.thumbnailUrl}
               alt={lesson.title}
-              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              sizes="(min-width: 768px) 60vw, 100vw"
             />
           ) : (
             <div className="absolute inset-0 gradient-bg opacity-40" />
@@ -306,10 +308,12 @@ function LessonCard({
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-background">
         {lesson.thumbnailUrl ? (
-          <img
+          <Image
             src={lesson.thumbnailUrl}
             alt={lesson.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -437,9 +441,9 @@ function RatingSection({ lessonId, userId }: { lessonId: string; userId: string 
   const [myRating, setMyRating] = useState<number | null>(null);
   const [hover, setHover] = useState(0);
 
-  useEffect(() => {
-    lessonService.getLessonRatingSummary(lessonId).then(setSummary);
-    if (userId) lessonService.getUserRating(userId, lessonId).then(setMyRating);
+  useLoadOnMount(async () => {
+    setSummary(await lessonService.getLessonRatingSummary(lessonId));
+    if (userId) setMyRating(await lessonService.getUserRating(userId, lessonId));
     else setMyRating(null);
   }, [lessonId, userId]);
 
@@ -541,9 +545,7 @@ function CommentsSection({
     setComments(await lessonService.getLessonComments(lesson.id));
   }, [lesson.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoadOnMount(load, [load]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

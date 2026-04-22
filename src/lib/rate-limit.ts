@@ -1,27 +1,44 @@
 /**
- * Rate limit simples em memória. Vale para um processo serverless — escala
- * até ficarmos bons pra instalar Upstash ou KV dedicado.
+ * Rate limit persistente em Postgres (via função SECURITY DEFINER).
+ *
+ * Funciona em serverless (compartilhado entre lambdas). Falha-aberto em caso de
+ * erro do banco (preferimos não bloquear usuário legítimo a 500; monitorar via logs).
  */
 
-type Bucket = { count: number; resetAt: number };
+import { createAdminClient } from '@/lib/supabase/server';
 
-const buckets = new Map<string, Bucket>();
-
-export function checkRateLimit(key: string, max: number, windowMs: number):
+export type RateLimitResult =
   | { allowed: true }
-  | { allowed: false; retryAfterMs: number } {
-  const now = Date.now();
-  const bucket = buckets.get(key);
+  | { allowed: false; retryAfterMs: number };
 
-  if (!bucket || bucket.resetAt < now) {
-    buckets.set(key, { count: 1, resetAt: now + windowMs });
+export async function checkRateLimit(
+  key: string,
+  max: number,
+  windowMs: number
+): Promise<RateLimitResult> {
+  try {
+    const supabase = createAdminClient();
+    const { data, error } = await supabase.rpc('check_rate_limit', {
+      p_key: key,
+      p_max: max,
+      p_window_ms: windowMs,
+    });
+
+    if (error) {
+      console.error('[rate-limit] rpc error', error);
+      return { allowed: true };
+    }
+
+    const result = data as { allowed: boolean; retry_after_ms?: number } | null;
+    if (!result) return { allowed: true };
+
+    if (result.allowed) return { allowed: true };
+    return {
+      allowed: false,
+      retryAfterMs: Number(result.retry_after_ms ?? windowMs),
+    };
+  } catch (err) {
+    console.error('[rate-limit] unexpected', err);
     return { allowed: true };
   }
-
-  if (bucket.count >= max) {
-    return { allowed: false, retryAfterMs: bucket.resetAt - now };
-  }
-
-  bucket.count += 1;
-  return { allowed: true };
 }

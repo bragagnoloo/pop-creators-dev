@@ -81,9 +81,15 @@ export async function getCampaignCredits(campaignId: string): Promise<BalanceCre
   return (data as CreditRow[]).map(toCredit);
 }
 
+const DEFAULT_LIST_LIMIT = 500;
+
 export async function getAllCredits(): Promise<BalanceCredit[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('balance_credits').select(C_SELECT);
+  const { data } = await supabase
+    .from('balance_credits')
+    .select(C_SELECT)
+    .order('created_at', { ascending: false })
+    .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as CreditRow[]).map(toCredit);
 }
@@ -157,72 +163,42 @@ export async function getAllWithdrawals(): Promise<Withdrawal[]> {
   const { data } = await supabase
     .from('withdrawals')
     .select(W_SELECT)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as WithdrawalRow[]).map(toWithdrawal);
 }
 
+/**
+ * Solicita saque via API atômica no servidor. O servidor usa uma função Postgres
+ * SECURITY DEFINER com FOR UPDATE para evitar race condition, e lê a chave PIX
+ * direto do profile do usuário (não confia no cliente).
+ */
 export async function requestWithdrawal(
-  userId: string,
-  amount: number,
-  pixKey: string,
-  pixKeyType: PixKeyType
+  amount: number
 ): Promise<{ success: true; withdrawal: Withdrawal } | { success: false; error: string }> {
-  if (amount <= 0) return { success: false, error: 'Valor inválido.' };
-  const supabase = createClient();
-
-  const summary = await getUserWalletSummary(userId);
-  if (amount > summary.available) {
-    return { success: false, error: 'Saldo disponível insuficiente.' };
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, error: 'Valor inválido.' };
   }
 
-  // Pega créditos disponíveis FIFO
-  const credits = (await getUserCredits(userId))
-    .filter(c => c.status === 'available' && c.amount - c.consumedAmount > 0)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-  let remaining = amount;
-  const consumed: { creditId: string; amount: number }[] = [];
-  for (const credit of credits) {
-    if (remaining <= 0) break;
-    const free = credit.amount - credit.consumedAmount;
-    const take = Math.min(free, remaining);
-    consumed.push({ creditId: credit.id, amount: take });
-    remaining -= take;
+  try {
+    const res = await fetch('/api/wallet/withdraw', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount }),
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) {
+      return { success: false, error: payload?.error || 'Falha ao processar saque.' };
+    }
+    if (!payload.success) {
+      return { success: false, error: payload.error || 'Falha ao processar saque.' };
+    }
+    return { success: true, withdrawal: toWithdrawal(payload.withdrawal as WithdrawalRow) };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro de rede.';
+    return { success: false, error: msg };
   }
-
-  // Persiste consumo por crédito
-  for (const { creditId, amount: amt } of consumed) {
-    const credit = credits.find(c => c.id === creditId);
-    if (!credit) continue;
-    const newConsumed = credit.consumedAmount + amt;
-    const fullyConsumed = newConsumed >= credit.amount;
-    await supabase
-      .from('balance_credits')
-      .update({
-        consumed_amount: newConsumed,
-        status: fullyConsumed ? 'withdrawn' : credit.status,
-      })
-      .eq('id', creditId);
-  }
-
-  // Cria o saque
-  const { data, error } = await supabase
-    .from('withdrawals')
-    .insert({
-      user_id: userId,
-      amount,
-      pix_key: pixKey,
-      pix_key_type: pixKeyType,
-      consumed_credits: consumed,
-    })
-    .select(W_SELECT)
-    .single();
-
-  if (error || !data) {
-    return { success: false, error: error?.message || 'Falha ao criar saque.' };
-  }
-  return { success: true, withdrawal: toWithdrawal(data as WithdrawalRow) };
 }
 
 export async function markWithdrawalPaid(withdrawalId: string): Promise<Withdrawal | null> {

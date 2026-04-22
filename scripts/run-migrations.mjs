@@ -1,11 +1,13 @@
 import postgres from 'postgres';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const PROJECT_REF = 'xduxtovqwebteqhrffgh';
-const DB_PASSWORD = process.argv[2];
+const DB_PASSWORD = process.argv[2] || process.env.SUPABASE_DB_PASSWORD;
 if (!DB_PASSWORD) {
   console.error('Uso: node scripts/run-migrations.mjs <DB_PASSWORD>');
+  console.error('Ou:  SUPABASE_DB_PASSWORD=... node scripts/run-migrations.mjs');
+  console.error('Opcional: adicionar arquivos específicos como args adicionais (ex: 0004_security_functions.sql)');
   process.exit(1);
 }
 
@@ -21,16 +23,19 @@ const sql = postgres({
   prepare: false,
 });
 
-const files = [
-  '0001_init_schema.sql',
-  '0002_rls_policies.sql',
-  '0003_storage.sql',
-];
+// Se passaram arquivos como args extras, aplica só esses. Senão aplica todos em ordem.
+const explicit = process.argv.slice(3).filter(a => a.endsWith('.sql') && !a.includes('all.sql'));
+const migrationsDir = join(process.cwd(), 'supabase/migrations');
+const files = explicit.length > 0
+  ? explicit
+  : readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql') && f !== 'all.sql')
+      .sort();
 
 try {
   for (const file of files) {
     console.log(`[migrations] aplicando ${file}...`);
-    const content = readFileSync(join(process.cwd(), 'supabase/migrations', file), 'utf8');
+    const content = readFileSync(join(migrationsDir, file), 'utf8');
     await sql.unsafe(content);
     console.log(`[migrations] ✓ ${file}`);
   }

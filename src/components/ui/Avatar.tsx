@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 interface AvatarProps {
   src?: string | null;
   name?: string;
@@ -11,6 +13,13 @@ const sizes = {
   xl: 'w-24 h-24 text-2xl',
 };
 
+const sizePx: Record<NonNullable<AvatarProps['size']>, number> = {
+  sm: 32,
+  md: 48,
+  lg: 64,
+  xl: 96,
+};
+
 export default function Avatar({ src, name = '', size = 'md' }: AvatarProps) {
   const initials = name
     .split(' ')
@@ -20,11 +29,15 @@ export default function Avatar({ src, name = '', size = 'md' }: AvatarProps) {
     .toUpperCase();
 
   if (src) {
+    const px = sizePx[size];
     return (
-      <img
+      <Image
         src={src}
-        alt={name}
+        alt={name || 'Avatar'}
+        width={px}
+        height={px}
         className={`${sizes[size]} rounded-full object-cover border-2 border-border`}
+        sizes={`${px}px`}
       />
     );
   }

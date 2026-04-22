@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Campaign, CampaignApplication, UserProfile } from '@/types';
+import { Campaign, CampaignApplication } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';

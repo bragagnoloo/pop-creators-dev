@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { Campaign, CampaignApplication, UserProfile } from '@/types';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { uploadImage, campaignLogoPath } from '@/lib/supabase/storage';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
@@ -57,9 +59,7 @@ export default function AdminCampaignsPage() {
     setAppCounts(counts);
   };
 
-  useEffect(() => {
-    loadCampaigns();
-  }, []);
+  useLoadOnMount(loadCampaigns);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -173,7 +173,20 @@ export default function AdminCampaignsPage() {
               <label className="text-sm text-text-secondary font-medium">Logo da Campanha</label>
               <div className="flex items-center gap-4">
                 {imagePreview || imageUrl ? (
-                  <img src={imagePreview || imageUrl!} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-border" />
+                  imagePreview ? (
+                    // blob: URL local do preview — não otimizar
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imagePreview} alt="Logo" className="w-16 h-16 rounded-xl object-cover border border-border" />
+                  ) : (
+                    <Image
+                      src={imageUrl!}
+                      alt="Logo"
+                      width={64}
+                      height={64}
+                      className="w-16 h-16 rounded-xl object-cover border border-border"
+                      sizes="64px"
+                    />
+                  )
                 ) : (
                   <div className="w-16 h-16 rounded-xl bg-background border border-border flex items-center justify-center">
                     <svg className="w-6 h-6 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -330,7 +343,14 @@ export default function AdminCampaignsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4 flex-1">
                 {campaign.imageUrl ? (
-                  <img src={campaign.imageUrl} alt={campaign.title} className="w-14 h-14 rounded-xl object-cover border border-border shrink-0" />
+                  <Image
+                    src={campaign.imageUrl}
+                    alt={campaign.title}
+                    width={56}
+                    height={56}
+                    className="w-14 h-14 rounded-xl object-cover border border-border shrink-0"
+                    sizes="56px"
+                  />
                 ) : (
                   <div className="w-14 h-14 rounded-xl bg-background border border-border flex items-center justify-center shrink-0">
                     <svg className="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

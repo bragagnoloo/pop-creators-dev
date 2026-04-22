@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, use, useMemo } from 'react';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import Link from 'next/link';
 import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery } from '@/types';
 import * as campaignService from '@/services/campaigns';
@@ -58,9 +59,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     setRows(rows);
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useLoadOnMount(load, [load]);
 
   if (!campaign) {
     return (

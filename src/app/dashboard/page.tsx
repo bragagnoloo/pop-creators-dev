@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { UserProfile } from '@/types';
 import * as userService from '@/services/users';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import OnboardingModal from '@/components/onboarding/OnboardingModal';
 import ProfileBlock from '@/components/dashboard/ProfileBlock';
 import ProfileEditModal from '@/components/dashboard/ProfileEditModal';
@@ -25,9 +26,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+  useLoadOnMount(loadProfile, [loadProfile]);
 
   if (!user || !profile) return null;
 

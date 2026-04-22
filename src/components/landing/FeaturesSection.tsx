@@ -59,7 +59,7 @@ export default function FeaturesSection() {
         </div>
 
         <div className="grid sm:grid-cols-2 gap-5">
-          {features.map((feature, i) => (
+          {features.map((feature) => (
             <div
               key={feature.title}
               className={`glass-card glow-border rounded-2xl p-7 transition-all duration-300 group`}

@@ -207,8 +207,8 @@ export default function AdminUsersPage() {
       {/* Users Table/List */}
       <Card className="p-0 overflow-hidden">
         {/* Desktop table */}
-        <div className="hidden sm:block">
-          <table className="w-full">
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full min-w-[640px]">
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Usuario</th>

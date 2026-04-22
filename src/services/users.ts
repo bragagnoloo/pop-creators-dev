@@ -53,9 +53,17 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
   return data ? toProfile(data as Row) : null;
 }
 
+// Limite pragmático para evitar full-table scans acidentais em admin views.
+// Para listas maiores, paginar no UI (range/limit/offset).
+const DEFAULT_LIST_LIMIT = 500;
+
 export async function getAllProfiles(): Promise<UserProfile[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('profiles').select(SELECT);
+  const { data } = await supabase
+    .from('profiles')
+    .select(SELECT)
+    .order('email')
+    .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as Row[]).map(toProfile);
 }

@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
+import { useState, useRef } from 'react';
 import { Lesson } from '@/types';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as lessonService from '@/services/lessons';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -28,9 +30,7 @@ export default function AdminAulasPage() {
 
   const load = async () => setLessons(await lessonService.getAllLessons());
 
-  useEffect(() => {
-    load();
-  }, []);
+  useLoadOnMount(load);
 
   const handleThumbnailUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,7 +117,20 @@ export default function AdminAulasPage() {
               <div className="flex items-start gap-4">
                 <div className="w-24 aspect-[4/5] rounded-xl bg-background border border-border overflow-hidden flex items-center justify-center shrink-0">
                   {thumbnailPreview || thumbnailUrl ? (
-                    <img src={thumbnailPreview || thumbnailUrl!} alt="Thumbnail" className="w-full h-full object-cover" />
+                    thumbnailPreview ? (
+                      // blob: URL local do preview — não otimizar
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumbnailPreview} alt="Thumbnail" className="w-full h-full object-cover" />
+                    ) : (
+                      <Image
+                        src={thumbnailUrl!}
+                        alt="Thumbnail"
+                        width={96}
+                        height={120}
+                        className="w-full h-full object-cover"
+                        sizes="96px"
+                      />
+                    )
                   ) : (
                     <svg className="w-6 h-6 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -204,7 +217,14 @@ export default function AdminAulasPage() {
             <div className="flex gap-4">
               <div className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-border bg-background shrink-0">
                 {lesson.thumbnailUrl ? (
-                  <img src={lesson.thumbnailUrl} alt={lesson.title} className="w-full h-full object-cover" />
+                  <Image
+                    src={lesson.thumbnailUrl}
+                    alt={lesson.title}
+                    width={80}
+                    height={100}
+                    className="w-full h-full object-cover"
+                    sizes="80px"
+                  />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
                     <svg className="w-6 h-6 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

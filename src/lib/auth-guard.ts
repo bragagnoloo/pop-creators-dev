@@ -9,9 +9,9 @@ export interface GuardResult {
 }
 
 /**
- * Valida sessão + (opcional) exige plano pago. Retorna info do usuário ou Response de erro.
+ * Valida apenas sessão — qualquer usuário autenticado passa.
  */
-export async function requirePaidUser(): Promise<GuardResult | NextResponse> {
+export async function requireUser(): Promise<GuardResult | NextResponse> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
@@ -39,17 +39,37 @@ export async function requirePaidUser(): Promise<GuardResult | NextResponse> {
   const expired = sub?.expires_at && new Date(sub.expires_at).getTime() < now;
   const effectivePlan = !sub || expired ? 'free' : sub.plan;
 
-  if (effectivePlan === 'free' && profile.role !== 'admin') {
-    return NextResponse.json(
-      { error: 'Recurso exclusivo para assinantes.' },
-      { status: 403 }
-    );
-  }
-
   return {
     userId: user.id,
     email: profile.email,
     role: profile.role,
     plan: effectivePlan,
   };
+}
+
+/**
+ * Exige role admin.
+ */
+export async function requireAdmin(): Promise<GuardResult | NextResponse> {
+  const result = await requireUser();
+  if (result instanceof NextResponse) return result;
+  if (result.role !== 'admin') {
+    return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
+  }
+  return result;
+}
+
+/**
+ * Valida sessão + exige plano pago (ou admin).
+ */
+export async function requirePaidUser(): Promise<GuardResult | NextResponse> {
+  const result = await requireUser();
+  if (result instanceof NextResponse) return result;
+  if (result.plan === 'free' && result.role !== 'admin') {
+    return NextResponse.json(
+      { error: 'Recurso exclusivo para assinantes.' },
+      { status: 403 }
+    );
+  }
+  return result;
 }

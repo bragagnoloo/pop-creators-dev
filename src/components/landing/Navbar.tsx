@@ -54,10 +54,14 @@ export default function Navbar() {
 
           {/* Mobile hamburger */}
           <button
+            type="button"
             onClick={() => setMenuOpen(!menuOpen)}
-            className="md:hidden text-text-primary p-2 cursor-pointer"
+            aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'}
+            aria-expanded={menuOpen}
+            aria-controls="mobile-menu"
+            className="md:hidden text-text-primary inline-flex items-center justify-center min-h-11 min-w-11 p-2 cursor-pointer rounded-lg hover:bg-white/5 transition-colors"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               {menuOpen ? (
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               ) : (
@@ -69,7 +73,7 @@ export default function Navbar() {
 
         {/* Mobile menu */}
         {menuOpen && (
-          <div className="md:hidden pb-4 space-y-3 animate-slide-up">
+          <div id="mobile-menu" className="md:hidden pb-4 space-y-3 animate-slide-up">
             {links.map(link => (
               <a
                 key={link.href}

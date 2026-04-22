@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { Campaign, CampaignApplication } from '@/types';
 import * as campaignService from '@/services/campaigns';
@@ -27,7 +28,14 @@ function CampaignRow({ campaign, application }: { campaign: Campaign; applicatio
   return (
     <div className="flex items-center gap-4 p-4 rounded-xl bg-background border border-border">
       {campaign.imageUrl ? (
-        <img src={campaign.imageUrl} alt={campaign.title} className="w-10 h-10 rounded-lg object-cover border border-border shrink-0" />
+        <Image
+          src={campaign.imageUrl}
+          alt={campaign.title}
+          width={40}
+          height={40}
+          className="w-10 h-10 rounded-lg object-cover border border-border shrink-0"
+          sizes="40px"
+        />
       ) : (
         <div className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center shrink-0">
           <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">

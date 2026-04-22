@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Withdrawal, UserProfile } from '@/types';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as walletService from '@/services/wallet';
 import * as userService from '@/services/users';
 import Card from '@/components/ui/Card';
@@ -26,9 +27,7 @@ export default function AdminSaquesPage() {
     setProfiles(map);
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useLoadOnMount(load);
 
   const handlePaid = async (id: string) => {
     await walletService.markWithdrawalPaid(id);

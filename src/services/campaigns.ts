@@ -50,11 +50,18 @@ function toApp(r: AppRow): CampaignApplication {
 const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at';
 const A_SELECT = 'id, campaign_id, user_id, status, applied_at';
 
+// Limite pragmático para evitar full-table scans acidentais em admin views.
+const DEFAULT_LIST_LIMIT = 500;
+
 // ---------- Campaigns ----------
 
 export async function getAllCampaigns(): Promise<Campaign[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('campaigns').select(C_SELECT).order('created_at', { ascending: false });
+  const { data } = await supabase
+    .from('campaigns')
+    .select(C_SELECT)
+    .order('created_at', { ascending: false })
+    .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as CampaignRow[]).map(toCampaign);
 }
@@ -138,7 +145,11 @@ export async function getCampaignApplications(campaignId: string): Promise<Campa
 
 export async function getAllApplications(): Promise<CampaignApplication[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('applications').select(A_SELECT);
+  const { data } = await supabase
+    .from('applications')
+    .select(A_SELECT)
+    .order('applied_at', { ascending: false })
+    .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as AppRow[]).map(toApp);
 }

@@ -1,9 +1,11 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useEffect } from 'react';
-import { Campaign, CampaignApplication } from '@/types';
+import { useCallback, useState } from 'react';
+import { Campaign, CampaignApplication, CampaignNoticeCounts } from '@/types';
 import * as campaignService from '@/services/campaigns';
+import * as noticesService from '@/services/notices';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import Badge from '@/components/ui/Badge';
 import ParticipatingCard from './ParticipatingCard';
 
@@ -55,13 +57,27 @@ function CampaignRow({ campaign, application }: { campaign: Campaign; applicatio
 export default function MyCampaigns({ userId }: MyCampaignsProps) {
   const [applications, setApplications] = useState<CampaignApplication[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [noticeCounts, setNoticeCounts] = useState<Record<string, CampaignNoticeCounts>>({});
 
-  useEffect(() => {
-    (async () => {
-      setApplications(await campaignService.getUserApplications(userId));
-      setCampaigns(await campaignService.getAllCampaigns());
-    })();
+  const refreshNoticeCounts = useCallback(async (apps: CampaignApplication[]) => {
+    const approvedCampaignIds = apps
+      .filter(a => a.status === 'approved')
+      .map(a => a.campaignId);
+    const counts = await noticesService.getCountsForUserCampaigns(userId, approvedCampaignIds);
+    setNoticeCounts(counts);
   }, [userId]);
+
+  const load = useCallback(async () => {
+    const [apps, all] = await Promise.all([
+      campaignService.getUserApplications(userId),
+      campaignService.getAllCampaigns(),
+    ]);
+    setApplications(apps);
+    setCampaigns(all);
+    await refreshNoticeCounts(apps);
+  }, [userId, refreshNoticeCounts]);
+
+  useLoadOnMount(load, [load]);
 
   const getCampaign = (id: string) => campaigns.find(c => c.id === id);
 
@@ -87,6 +103,8 @@ export default function MyCampaigns({ userId }: MyCampaignsProps) {
                   campaign={campaign}
                   application={app}
                   userId={userId}
+                  noticeCounts={noticeCounts[app.campaignId]}
+                  onNoticesRead={() => refreshNoticeCounts(applications)}
                 />
               );
             })}

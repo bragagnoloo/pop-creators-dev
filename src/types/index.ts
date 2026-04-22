@@ -39,6 +39,38 @@ export interface Campaign {
   cache: number;
   deliveryCount: number;
   createdAt: string;
+  hasCache: boolean;
+  hasPermuta: boolean;
+  permutaDescription: string | null;
+  hasCommission: boolean;
+  commissionPercentage: number | null;
+  commissionDescription: string | null;
+}
+
+export interface CampaignNotice {
+  id: string;
+  campaignId: string;
+  authorId: string;
+  content: string;
+  isGeneral: boolean;
+  createdAt: string;
+  isRead: boolean;
+  readAt: string | null;
+  recipients?: string[];
+  readCount?: number;
+}
+
+export interface CampaignNoticeCounts {
+  read: number;
+  unread: number;
+}
+
+export interface CampaignTermAcceptance {
+  id: string;
+  userId: string;
+  campaignId: string;
+  termVersion: string;
+  acceptedAt: string;
 }
 
 export interface CampaignDelivery {

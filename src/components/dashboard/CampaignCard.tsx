@@ -5,6 +5,7 @@ import { Campaign, CampaignApplication } from '@/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import { formatBRL } from '@/services/wallet';
 
 interface CampaignCardProps {
   campaign: Campaign;
@@ -18,7 +19,50 @@ const appStatusMap: Record<CampaignApplication['status'], { label: string; varia
   rejected: { label: 'Rejeitado', variant: 'default' },
 };
 
+function CompensationChips({ campaign }: { campaign: Campaign }) {
+  const chips: { key: string; className: string; label: string }[] = [];
+  if (campaign.hasCache && campaign.cache > 0) {
+    chips.push({
+      key: 'cache',
+      className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+      label: formatBRL(campaign.cache),
+    });
+  }
+  if (campaign.hasPermuta) {
+    chips.push({
+      key: 'permuta',
+      className: 'bg-sky-500/15 text-sky-400 border-sky-500/30',
+      label: 'Permuta',
+    });
+  }
+  if (campaign.hasCommission) {
+    const pct = campaign.commissionPercentage;
+    chips.push({
+      key: 'commission',
+      className: 'bg-purple-500/15 text-purple-400 border-purple-500/30',
+      label: pct != null ? `${pct}% comissão` : 'Comissão',
+    });
+  }
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      {chips.map(c => (
+        <span
+          key={c.key}
+          className={`text-xs font-medium px-2 py-0.5 rounded-full border ${c.className}`}
+        >
+          {c.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function CampaignCard({ campaign, application, onApply }: CampaignCardProps) {
+  const showAcceptAllNote = !application && (
+    (campaign.hasCache ? 1 : 0) + (campaign.hasPermuta ? 1 : 0) + (campaign.hasCommission ? 1 : 0)
+  ) > 1;
+
   return (
     <Card className="flex flex-col">
       <div className="flex items-start gap-4 mb-3">
@@ -40,6 +84,7 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
         )}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-lg">{campaign.title}</h3>
+          <CompensationChips campaign={campaign} />
           <Badge variant="success">Inscricoes Abertas</Badge>
         </div>
       </div>
@@ -47,6 +92,12 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
       <p className="text-sm text-text-secondary flex-1 mb-4 line-clamp-3">
         {campaign.description}
       </p>
+
+      {showAcceptAllNote && (
+        <p className="text-[11px] text-text-secondary/80 italic mb-3">
+          Ao se candidatar, você aceita todos os tipos de compensação desta campanha.
+        </p>
+      )}
 
       <div className="flex items-center justify-end">
         {application ? (

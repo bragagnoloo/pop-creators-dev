@@ -17,6 +17,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
+import CampaignNoticesSection from '@/components/admin/CampaignNoticesSection';
 import { ROUTES } from '@/lib/constants';
 
 interface Row {
@@ -100,9 +101,25 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           ← Campanhas
         </Link>
         <h1 className="text-2xl font-bold mt-2">{campaign.title}</h1>
-        <p className="text-sm text-text-secondary">
-          Cachê: {walletService.formatBRL(campaign.cache)} · {campaign.deliveryCount ?? 1} entrega
-          {(campaign.deliveryCount ?? 1) > 1 ? 's' : ''} por criador
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {campaign.hasCache && campaign.cache > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full border bg-emerald-500/15 text-emerald-400 border-emerald-500/30">
+              Cachê {walletService.formatBRL(campaign.cache)}
+            </span>
+          )}
+          {campaign.hasPermuta && (
+            <span className="text-xs px-2 py-0.5 rounded-full border bg-sky-500/15 text-sky-400 border-sky-500/30">
+              Permuta
+            </span>
+          )}
+          {campaign.hasCommission && (
+            <span className="text-xs px-2 py-0.5 rounded-full border bg-purple-500/15 text-purple-400 border-purple-500/30">
+              {campaign.commissionPercentage != null ? `${campaign.commissionPercentage}% comissão` : 'Comissão'}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-text-secondary mt-1">
+          {campaign.deliveryCount ?? 1} entrega{(campaign.deliveryCount ?? 1) > 1 ? 's' : ''} por criador
         </p>
       </div>
 
@@ -150,6 +167,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
                 key={row.application.id}
                 row={row}
                 campaignCache={campaign.cache}
+                hasCache={campaign.hasCache && campaign.cache > 0}
                 onCreate={() => handleCreate(row.application.userId)}
                 onRelease={row.credit ? () => handleRelease(row.credit!.id) : undefined}
                 onDeliveryDate={handleDeliveryDate}
@@ -158,6 +176,11 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           </div>
         )}
       </Card>
+
+      <CampaignNoticesSection
+        campaignId={campaign.id}
+        approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+      />
 
       {others.length > 0 && (
         <Card>
@@ -193,12 +216,14 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 function ParticipantRow({
   row,
   campaignCache,
+  hasCache,
   onCreate,
   onRelease,
   onDeliveryDate,
 }: {
   row: Row;
   campaignCache: number;
+  hasCache: boolean;
   onCreate: () => void;
   onRelease?: () => void;
   onDeliveryDate: (deliveryId: string, date: string) => void;
@@ -226,20 +251,26 @@ function ParticipantRow({
             )}
           </div>
         </div>
-        <div className="flex gap-2 shrink-0">
-          <Button
-            size="sm"
-            disabled={!!credit}
-            onClick={onCreate}
-            variant={credit ? 'secondary' : 'primary'}
-          >
-            {credit ? 'Saldo gerado' : `Gerar saldo (${walletService.formatBRL(campaignCache)})`}
-          </Button>
-          {credit && credit.status === 'processing' && onRelease && (
-            <Button size="sm" onClick={onRelease}>Liberar saque</Button>
+        <div className="flex gap-2 shrink-0 items-center">
+          {hasCache ? (
+            <>
+              <Button
+                size="sm"
+                disabled={!!credit}
+                onClick={onCreate}
+                variant={credit ? 'secondary' : 'primary'}
+              >
+                {credit ? 'Saldo gerado' : `Gerar saldo (${walletService.formatBRL(campaignCache)})`}
+              </Button>
+              {credit && credit.status === 'processing' && onRelease && (
+                <Button size="sm" onClick={onRelease}>Liberar saque</Button>
+              )}
+              {credit && credit.status === 'available' && <Badge variant="success">Liberado</Badge>}
+              {credit && credit.status === 'withdrawn' && <Badge variant="default">Sacado</Badge>}
+            </>
+          ) : (
+            <span className="text-xs text-text-secondary italic">Campanha sem cachê</span>
           )}
-          {credit && credit.status === 'available' && <Badge variant="success">Liberado</Badge>}
-          {credit && credit.status === 'withdrawn' && <Badge variant="default">Sacado</Badge>}
         </div>
       </div>
 

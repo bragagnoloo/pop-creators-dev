@@ -41,13 +41,20 @@ export default function AdminCampaignsPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Campaign['status']>('open');
+  const [hasCache, setHasCache] = useState(true);
   const [cache, setCache] = useState<string>('0');
+  const [hasPermuta, setHasPermuta] = useState(false);
+  const [permutaDescription, setPermutaDescription] = useState('');
+  const [hasCommission, setHasCommission] = useState(false);
+  const [commissionPercentage, setCommissionPercentage] = useState<string>('');
+  const [commissionDescription, setCommissionDescription] = useState('');
   const [deliveryCount, setDeliveryCount] = useState<string>('1');
   const [briefing, setBriefing] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCampaigns = async () => {
@@ -77,12 +84,19 @@ export default function AdminCampaignsPage() {
     setTitle('');
     setDescription('');
     setStatus('open');
+    setHasCache(true);
     setCache('0');
+    setHasPermuta(false);
+    setPermutaDescription('');
+    setHasCommission(false);
+    setCommissionPercentage('');
+    setCommissionDescription('');
     setDeliveryCount('1');
     setBriefing('');
     setImageUrl(null);
     setImageFile(null);
     setImagePreview(null);
+    setFormError(null);
     setShowForm(true);
   };
 
@@ -91,17 +105,46 @@ export default function AdminCampaignsPage() {
     setTitle(campaign.title);
     setDescription(campaign.description);
     setStatus(campaign.status);
+    setHasCache(campaign.hasCache);
     setCache(String(campaign.cache ?? 0));
+    setHasPermuta(campaign.hasPermuta);
+    setPermutaDescription(campaign.permutaDescription ?? '');
+    setHasCommission(campaign.hasCommission);
+    setCommissionPercentage(campaign.commissionPercentage != null ? String(campaign.commissionPercentage) : '');
+    setCommissionDescription(campaign.commissionDescription ?? '');
     setDeliveryCount(String(campaign.deliveryCount ?? 1));
     setBriefing(campaign.briefing ?? '');
     setImageUrl(campaign.imageUrl);
     setImageFile(null);
     setImagePreview(null);
+    setFormError(null);
     setShowForm(true);
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+
+    if (!hasCache && !hasPermuta && !hasCommission) {
+      setFormError('Selecione ao menos um tipo de compensação.');
+      return;
+    }
+    if (hasCache && (!cache || Number(cache) <= 0)) {
+      setFormError('Informe um valor de cachê maior que zero.');
+      return;
+    }
+    if (hasPermuta && !permutaDescription.trim()) {
+      setFormError('Descreva a permuta oferecida.');
+      return;
+    }
+    if (hasCommission) {
+      const pct = Number(commissionPercentage);
+      if (!commissionPercentage || !Number.isFinite(pct) || pct <= 0 || pct > 100) {
+        setFormError('Informe um percentual de comissão entre 0 e 100.');
+        return;
+      }
+    }
+
     setSaving(true);
     let finalUrl = imageUrl;
     if (imageFile) {
@@ -119,10 +162,16 @@ export default function AdminCampaignsPage() {
       description,
       status,
       deadline: null,
-      cache: Number(cache) || 0,
+      cache: hasCache ? Number(cache) || 0 : 0,
       deliveryCount: Math.max(1, Number(deliveryCount) || 1),
       briefing: briefing.trim() || null,
       imageUrl: finalUrl,
+      hasCache,
+      hasPermuta,
+      permutaDescription: hasPermuta ? permutaDescription.trim() : null,
+      hasCommission,
+      commissionPercentage: hasCommission ? Number(commissionPercentage) : null,
+      commissionDescription: hasCommission ? commissionDescription.trim() || null : null,
     };
 
     if (editing) {
@@ -239,15 +288,96 @@ export default function AdminCampaignsPage() {
                 <option value="completed">Finalizada</option>
               </select>
             </div>
-            <Input
-              label="Cachê por criador (R$)"
-              type="number"
-              min="0"
-              step="0.01"
-              value={cache}
-              onChange={e => setCache(e.target.value)}
-              required
-            />
+            <div className="flex flex-col gap-3 p-4 rounded-xl bg-background border border-border">
+              <div>
+                <p className="text-sm text-text-secondary font-medium">Compensação</p>
+                <p className="text-xs text-text-secondary/70 mt-0.5">
+                  Marque todos os tipos que serão oferecidos. O criador aceita todos ao se candidatar.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasCache}
+                  onChange={e => setHasCache(e.target.checked)}
+                  className="mt-1 accent-popline-pink"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium">Cachê em dinheiro</span>
+                  {hasCache && (
+                    <Input
+                      label=""
+                      type="number"
+                      inputMode="decimal"
+                      min="0"
+                      step="0.01"
+                      value={cache}
+                      onChange={e => setCache(e.target.value)}
+                      placeholder="Valor em R$"
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasPermuta}
+                  onChange={e => setHasPermuta(e.target.checked)}
+                  className="mt-1 accent-popline-pink"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium">Permuta</span>
+                  {hasPermuta && (
+                    <Textarea
+                      label=""
+                      rows={2}
+                      value={permutaDescription}
+                      onChange={e => setPermutaDescription(e.target.value)}
+                      placeholder="Ex: envio de produto X (valor aproximado R$ 300)"
+                      className="mt-1"
+                    />
+                  )}
+                </div>
+              </label>
+
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hasCommission}
+                  onChange={e => setHasCommission(e.target.checked)}
+                  className="mt-1 accent-popline-pink"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-medium">Comissão em vendas</span>
+                  {hasCommission && (
+                    <div className="mt-1 space-y-2">
+                      <Input
+                        label=""
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={commissionPercentage}
+                        onChange={e => setCommissionPercentage(e.target.value)}
+                        placeholder="% sobre vendas (ex: 10)"
+                      />
+                      <Textarea
+                        label=""
+                        rows={2}
+                        value={commissionDescription}
+                        onChange={e => setCommissionDescription(e.target.value)}
+                        placeholder="Detalhes (cupom/link de tracking, base de cálculo, prazo)"
+                      />
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+
             <Input
               label="Quantidade de entregas por participante"
               type="number"
@@ -264,6 +394,9 @@ export default function AdminCampaignsPage() {
               rows={6}
               placeholder="Cole aqui o briefing completo da campanha. Criadores aprovados poderão ver e baixar."
             />
+            {formError && (
+              <p className="text-xs text-red-400">{formError}</p>
+            )}
             <div className="flex gap-3">
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForm(false)}>
                 Cancelar

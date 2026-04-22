@@ -2,18 +2,22 @@
 
 import Image from 'next/image';
 import { useState, useCallback } from 'react';
-import { Campaign, CampaignApplication, CampaignDelivery } from '@/types';
+import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as deliveryService from '@/services/deliveries';
+import * as walletService from '@/services/wallet';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import CampaignNotices from './CampaignNotices';
 
 interface Props {
   campaign: Campaign;
   application: CampaignApplication;
   userId: string;
+  noticeCounts?: CampaignNoticeCounts;
+  onNoticesRead?: () => void;
 }
 
 const appStatusMap: Record<CampaignApplication['status'], { label: string; variant: 'warning' | 'success' | 'default' | 'pink' }> = {
@@ -22,7 +26,7 @@ const appStatusMap: Record<CampaignApplication['status'], { label: string; varia
   rejected: { label: 'Recusada', variant: 'default' },
 };
 
-export default function ParticipatingCard({ campaign, application, userId }: Props) {
+export default function ParticipatingCard({ campaign, application, userId, noticeCounts, onNoticesRead }: Props) {
   const [open, setOpen] = useState(false);
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
@@ -93,6 +97,22 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold truncate">{campaign.title}</h3>
             <Badge variant={status.variant}>{status.label}</Badge>
+            {noticeCounts && noticeCounts.unread > 0 && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400 text-black"
+                title={`${noticeCounts.unread} aviso${noticeCounts.unread > 1 ? 's' : ''} não lido${noticeCounts.unread > 1 ? 's' : ''}`}
+              >
+                {noticeCounts.unread} novo{noticeCounts.unread > 1 ? 's' : ''}
+              </span>
+            )}
+            {noticeCounts && noticeCounts.read > 0 && (
+              <span
+                className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500 text-white"
+                title={`${noticeCounts.read} aviso${noticeCounts.read > 1 ? 's' : ''} lido${noticeCounts.read > 1 ? 's' : ''}`}
+              >
+                {noticeCounts.read} lido{noticeCounts.read > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
           <p className="text-xs text-text-secondary mt-0.5">
             {(() => {
@@ -143,6 +163,41 @@ export default function ParticipatingCard({ campaign, application, userId }: Pro
         <div className="overflow-hidden">
           <div className="px-4 pb-4 pt-2 space-y-4 border-t border-border">
             <p className="text-sm text-text-secondary whitespace-pre-line">{campaign.description}</p>
+
+            {/* Detalhes de compensação */}
+            {(campaign.hasCache || campaign.hasPermuta || campaign.hasCommission) && (
+              <div className="p-3 rounded-lg bg-background border border-border space-y-1.5">
+                <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Compensação</p>
+                {campaign.hasCache && campaign.cache > 0 && (
+                  <p className="text-sm">
+                    <span className="text-emerald-400 font-medium">Cachê:</span>{' '}
+                    {walletService.formatBRL(campaign.cache)}
+                  </p>
+                )}
+                {campaign.hasPermuta && (
+                  <p className="text-sm">
+                    <span className="text-sky-400 font-medium">Permuta:</span>{' '}
+                    {campaign.permutaDescription || 'Detalhes a combinar'}
+                  </p>
+                )}
+                {campaign.hasCommission && (
+                  <p className="text-sm">
+                    <span className="text-purple-400 font-medium">Comissão:</span>{' '}
+                    {campaign.commissionPercentage != null ? `${campaign.commissionPercentage}% sobre vendas` : 'Comissão sobre vendas'}
+                    {campaign.commissionDescription ? ` — ${campaign.commissionDescription}` : ''}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Avisos: só carrega quando card aberto para economizar requests */}
+            {open && canShowDeliveries && (
+              <CampaignNotices
+                campaignId={campaign.id}
+                userId={userId}
+                onReadsChanged={onNoticesRead}
+              />
+            )}
 
             {canShowDeliveries ? (
               <>

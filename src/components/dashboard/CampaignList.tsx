@@ -6,7 +6,9 @@ import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
 import { getProfileCompleteness } from '@/lib/profile';
+import { CURRENT_TERM_VERSION } from '@/lib/constants';
 import CampaignCard from './CampaignCard';
+import CampaignTermModal from '@/components/campaigns/CampaignTermModal';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
 import UgcLogo from '@/components/ui/UgcLogo';
@@ -23,6 +25,9 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
   const [showIncomplete, setShowIncomplete] = useState(false);
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [termForCampaignId, setTermForCampaignId] = useState<string | null>(null);
+  const [termLoading, setTermLoading] = useState(false);
+  const [termError, setTermError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,7 +52,22 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
       return;
     }
 
-    await campaignService.applyToCampaign(campaignId, userId);
+    // Abre modal de termo antes de efetivar a candidatura.
+    setTermError(null);
+    setTermForCampaignId(campaignId);
+  };
+
+  const handleAcceptTerm = async () => {
+    if (!termForCampaignId) return;
+    setTermLoading(true);
+    setTermError(null);
+    const result = await campaignService.applyToCampaignWithTerm(termForCampaignId, CURRENT_TERM_VERSION);
+    setTermLoading(false);
+    if (!result.success) {
+      setTermError(result.error);
+      return;
+    }
+    setTermForCampaignId(null);
     setApplications(await campaignService.getUserApplications(userId));
   };
 
@@ -122,6 +142,22 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
           />
         ))}
       </div>
+
+      <CampaignTermModal
+        isOpen={termForCampaignId !== null}
+        onClose={() => {
+          if (termLoading) return;
+          setTermForCampaignId(null);
+          setTermError(null);
+        }}
+        onAccept={handleAcceptTerm}
+        loading={termLoading}
+      />
+      {termError && termForCampaignId && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-2 rounded-xl">
+          {termError}
+        </div>
+      )}
     </div>
   );
 }

@@ -38,34 +38,34 @@ export default function HeroSection() {
         </div>
 
         <h1 className="animate-slide-up-delay-1 text-3xl sm:text-5xl lg:text-7xl font-bold leading-[1.1] mb-6 tracking-tight">
-          Crie conteudo para o{' '}
+          Crie conteúdo para o{' '}
           <span className="gradient-text">maior ecossistema</span>
           <br className="hidden sm:block" />
-          <span className="gradient-text">de musica</span>{' '}
+          sobre <span className="gradient-text">música e cultura pop</span>{' '}
           do Brasil
         </h1>
 
         <p className="animate-slide-up-delay-2 text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">
-          A <span className="text-text-primary font-medium">POPline Creators</span> conecta voce
-          com campanhas exclusivas do Portal POPline.
+          <span className="text-text-primary font-medium">POPline Creators</span> conecta você
+          com experts, comunidade exclusiva e campanhas do POPline.
           Participe, crie e seja recompensado.
         </p>
 
         <div className="animate-slide-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link href={ROUTES.REGISTER}>
-            <Button size="lg" className="min-w-[200px] text-base">Comecar Agora</Button>
+            <Button size="lg" className="min-w-[200px] text-base">Começar Agora</Button>
           </Link>
           <a href="#como-funciona">
-            <Button variant="secondary" size="lg" className="min-w-[200px] text-base">Como Funciona</Button>
+            <Button variant="secondary" size="lg" className="min-w-[200px] text-base">Como Funciona?</Button>
           </a>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-20 max-w-lg mx-auto">
           {[
-            { value: '500+', label: 'Criadores' },
-            { value: '50+', label: 'Campanhas' },
-            { value: '1M+', label: 'Alcance' },
+            { value: '100+', label: 'Criadores' },
+            { value: '10+', label: 'Campanhas' },
+            { value: '+10M', label: 'Alcance' },
           ].map((stat, i) => (
             <div key={stat.label} className="group" style={{ animationDelay: `${0.6 + i * 0.1}s` }}>
               <div className="text-2xl sm:text-3xl font-bold shimmer-text">{stat.value}</div>

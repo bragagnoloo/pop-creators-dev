@@ -4,7 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const WEBHOOK_URL = 'https://editor.mktarmy.com.br/webhook-test/pre-cadastro';
+const WEBHOOK_URL = 'https://webhook.mktarmy.com.br/webhook/pre-cadastro';
 
 export async function POST(request: Request) {
   let body: { nome?: string; email?: string; whatsapp?: string };

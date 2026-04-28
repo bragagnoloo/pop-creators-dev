@@ -69,7 +69,7 @@ export default function AdminAulasPage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lessonService.extractYoutubeId(youtubeUrl)) {
+    if (youtubeUrl && !lessonService.extractYoutubeId(youtubeUrl)) {
       setUrlError('URL do YouTube inválida. Use um link como https://youtube.com/watch?v=...');
       return;
     }
@@ -180,7 +180,6 @@ export default function AdminAulasPage() {
                   setUrlError(null);
                 }}
                 placeholder="https://youtube.com/watch?v=..."
-                required
               />
               {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
             </div>

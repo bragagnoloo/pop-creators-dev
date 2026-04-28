@@ -55,7 +55,7 @@ export default function AulasPage() {
       return;
     }
     setExpandedId(prev => (prev === lesson.id ? null : lesson.id));
-    if (user && !watched.has(lesson.id)) {
+    if (user && lesson.youtubeUrl && !watched.has(lesson.id)) {
       await lessonService.markWatched(user.id, lesson.id);
       setWatched(prev => new Set(prev).add(lesson.id));
     }
@@ -235,11 +235,17 @@ function HeroLesson({
           <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
 
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-full bg-popline-pink/90 backdrop-blur flex items-center justify-center shadow-lg shadow-popline-pink/40 group-hover:scale-110 transition-transform">
-              <svg className="w-7 h-7 text-white translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 4 20 12 6 20 6 4" />
-              </svg>
-            </div>
+            {lesson.youtubeUrl ? (
+              <div className="w-16 h-16 rounded-full bg-popline-pink/90 backdrop-blur flex items-center justify-center shadow-lg shadow-popline-pink/40 group-hover:scale-110 transition-transform">
+                <svg className="w-7 h-7 text-white translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="6 4 20 12 6 20 6 4" />
+                </svg>
+              </div>
+            ) : (
+              <span className="px-4 py-2 rounded-xl bg-black/60 backdrop-blur text-white text-sm font-semibold tracking-wide">
+                Em breve
+              </span>
+            )}
           </div>
 
           <div className="absolute top-4 left-4 flex gap-2">
@@ -259,12 +265,18 @@ function HeroLesson({
           <h2 className="text-xl md:text-2xl font-bold mb-3">{lesson.title}</h2>
           <p className="text-sm text-text-secondary line-clamp-3 mb-5">{lesson.description}</p>
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl gradient-bg text-white text-sm font-semibold">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                <polygon points="6 4 20 12 6 20 6 4" />
-              </svg>
-              Assistir agora
-            </span>
+            {lesson.youtubeUrl ? (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl gradient-bg text-white text-sm font-semibold">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                  <polygon points="6 4 20 12 6 20 6 4" />
+                </svg>
+                Assistir agora
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-text-secondary text-sm font-semibold">
+                Em breve
+              </span>
+            )}
             {summary.count > 0 && (
               <span className="inline-flex items-center gap-1 text-sm text-text-secondary">
                 <Stars value={summary.average} size={14} />
@@ -324,14 +336,21 @@ function LessonCard({
         )}
 
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
-          <div className="w-14 h-14 rounded-full bg-popline-pink/90 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg shadow-popline-pink/40">
-            <svg className="w-6 h-6 text-white translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="6 4 20 12 6 20 6 4" />
-            </svg>
-          </div>
+          {lesson.youtubeUrl && (
+            <div className="w-14 h-14 rounded-full bg-popline-pink/90 backdrop-blur flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg shadow-popline-pink/40">
+              <svg className="w-6 h-6 text-white translate-x-0.5" viewBox="0 0 24 24" fill="currentColor">
+                <polygon points="6 4 20 12 6 20 6 4" />
+              </svg>
+            </div>
+          )}
         </div>
 
         <div className="absolute top-3 left-3 flex gap-1.5">
+          {!lesson.youtubeUrl && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/20 backdrop-blur text-white">
+              Em breve
+            </span>
+          )}
           {isNew && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500 text-white">
               Novo
@@ -404,8 +423,8 @@ function ExpandedLesson({
             allowFullScreen
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-text-secondary">
-            Vídeo indisponível.
+          <div className="w-full h-full flex items-center justify-center text-text-secondary text-sm font-medium">
+            Em breve.
           </div>
         )}
         <button

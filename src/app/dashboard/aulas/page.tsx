@@ -262,7 +262,10 @@ function HeroLesson({
 
         <div className="p-6 md:p-8 flex flex-col justify-center">
           <p className="text-xs font-medium text-popline-pink uppercase tracking-wider mb-2">Aula em destaque</p>
-          <h2 className="text-xl md:text-2xl font-bold mb-3">{lesson.title}</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-1">{lesson.title}</h2>
+          {lesson.expert && (
+            <p className="text-sm text-text-secondary mb-3">Com {lesson.expert}</p>
+          )}
           <p className="text-sm text-text-secondary line-clamp-3 mb-5">{lesson.description}</p>
           <div className="flex items-center gap-3 flex-wrap">
             {lesson.youtubeUrl ? (
@@ -368,6 +371,9 @@ function LessonCard({
 
       <div className="p-4 flex-1 flex flex-col gap-1">
         <h3 className="font-semibold line-clamp-2">{lesson.title}</h3>
+        {lesson.expert && (
+          <p className="text-xs text-text-secondary">Com {lesson.expert}</p>
+        )}
         <p className="text-xs text-text-secondary line-clamp-2">{lesson.description}</p>
         {summary.count > 0 && (
           <div className="flex items-center gap-1 mt-1">
@@ -439,7 +445,10 @@ function ExpandedLesson({
       <div className="p-6 space-y-6">
         {/* Title + description */}
         <div>
-          <h2 className="text-xl md:text-2xl font-bold mb-2">{lesson.title}</h2>
+          <h2 className="text-xl md:text-2xl font-bold mb-1">{lesson.title}</h2>
+          {lesson.expert && (
+            <p className="text-sm text-text-secondary mb-2">Com {lesson.expert}</p>
+          )}
           <p className="text-sm text-text-secondary whitespace-pre-line">{lesson.description}</p>
         </div>
 

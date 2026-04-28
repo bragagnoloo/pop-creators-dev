@@ -141,6 +141,7 @@ export interface SavedScript {
 export interface Lesson {
   id: string;
   title: string;
+  expert: string | null;
   description: string;
   thumbnailUrl: string | null;
   youtubeUrl: string;

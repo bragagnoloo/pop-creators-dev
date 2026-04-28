@@ -19,6 +19,7 @@ export default function AdminAulasPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
+  const [expert, setExpert] = useState('');
   const [description, setDescription] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
@@ -48,6 +49,7 @@ export default function AdminAulasPage() {
   const openCreate = () => {
     setEditing(null);
     setTitle('');
+    setExpert('');
     setDescription('');
     setYoutubeUrl('');
     setThumbnailUrl(null);
@@ -60,6 +62,7 @@ export default function AdminAulasPage() {
   const openEdit = (lesson: Lesson) => {
     setEditing(lesson);
     setTitle(lesson.title);
+    setExpert(lesson.expert ?? '');
     setDescription(lesson.description);
     setYoutubeUrl(lesson.youtubeUrl);
     setThumbnailUrl(lesson.thumbnailUrl);
@@ -86,7 +89,7 @@ export default function AdminAulasPage() {
       );
       if (uploaded) finalThumb = uploaded;
     }
-    const data = { title, description, youtubeUrl, thumbnailUrl: finalThumb };
+    const data = { title, expert: expert.trim() || null, description, youtubeUrl, thumbnailUrl: finalThumb };
     if (editing) {
       await lessonService.updateLesson(editing.id, data);
     } else {
@@ -194,6 +197,12 @@ export default function AdminAulasPage() {
               value={title}
               onChange={e => setTitle(e.target.value)}
               required
+            />
+            <Input
+              label="Com"
+              value={expert}
+              onChange={e => setExpert(e.target.value)}
+              placeholder="Nome do expert (opcional)"
             />
             <Textarea
               label="Descrição"

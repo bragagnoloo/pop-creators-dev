@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client';
 type LessonRow = {
   id: string;
   title: string;
+  expert: string | null;
   description: string;
   thumbnail_url: string | null;
   youtube_url: string;
@@ -24,6 +25,7 @@ function toLesson(r: LessonRow): Lesson {
   return {
     id: r.id,
     title: r.title,
+    expert: r.expert,
     description: r.description,
     thumbnailUrl: r.thumbnail_url,
     youtubeUrl: r.youtube_url,
@@ -32,7 +34,7 @@ function toLesson(r: LessonRow): Lesson {
   };
 }
 
-const L_SELECT = 'id, title, description, thumbnail_url, youtube_url, created_at, position';
+const L_SELECT = 'id, title, expert, description, thumbnail_url, youtube_url, created_at, position';
 
 // ---------- Lessons CRUD ----------
 
@@ -51,6 +53,7 @@ export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt' | 'posi
     .from('lessons')
     .insert({
       title: data.title,
+      expert: data.expert,
       description: data.description,
       thumbnail_url: data.thumbnailUrl,
       youtube_url: data.youtubeUrl,
@@ -72,6 +75,7 @@ export async function updateLesson(id: string, data: Partial<Lesson>): Promise<L
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
   if (data.title !== undefined) patch.title = data.title;
+  if (data.expert !== undefined) patch.expert = data.expert;
   if (data.description !== undefined) patch.description = data.description;
   if (data.thumbnailUrl !== undefined) patch.thumbnail_url = data.thumbnailUrl;
   if (data.youtubeUrl !== undefined) patch.youtube_url = data.youtubeUrl;

@@ -145,6 +145,7 @@ export interface Lesson {
   thumbnailUrl: string | null;
   youtubeUrl: string;
   createdAt: string;
+  position: number;
 }
 
 export interface LessonRating {

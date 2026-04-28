@@ -8,6 +8,7 @@ type LessonRow = {
   thumbnail_url: string | null;
   youtube_url: string;
   created_at: string;
+  position: number;
 };
 
 type CommentRow = {
@@ -27,22 +28,25 @@ function toLesson(r: LessonRow): Lesson {
     thumbnailUrl: r.thumbnail_url,
     youtubeUrl: r.youtube_url,
     createdAt: r.created_at,
+    position: r.position,
   };
 }
 
-const L_SELECT = 'id, title, description, thumbnail_url, youtube_url, created_at';
+const L_SELECT = 'id, title, description, thumbnail_url, youtube_url, created_at, position';
 
 // ---------- Lessons CRUD ----------
 
 export async function getAllLessons(): Promise<Lesson[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('lessons').select(L_SELECT).order('created_at', { ascending: false });
+  const { data } = await supabase.from('lessons').select(L_SELECT).order('position', { ascending: true });
   if (!data) return [];
   return (data as LessonRow[]).map(toLesson);
 }
 
-export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt'>): Promise<Lesson | null> {
+export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt' | 'position'>): Promise<Lesson | null> {
   const supabase = createClient();
+  const { data: maxRow } = await supabase.from('lessons').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
+  const nextPosition = ((maxRow as LessonRow | null)?.position ?? 0) + 1;
   const { data: inserted } = await supabase
     .from('lessons')
     .insert({
@@ -50,10 +54,18 @@ export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt'>): Prom
       description: data.description,
       thumbnail_url: data.thumbnailUrl,
       youtube_url: data.youtubeUrl,
+      position: nextPosition,
     })
     .select(L_SELECT)
     .single();
   return inserted ? toLesson(inserted as LessonRow) : null;
+}
+
+export async function reorderLessons(ids: string[]): Promise<void> {
+  const supabase = createClient();
+  await Promise.all(ids.map((id, index) =>
+    supabase.from('lessons').update({ position: index + 1 }).eq('id', id)
+  ));
 }
 
 export async function updateLesson(id: string, data: Partial<Lesson>): Promise<Lesson | null> {

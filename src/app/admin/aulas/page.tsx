@@ -27,6 +27,8 @@ export default function AdminAulasPage() {
   const [saving, setSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const dragIndex = useRef<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
 
   const load = async () => setLessons(await lessonService.getAllLessons());
 
@@ -93,6 +95,35 @@ export default function AdminAulasPage() {
     setSaving(false);
     setShowForm(false);
     load();
+  };
+
+  const handleDragStart = (index: number) => {
+    dragIndex.current = index;
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOver(index);
+  };
+
+  const handleDrop = async (dropIndex: number) => {
+    const from = dragIndex.current;
+    if (from === null || from === dropIndex) {
+      setDragOver(null);
+      return;
+    }
+    const reordered = [...lessons];
+    const [moved] = reordered.splice(from, 1);
+    reordered.splice(dropIndex, 0, moved);
+    setLessons(reordered);
+    setDragOver(null);
+    dragIndex.current = null;
+    await lessonService.reorderLessons(reordered.map(l => l.id));
+  };
+
+  const handleDragEnd = () => {
+    setDragOver(null);
+    dragIndex.current = null;
   };
 
   const handleDelete = async (id: string) => {
@@ -211,9 +242,28 @@ export default function AdminAulasPage() {
       )}
 
       <div className="space-y-4">
-        {lessons.map(lesson => (
-          <Card key={lesson.id}>
+        {lessons.map((lesson, index) => (
+          <div
+            key={lesson.id}
+            draggable
+            onDragStart={() => handleDragStart(index)}
+            onDragOver={e => handleDragOver(e, index)}
+            onDrop={() => handleDrop(index)}
+            onDragEnd={handleDragEnd}
+            className={`transition-opacity ${dragOver === index && dragIndex.current !== index ? 'opacity-50' : 'opacity-100'}`}
+          >
+          <Card>
             <div className="flex gap-4">
+              <div
+                className="flex items-center px-1 cursor-grab active:cursor-grabbing text-text-secondary hover:text-white transition-colors shrink-0"
+                title="Arrastar para reordenar"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 16 16" fill="currentColor">
+                  <circle cx="5" cy="4" r="1.5" /><circle cx="11" cy="4" r="1.5" />
+                  <circle cx="5" cy="8" r="1.5" /><circle cx="11" cy="8" r="1.5" />
+                  <circle cx="5" cy="12" r="1.5" /><circle cx="11" cy="12" r="1.5" />
+                </svg>
+              </div>
               <div className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-border bg-background shrink-0">
                 {lesson.thumbnailUrl ? (
                   <Image
@@ -248,6 +298,7 @@ export default function AdminAulasPage() {
               </div>
             </div>
           </Card>
+          </div>
         ))}
 
         {lessons.length === 0 && (

@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
 import Sidebar, { useSidebarState } from '@/components/ui/Sidebar';
 import { ROUTES } from '@/lib/constants';
+import { recordDailyLogin } from '@/services/ranking';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -15,6 +16,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!isLoading && !user) {
       router.push(ROUTES.LOGIN);
+    }
+    if (!isLoading && user) {
+      recordDailyLogin();
     }
   }, [user, isLoading, router]);
 

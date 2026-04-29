@@ -183,3 +183,19 @@ export type AuthResult = {
   success: false;
   error: string;
 };
+
+export type RankingEntry = {
+  rank: number;
+  userId: string;
+  fullName: string;
+  photoUrl: string | null;
+  plan: PlanId;
+  totalPoints: number;
+};
+
+export type UserRankingStats = {
+  monthlyRank: number | null;
+  monthlyPoints: number;
+  alltimeRank: number | null;
+  alltimePoints: number;
+};

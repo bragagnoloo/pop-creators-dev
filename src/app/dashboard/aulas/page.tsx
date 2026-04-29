@@ -321,7 +321,7 @@ function LessonCard({
       onClick={onPlay}
       className="group flex flex-col text-left bg-surface border border-border rounded-2xl overflow-hidden hover:border-popline-pink/40 transition-all hover:-translate-y-0.5"
     >
-      <div className="relative aspect-[4/5] overflow-hidden bg-background">
+      <div className="relative w-full overflow-hidden bg-background" style={{ paddingBottom: '125%' }}>
         {lesson.thumbnailUrl ? (
           <Image
             src={lesson.thumbnailUrl}
@@ -331,7 +331,7 @@ function LessonCard({
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center">
             <svg className="w-10 h-10 text-text-secondary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>

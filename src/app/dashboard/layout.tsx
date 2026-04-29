@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
@@ -12,15 +12,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const { collapsed, toggle } = useSidebarState();
+  const dailyLoginRecorded = useRef(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push(ROUTES.LOGIN);
     }
-    if (!isLoading && user) {
+  }, [user, isLoading, router]);
+
+  useEffect(() => {
+    if (user && !dailyLoginRecorded.current) {
+      dailyLoginRecorded.current = true;
       recordDailyLogin();
     }
-  }, [user, isLoading, router]);
+  }, [user]);
 
   if (isLoading) {
     return (

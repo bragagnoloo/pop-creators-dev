@@ -10,19 +10,20 @@ function mapUser(id: string, email: string, role: 'creator' | 'admin', createdAt
  */
 export async function getCurrentUser(): Promise<AuthUser | null> {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  // getSession() reads from the local cookie — no network request, unlike getUser()
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) return null;
 
   const { data: profile } = await supabase
     .from('profiles')
     .select('role, email, created_at')
-    .eq('id', user.id)
+    .eq('id', session.user.id)
     .single();
 
   if (!profile) return null;
 
   return mapUser(
-    user.id,
+    session.user.id,
     profile.email,
     profile.role as 'creator' | 'admin',
     profile.created_at
@@ -31,15 +32,23 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
 export async function login(email: string, password: string): Promise<AuthResult> {
   const supabase = createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  // signInWithPassword already returns the user — avoid a second getUser() round-trip
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) {
     return { success: false, error: 'Email ou senha incorretos.' };
   }
-  const user = await getCurrentUser();
-  if (!user) {
+  if (!data.user) {
     return { success: false, error: 'Falha ao carregar perfil.' };
   }
-  return { success: true, user };
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role, email, created_at')
+    .eq('id', data.user.id)
+    .single();
+  if (!profile) {
+    return { success: false, error: 'Falha ao carregar perfil.' };
+  }
+  return { success: true, user: mapUser(data.user.id, profile.email, profile.role as 'creator' | 'admin', profile.created_at) };
 }
 
 export type RegisterResult =

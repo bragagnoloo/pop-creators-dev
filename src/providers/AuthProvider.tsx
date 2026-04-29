@@ -22,21 +22,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    authService.getCurrentUser().then(current => {
-      if (!mounted) return;
-      setUser(current);
-      setIsLoading(false);
-    });
-
-    // Reage a mudanças de sessão (login em outra aba, logout, refresh)
     const supabase = createClient();
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    // onAuthStateChange fires INITIAL_SESSION immediately — use it as single source of truth
+    // to avoid calling getCurrentUser() twice on every page load
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
+      // TOKEN_REFRESHED only rotates the JWT — user profile hasn't changed
+      if (event === 'TOKEN_REFRESHED') return;
       if (!session) {
         setUser(null);
-      } else {
-        authService.getCurrentUser().then(u => mounted && setUser(u));
+        setIsLoading(false);
+        return;
       }
+      authService.getCurrentUser().then(u => {
+        if (!mounted) return;
+        setUser(u);
+        setIsLoading(false);
+      });
     });
 
     return () => {

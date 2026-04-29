@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
 import Sidebar, { useSidebarState } from '@/components/ui/Sidebar';
+import BottomNav from '@/components/ui/BottomNav';
 import { ROUTES } from '@/lib/constants';
 import { recordDailyLogin } from '@/services/ranking';
 
@@ -40,14 +41,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen">
       <Sidebar collapsed={collapsed} onToggle={toggle} />
+      <BottomNav />
 
-      <div className={`transition-[padding] duration-200 ${collapsed ? 'pl-16' : 'pl-60'}`}>
+      <div className={`transition-[padding] duration-200 ${collapsed ? 'md:pl-16' : 'md:pl-60'}`}>
         <main className="pt-8 pb-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           {children}
         </main>
 
         <footer
-          className={`fixed bottom-0 right-0 py-3 bg-background/80 backdrop-blur-xl border-t border-white/5 transition-[left] duration-200 ${collapsed ? 'left-16' : 'left-60'}`}
+          className={`hidden md:block fixed bottom-0 right-0 py-3 bg-background/80 backdrop-blur-xl border-t border-white/5 transition-[left] duration-200 ${collapsed ? 'md:left-16' : 'md:left-60'}`}
           style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
         >
           <div className="max-w-5xl mx-auto px-4 flex items-center justify-center">

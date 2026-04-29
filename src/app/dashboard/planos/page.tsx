@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
-import { PlanId, Subscription } from '@/types';
+import { PlanId } from '@/types';
 import * as subService from '@/services/subscriptions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -11,12 +12,12 @@ import Badge from '@/components/ui/Badge';
 
 export default function PlanosPage() {
   const { user } = useAuth();
-  const [sub, setSub] = useState<Subscription | null>(null);
   const [showSubscribe, setShowSubscribe] = useState<PlanId | null>(null);
 
-  useEffect(() => {
-    if (user) subService.getUserSubscription(user.id).then(setSub);
-  }, [user]);
+  const { data: sub, mutate: mutateSub } = useSWR(
+    user ? ['subscription', user.id] : null,
+    ([, uid]) => subService.getUserSubscription(uid)
+  );
 
   const currentPlan = sub?.plan ?? 'free';
   const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
@@ -130,7 +131,7 @@ export default function PlanosPage() {
                 onClick={async () => {
                   // Dev-only shortcut: self-assign to let UX flow be tested
                   await subService.setUserPlan(user.id, showSubscribe, 'system');
-                  setSub(await subService.getUserSubscription(user.id));
+                  mutateSub();
                   setShowSubscribe(null);
                 }}
               >

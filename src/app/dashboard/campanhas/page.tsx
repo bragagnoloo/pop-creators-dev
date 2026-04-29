@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
-import { Campaign, CampaignApplication } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
@@ -18,19 +18,15 @@ type Filter = 'available' | 'participating';
 export default function CampanhasPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<Filter>('available');
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [applications, setApplications] = useState<CampaignApplication[]>([]);
   const [showIncomplete, setShowIncomplete] = useState(false);
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    (async () => {
-      setCampaigns(await campaignService.getAllCampaigns());
-      setApplications(await campaignService.getUserApplications(user.id));
-    })();
-  }, [user]);
+  const { data: campaigns = [] } = useSWR('campaigns', campaignService.getAllCampaigns);
+  const { data: applications = [], mutate: mutateApplications } = useSWR(
+    user ? ['applications', user.id] : null,
+    ([, uid]) => campaignService.getUserApplications(uid)
+  );
 
   const appliedIds = useMemo(
     () => new Set(applications.map(a => a.campaignId)),
@@ -61,7 +57,7 @@ export default function CampanhasPage() {
     }
 
     await campaignService.applyToCampaign(campaignId, user.id);
-    setApplications(await campaignService.getUserApplications(user.id));
+    mutateApplications();
   };
 
   const counts = {

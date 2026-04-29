@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
-import { useLoadOnMount } from '@/hooks/useLoadOnMount';
+import { useState, useMemo } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
-import { UserProfile, BalanceCredit, Withdrawal, PixKeyType, Campaign } from '@/types';
+import { BalanceCredit, Withdrawal, PixKeyType, Campaign } from '@/types';
 import * as userService from '@/services/users';
 import * as walletService from '@/services/wallet';
 import * as campaignService from '@/services/campaigns';
@@ -15,15 +15,28 @@ import Badge from '@/components/ui/Badge';
 
 export default function CarteiraPage() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [summary, setSummary] = useState<walletService.WalletSummary>({
-    available: 0,
-    processing: 0,
-    totalWithdrawn: 0,
-  });
-  const [credits, setCredits] = useState<BalanceCredit[]>([]);
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
-  const [campaigns, setCampaigns] = useState<Record<string, Campaign>>({});
+
+  const { data: walletData, mutate: mutateWallet } = useSWR(
+    user ? ['wallet', user.id] : null,
+    async ([, uid]) => {
+      const [profile, summary, credits, withdrawals, allCampaigns] = await Promise.all([
+        userService.getProfile(uid),
+        walletService.getUserWalletSummary(uid),
+        walletService.getUserCredits(uid),
+        walletService.getUserWithdrawals(uid),
+        campaignService.getAllCampaigns(),
+      ]);
+      const campaignMap: Record<string, Campaign> = {};
+      for (const camp of allCampaigns) campaignMap[camp.id] = camp;
+      return { profile, summary, credits, withdrawals, campaigns: campaignMap };
+    }
+  );
+
+  const profile = walletData?.profile ?? null;
+  const summary = walletData?.summary ?? { available: 0, processing: 0, totalWithdrawn: 0 };
+  const credits = walletData?.credits ?? [];
+  const withdrawals = walletData?.withdrawals ?? [];
+  const campaigns = walletData?.campaigns ?? {};
 
   // Pix form
   const [showPixForm, setShowPixForm] = useState(false);
@@ -36,25 +49,6 @@ export default function CarteiraPage() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!user) return;
-    const [p, s, c, w, all] = await Promise.all([
-      userService.getProfile(user.id),
-      walletService.getUserWalletSummary(user.id),
-      walletService.getUserCredits(user.id),
-      walletService.getUserWithdrawals(user.id),
-      campaignService.getAllCampaigns(),
-    ]);
-    setProfile(p);
-    setSummary(s);
-    setCredits(c);
-    setWithdrawals(w);
-    const map: Record<string, Campaign> = {};
-    for (const camp of all) map[camp.id] = camp;
-    setCampaigns(map);
-  }, [user]);
-
-  useLoadOnMount(load, [load]);
 
   const history = useMemo(() => {
     type Entry =
@@ -88,7 +82,7 @@ export default function CarteiraPage() {
     await userService.updateProfile(user.id, { pixKey, pixKeyType });
     setShowPixForm(false);
     setPixConfirm(false);
-    load();
+    mutateWallet();
   };
 
   const openWithdraw = () => {
@@ -107,7 +101,7 @@ export default function CarteiraPage() {
       return;
     }
     setShowWithdraw(false);
-    load();
+    mutateWallet();
   };
 
   return (

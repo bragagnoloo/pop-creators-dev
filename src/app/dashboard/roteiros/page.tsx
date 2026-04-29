@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { SavedScript } from '@/types';
 import * as scriptsService from '@/services/scripts';
@@ -75,18 +76,15 @@ export default function RoteirosPage() {
   const [showRefine, setShowRefine] = useState(false);
   const [refineInstruction, setRefineInstruction] = useState('');
 
-  const [savedScripts, setSavedScripts] = useState<SavedScript[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const loadSaved = useCallback(async () => {
-    if (!user) return;
-    setSavedScripts(await scriptsService.getUserScripts(user.id));
-  }, [user]);
+  const { data: savedScripts = [], mutate: mutateSaved } = useSWR(
+    user ? ['scripts', user.id] : null,
+    ([, uid]) => scriptsService.getUserScripts(uid)
+  );
 
-  useEffect(() => {
-    loadSaved();
-  }, [loadSaved]);
+  const loadSaved = useCallback(() => { mutateSaved(); }, [mutateSaved]);
 
   const currentInputs = () => ({
     mode,

@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { Lesson, LessonComment, UserProfile } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
@@ -16,23 +17,25 @@ type Filter = 'all' | 'unwatched' | 'new';
 
 export default function AulasPage() {
   const { user } = useAuth();
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [watched, setWatched] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [paywallOpen, setPaywallOpen] = useState(false);
+  const [watched, setWatched] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
-    setLessons(await lessonService.getAllLessons());
-    if (user) {
-      setWatched(await lessonService.getWatchedIds(user.id));
-      setProfile(await userService.getProfile(user.id));
-    }
-  }, [user]);
+  const { data: lessons = [] } = useSWR('lessons', lessonService.getAllLessons);
+  const { data: profile } = useSWR(
+    user ? ['profile', user.id] : null,
+    ([, uid]) => userService.getProfile(uid)
+  );
+  const { data: watchedData } = useSWR(
+    user ? ['watched', user.id] : null,
+    ([, uid]) => lessonService.getWatchedIds(uid)
+  );
 
-  useLoadOnMount(load, [load]);
+  useEffect(() => {
+    if (watchedData) setWatched(watchedData);
+  }, [watchedData]);
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -110,7 +113,7 @@ export default function AulasPage() {
           <ExpandedLesson
             lesson={hero}
             user={user}
-            profile={profile}
+            profile={profile ?? null}
             onClose={() => setExpandedId(null)}
             highlight
           />
@@ -170,7 +173,7 @@ export default function AulasPage() {
                 <ExpandedLesson
                   lesson={lesson}
                   user={user}
-                  profile={profile}
+                  profile={profile ?? null}
                   onClose={() => setExpandedId(null)}
                 />
               </div>

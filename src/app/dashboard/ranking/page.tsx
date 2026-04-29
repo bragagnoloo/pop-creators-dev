@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import useSWR from 'swr';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import Avatar from '@/components/ui/Avatar';
@@ -152,20 +153,13 @@ export default function RankingPage() {
   const { user } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState<'monthly' | 'alltime'>('monthly');
-  const [entries, setEntries] = useState<RankingEntry[]>([]);
-  const [stats, setStats] = useState<UserRankingStats | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setLoading(true);
-    const fetch = tab === 'monthly' ? getMonthlyRanking : getAllTimeRanking;
-    Promise.all([fetch(), getUserRankingStats()])
-      .then(([list, userStats]) => {
-        setEntries(list);
-        setStats(userStats);
-      })
-      .finally(() => setLoading(false));
-  }, [tab]);
+  const { data: monthlyEntries = [], isLoading: loadingMonthly } = useSWR('ranking-monthly', getMonthlyRanking);
+  const { data: alltimeEntries = [], isLoading: loadingAlltime } = useSWR('ranking-alltime', getAllTimeRanking);
+  const { data: stats } = useSWR(user ? ['ranking-stats', user.id] : null, getUserRankingStats);
+
+  const entries = tab === 'monthly' ? monthlyEntries : alltimeEntries;
+  const loading = tab === 'monthly' ? loadingMonthly : loadingAlltime;
 
   const myPoints = tab === 'monthly' ? (stats?.monthlyPoints ?? 0) : (stats?.alltimePoints ?? 0);
   const myRank = tab === 'monthly' ? stats?.monthlyRank : stats?.alltimeRank;

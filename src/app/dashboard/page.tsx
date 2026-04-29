@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
-import { UserProfile } from '@/types';
 import * as userService from '@/services/users';
-import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import OnboardingModal from '@/components/onboarding/OnboardingModal';
 import ProfileBlock from '@/components/dashboard/ProfileBlock';
 import ProfileEditModal from '@/components/dashboard/ProfileEditModal';
@@ -13,20 +12,17 @@ import MyCampaigns from '@/components/dashboard/MyCampaigns';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
 
-  const loadProfile = useCallback(async () => {
-    if (!user) return;
-    const p = await userService.getProfile(user.id);
-    setProfile(p);
-    if (p && !p.onboardingComplete) {
-      setShowOnboarding(true);
-    }
-  }, [user]);
+  const { data: profile, mutate: mutateProfile } = useSWR(
+    user ? ['profile', user.id] : null,
+    ([, uid]) => userService.getProfile(uid)
+  );
 
-  useLoadOnMount(loadProfile, [loadProfile]);
+  useEffect(() => {
+    if (profile && !profile.onboardingComplete) setShowOnboarding(true);
+  }, [profile]);
 
   if (!user || !profile) return null;
 
@@ -37,7 +33,7 @@ export default function DashboardPage() {
           userId={user.id}
           onComplete={() => {
             setShowOnboarding(false);
-            loadProfile();
+            mutateProfile();
           }}
         />
       )}
@@ -47,7 +43,7 @@ export default function DashboardPage() {
           profile={profile}
           onSave={async (data) => {
             await userService.updateProfile(user.id, data);
-            loadProfile();
+            mutateProfile();
           }}
           onClose={() => setShowEditProfile(false)}
         />

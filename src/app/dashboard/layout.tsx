@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
 import Sidebar, { useSidebarState } from '@/components/ui/Sidebar';
 import BottomNav from '@/components/ui/BottomNav';
+import MobileTopBar from '@/components/ui/MobileTopBar';
 import { ROUTES } from '@/lib/constants';
 import { recordDailyLogin } from '@/services/ranking';
 
@@ -41,10 +42,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen">
       <Sidebar collapsed={collapsed} onToggle={toggle} />
+      <MobileTopBar />
       <BottomNav />
 
       <div className={`transition-[padding] duration-200 ${collapsed ? 'md:pl-16' : 'md:pl-60'}`}>
-        <main className="pt-8 pb-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+        <main className="pt-14 md:pt-8 pb-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
           {children}
         </main>
 

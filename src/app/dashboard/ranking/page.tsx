@@ -154,9 +154,9 @@ export default function RankingPage() {
   const router = useRouter();
   const [tab, setTab] = useState<'monthly' | 'alltime'>('monthly');
 
-  const { data: monthlyEntries = [], isLoading: loadingMonthly } = useSWR('ranking-monthly', getMonthlyRanking);
-  const { data: alltimeEntries = [], isLoading: loadingAlltime } = useSWR('ranking-alltime', getAllTimeRanking);
-  const { data: stats } = useSWR(user ? ['ranking-stats', user.id] : null, getUserRankingStats);
+  const { data: monthlyEntries = [], isLoading: loadingMonthly } = useSWR('ranking-monthly', () => getMonthlyRanking());
+  const { data: alltimeEntries = [], isLoading: loadingAlltime } = useSWR('ranking-alltime', () => getAllTimeRanking());
+  const { data: stats } = useSWR(user ? ['ranking-stats', user.id] : null, () => getUserRankingStats());
 
   const entries = tab === 'monthly' ? monthlyEntries : alltimeEntries;
   const loading = tab === 'monthly' ? loadingMonthly : loadingAlltime;

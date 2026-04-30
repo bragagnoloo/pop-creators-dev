@@ -17,7 +17,6 @@
     "next": "16.2.2",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-email": "^6.0.5",
     "resend": "^6.12.2",
     "swr": "^2.4.1"
   },
@@ -29,6 +28,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.2",
     "postgres": "^3.4.9",
+    "react-email": "^6.0.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

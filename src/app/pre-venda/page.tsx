@@ -54,6 +54,14 @@ export default function PreVendaPage() {
 
   return (
     <main className="relative min-h-screen flex flex-col items-center overflow-x-hidden noise-overlay grid-bg">
+      {/* Top bar com glass */}
+      <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 px-6 backdrop-blur-md bg-background/60 border-b border-white/5">
+        <div className="flex items-center gap-2">
+          <span className="text-lg font-bold gradient-text tracking-tight">POPline</span>
+          <span className="text-sm font-medium text-text-secondary tracking-widest uppercase">Creators</span>
+        </div>
+      </header>
+
       {/* Sound frequency waves */}
       <SoundWaves />
 
@@ -67,17 +75,11 @@ export default function PreVendaPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-popline-light/5 rounded-full blur-[150px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-8 py-16 sm:py-24">
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-8 pt-28 sm:pt-32 pb-16 sm:pb-24">
         <div className="flex flex-col lg:flex-row lg:items-center lg:gap-16 xl:gap-24">
 
           {/* ── Coluna esquerda (desktop) / topo (mobile): brand, badge, headline, subheadline ── */}
           <div className="flex flex-col items-center text-center lg:items-start lg:text-left gap-6 sm:gap-8 flex-1 min-w-0">
-
-            {/* Brand */}
-            <div className="animate-slide-up text-sm font-medium tracking-widest uppercase">
-              <span className="gradient-text font-bold">POPline</span>
-              <span className="text-text-secondary"> Creators</span>
-            </div>
 
             {/* Badge */}
             <div className="animate-slide-up inline-flex items-center gap-2 px-5 py-2 rounded-full glass-card border border-popline-pink/20">

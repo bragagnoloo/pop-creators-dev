@@ -67,106 +67,111 @@ export default function PreVendaPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-popline-light/5 rounded-full blur-[150px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-3xl mx-auto px-4 py-16 sm:py-24 flex flex-col items-center text-center gap-8 sm:gap-10">
-        {/* Brand */}
-        <div className="animate-slide-up text-sm font-medium tracking-widest uppercase">
-          <span className="gradient-text font-bold">POPline</span>
-          <span className="text-text-secondary"> Creators</span>
-        </div>
+      <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-8 py-16 sm:py-24">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:gap-16 xl:gap-24">
 
-        {/* Badge */}
-        <div className="animate-slide-up inline-flex items-center gap-2 px-5 py-2 rounded-full glass-card border border-popline-pink/20">
-          <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
-          <span className="text-popline-light text-xs font-bold tracking-widest">
-            ACESSO ANTECIPADO
-          </span>
-          <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
-        </div>
+          {/* ── Coluna esquerda: texto ── */}
+          <div className="flex flex-col items-center text-center lg:items-start lg:text-left gap-6 sm:gap-8 flex-1 min-w-0">
 
-        {/* Headline */}
-        <h1 className="animate-slide-up-delay-1 text-4xl sm:text-6xl lg:text-7xl font-bold leading-[1.08] tracking-tight">
-          O maior lançamento{' '}
-          <br className="hidden sm:block" />
-          <span className="gradient-text">da história do POPline</span>
-          <br className="hidden sm:block" />
-          está chegando
-        </h1>
+            {/* Brand */}
+            <div className="animate-slide-up text-sm font-medium tracking-widest uppercase">
+              <span className="gradient-text font-bold">POPline</span>
+              <span className="text-text-secondary"> Creators</span>
+            </div>
 
-        {/* Sub-headline */}
-        <p className="animate-slide-up-delay-2 text-lg sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
-          Seja um dos primeiros a entrar no ecossistema de criadores mais
-          exclusivo do Brasil.{' '}
-          <span className="text-text-primary font-medium">
-            Acesso antecipado, benefícios únicos
-          </span>{' '}
-          e uma jornada que vai transformar como você cria conteúdo sobre música.
-        </p>
+            {/* Badge */}
+            <div className="animate-slide-up inline-flex items-center gap-2 px-5 py-2 rounded-full glass-card border border-popline-pink/20">
+              <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
+              <span className="text-popline-light text-xs font-bold tracking-widest">
+                ACESSO ANTECIPADO
+              </span>
+              <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
+            </div>
 
-        {/* Video section */}
-        <div className="animate-slide-up-delay-3 w-full flex flex-col items-center gap-5">
-          <div className="flex items-center gap-4 w-full max-w-xs">
-            <div className="flex-1 h-px bg-border" />
-            <p className="text-xs text-text-secondary whitespace-nowrap tracking-wider uppercase">
+            {/* Headline — {' '} antes de "está" garante espaço quando <br> some no mobile */}
+            <h1 className="animate-slide-up-delay-1 text-4xl sm:text-6xl lg:text-5xl xl:text-6xl font-bold leading-[1.08] tracking-tight">
+              O maior lançamento{' '}
+              <br className="hidden sm:block" />
+              <span className="gradient-text">da história do POPline</span>
+              <br className="hidden sm:block" />
+              {' '}está chegando
+            </h1>
+
+            {/* Sub-headline */}
+            <p className="animate-slide-up-delay-2 text-lg sm:text-xl text-text-secondary max-w-2xl leading-relaxed">
+              Seja um dos primeiros a entrar no ecossistema de criadores mais
+              exclusivo do Brasil.{' '}
+              <span className="text-text-primary font-medium">
+                Acesso antecipado, benefícios únicos
+              </span>{' '}
+              e uma jornada que vai transformar como você cria conteúdo sobre música.
+            </p>
+
+            {/* CTA */}
+            <div className="animate-slide-up-delay-3 flex flex-col items-center lg:items-start gap-3">
+              <Button
+                size="lg"
+                onClick={() => setModalOpen(true)}
+                className="min-w-[280px] text-lg font-bold py-4 tracking-wide"
+              >
+                Quero Garantir Meu Lugar →
+              </Button>
+              <p className="text-sm text-text-secondary">
+                Vagas limitadas · Gratuito · Sem compromisso
+              </p>
+            </div>
+
+            {/* Status pills */}
+            <div className="animate-fade-in flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-text-secondary">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span>Cadastros abertos</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>🎵</span>
+                <span>powered by UGC+</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>🇧🇷</span>
+                <span>Brasil</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Coluna direita: vídeo vertical ── */}
+          <div className="animate-slide-up-delay-3 flex flex-col items-center gap-4 w-full lg:w-64 xl:w-72 flex-shrink-0 mt-10 lg:mt-0">
+            <p className="text-xs text-text-secondary tracking-wider uppercase">
               Assista nosso manifesto
             </p>
-            <div className="flex-1 h-px bg-border" />
-          </div>
 
-          <div className="w-full rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
-            {YOUTUBE_VIDEO_ID === 'SUBSTITUIR_AQUI' ? (
-              <div className="aspect-video bg-surface flex flex-col items-center justify-center gap-4">
-                <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-lg shadow-popline-pink/30">
-                  <svg
-                    className="w-7 h-7 text-white ml-1"
-                    fill="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
+            {/* Placeholder/vídeo vertical 9:16 */}
+            <div className="w-full max-w-[240px] lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
+              {YOUTUBE_VIDEO_ID === 'SUBSTITUIR_AQUI' ? (
+                <div className="aspect-[9/16] bg-surface flex flex-col items-center justify-center gap-4">
+                  <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-lg shadow-popline-pink/30">
+                    <svg
+                      className="w-7 h-7 text-white ml-1"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                  </div>
+                  <p className="text-text-secondary text-sm">Em breve</p>
                 </div>
-                <p className="text-text-secondary text-sm">Vídeo manifesto em breve</p>
-              </div>
-            ) : (
-              <iframe
-                className="aspect-video w-full"
-                src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?rel=0&modestbranding=1`}
-                title="POPline Creators — Manifesto"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                loading="lazy"
-              />
-            )}
+              ) : (
+                <iframe
+                  className="aspect-[9/16] w-full"
+                  src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?rel=0&modestbranding=1`}
+                  title="POPline Creators — Manifesto"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  loading="lazy"
+                />
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* CTA */}
-        <div className="animate-slide-up-delay-3 flex flex-col items-center gap-3">
-          <Button
-            size="lg"
-            onClick={() => setModalOpen(true)}
-            className="min-w-[280px] text-lg font-bold py-4 tracking-wide"
-          >
-            Quero Garantir Meu Lugar →
-          </Button>
-          <p className="text-sm text-text-secondary">
-            Vagas limitadas · Gratuito · Sem compromisso
-          </p>
-        </div>
-
-        {/* Status pills */}
-        <div className="animate-fade-in flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-text-secondary">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-            <span>Cadastros abertos</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span>🎵</span>
-            <span>powered by UGC+</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span>🇧🇷</span>
-            <span>Brasil</span>
-          </div>
         </div>
       </div>
 

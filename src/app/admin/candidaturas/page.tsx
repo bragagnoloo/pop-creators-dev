@@ -307,6 +307,12 @@ export default function AdminCandidaturasPage() {
                                   <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Rejeitar</Button>
                                 </>
                               )}
+                              {app.status === 'approved' && (
+                                <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                              )}
+                              {app.status === 'rejected' && (
+                                <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -347,6 +353,12 @@ export default function AdminCandidaturasPage() {
                             <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
                             <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Rejeitar</Button>
                           </>
+                        )}
+                        {app.status === 'approved' && (
+                          <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                        )}
+                        {app.status === 'rejected' && (
+                          <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
                         )}
                       </div>
                     </div>

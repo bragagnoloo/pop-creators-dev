@@ -46,23 +46,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Erro ao salvar cadastro' }, { status: 500 });
   }
 
-  // Email de confirmação — fire-and-forget
+  // Email de confirmação — fire-and-forget (Resend, mesma região)
   sendEmail(
     email,
     'Sua vaga na POPline Creators está reservada!',
     React.createElement(PreVendaLeadEmail, { nome }),
   ).catch(() => {});
 
-  // Webhook é fire-and-forget — falha não bloqueia o cadastro do usuário
-  fetch(WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ nome, email, whatsapp, data_cadastro }),
-  }).then((res) => {
+  // Webhook aguardado — request externo precisa completar antes do handler retornar
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, whatsapp, data_cadastro }),
+    });
     if (!res.ok) console.error('[pre-cadastro] webhook status', res.status);
-  }).catch((err) => {
+  } catch (err) {
     console.error('[pre-cadastro] webhook error', err);
-  });
+  }
 
   return NextResponse.json({ ok: true });
 }

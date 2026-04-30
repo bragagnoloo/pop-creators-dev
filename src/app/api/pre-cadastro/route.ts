@@ -51,7 +51,6 @@ export async function POST(request: Request) {
     email,
     'Sua vaga na POPline Creators está reservada!',
     React.createElement(PreVendaLeadEmail, { nome }),
-    true,
   ).catch(() => {});
 
   // Webhook é fire-and-forget — falha não bloqueia o cadastro do usuário

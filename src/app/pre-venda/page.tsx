@@ -70,7 +70,7 @@ export default function PreVendaPage() {
       <div className="relative z-10 w-full max-w-6xl mx-auto px-4 sm:px-8 py-16 sm:py-24">
         <div className="flex flex-col lg:flex-row lg:items-center lg:gap-16 xl:gap-24">
 
-          {/* ── Coluna esquerda: texto ── */}
+          {/* ── Coluna esquerda (desktop) / topo (mobile): brand, badge, headline, subheadline ── */}
           <div className="flex flex-col items-center text-center lg:items-start lg:text-left gap-6 sm:gap-8 flex-1 min-w-0">
 
             {/* Brand */}
@@ -88,7 +88,7 @@ export default function PreVendaPage() {
               <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
             </div>
 
-            {/* Headline — {' '} antes de "está" garante espaço quando <br> some no mobile */}
+            {/* Headline */}
             <h1 className="animate-slide-up-delay-1 text-4xl sm:text-6xl lg:text-5xl xl:text-6xl font-bold leading-[1.08] tracking-tight">
               O maior lançamento{' '}
               <br className="hidden sm:block" />
@@ -107,8 +107,8 @@ export default function PreVendaPage() {
               e uma jornada que vai transformar como você cria conteúdo sobre música.
             </p>
 
-            {/* CTA */}
-            <div className="animate-slide-up-delay-3 flex flex-col items-center lg:items-start gap-3">
+            {/* CTA + Status — desktop only (no mobile fica abaixo do vídeo) */}
+            <div className="hidden lg:flex flex-col items-start gap-3 animate-slide-up-delay-3">
               <Button
                 size="lg"
                 onClick={() => setModalOpen(true)}
@@ -121,8 +121,7 @@ export default function PreVendaPage() {
               </p>
             </div>
 
-            {/* Status pills */}
-            <div className="animate-fade-in flex flex-wrap items-center justify-center lg:justify-start gap-4 sm:gap-6 text-sm text-text-secondary">
+            <div className="hidden lg:flex flex-wrap items-center justify-start gap-4 sm:gap-6 text-sm text-text-secondary animate-fade-in">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                 <span>Cadastros abertos</span>
@@ -138,26 +137,21 @@ export default function PreVendaPage() {
             </div>
           </div>
 
-          {/* ── Coluna direita: vídeo vertical ── */}
-          <div className="animate-slide-up-delay-3 flex flex-col items-center gap-4 w-full lg:w-64 xl:w-72 flex-shrink-0 mt-10 lg:mt-0">
+          {/* ── Coluna direita (desktop) / meio (mobile): vídeo vertical ── */}
+          <div className="animate-slide-up-delay-3 flex flex-col items-center gap-4 w-full lg:w-64 xl:w-72 flex-shrink-0 mt-8 lg:mt-0">
             <p className="text-xs text-text-secondary tracking-wider uppercase">
               Assista nosso manifesto
             </p>
 
-            {/* Placeholder/vídeo vertical 9:16 */}
-            <div className="w-full max-w-[240px] lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
+            <div className="w-full max-w-[260px] lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
               {YOUTUBE_VIDEO_ID === 'SUBSTITUIR_AQUI' ? (
                 <div className="aspect-[9/16] bg-surface flex flex-col items-center justify-center gap-4">
                   <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-lg shadow-popline-pink/30">
-                    <svg
-                      className="w-7 h-7 text-white ml-1"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
+                    <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   </div>
-                  <p className="text-text-secondary text-sm">Em breve</p>
+                  <p className="text-text-secondary text-sm">Vídeo manifesto em breve</p>
                 </div>
               ) : (
                 <iframe
@@ -169,6 +163,36 @@ export default function PreVendaPage() {
                   loading="lazy"
                 />
               )}
+            </div>
+          </div>
+
+          {/* ── CTA + Status — mobile only (abaixo do vídeo) ── */}
+          <div className="lg:hidden flex flex-col items-center gap-6 mt-4">
+            <div className="flex flex-col items-center gap-3">
+              <Button
+                size="lg"
+                onClick={() => setModalOpen(true)}
+                className="min-w-[280px] text-lg font-bold py-4 tracking-wide"
+              >
+                Quero Garantir Meu Lugar →
+              </Button>
+              <p className="text-sm text-text-secondary">
+                Vagas limitadas · Gratuito · Sem compromisso
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-sm text-text-secondary">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span>Cadastros abertos</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>🎵</span>
+                <span>powered by UGC+</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span>🇧🇷</span>
+                <span>Brasil</span>
+              </div>
             </div>
           </div>
 

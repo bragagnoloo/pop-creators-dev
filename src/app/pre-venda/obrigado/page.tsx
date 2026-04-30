@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 
-// ─── Substitua pelo link do grupo do WhatsApp ────────────────────────────────
-const WHATSAPP_GROUP_URL = '#';
-// ─────────────────────────────────────────────────────────────────────────────
+const WHATSAPP_GROUP_URL = 'https://chat.whatsapp.com/EeWby5665pFDG1SGfEdshE?mode=gi_t';
 
 const TEASERS = [
   { icon: '🎯', label: 'Campanhas exclusivas' },

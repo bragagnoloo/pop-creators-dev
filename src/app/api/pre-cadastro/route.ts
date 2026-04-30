@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
+import React from 'react';
 import { createAdminClient } from '@/lib/supabase/server';
+import { sendEmail } from '@/lib/email';
+import PreVendaLeadEmail from '@/emails/pre-venda-lead';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -42,6 +45,14 @@ export async function POST(request: Request) {
     console.error('[pre-cadastro] db error', dbError.message);
     return NextResponse.json({ error: 'Erro ao salvar cadastro' }, { status: 500 });
   }
+
+  // Email de confirmação — fire-and-forget
+  sendEmail(
+    email,
+    'Sua vaga na POPline Creators está reservada!',
+    React.createElement(PreVendaLeadEmail, { nome }),
+    true,
+  ).catch(() => {});
 
   // Webhook é fire-and-forget — falha não bloqueia o cadastro do usuário
   fetch(WEBHOOK_URL, {

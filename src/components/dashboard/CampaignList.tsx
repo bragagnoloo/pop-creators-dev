@@ -67,6 +67,12 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
       setTermError(result.error);
       return;
     }
+    const campaignTitle = campaigns.find(c => c.id === termForCampaignId)?.title ?? '';
+    fetch('/api/email/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'application-received', data: { userId, campaignTitle } }),
+    }).catch(() => {});
     setTermForCampaignId(null);
     setApplications(await campaignService.getUserApplications(userId));
   };

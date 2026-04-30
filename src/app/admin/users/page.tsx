@@ -44,7 +44,21 @@ export default function AdminUsersPage() {
 
   const savePlan = async () => {
     if (!planFor) return;
-    await subService.setUserPlan(planFor.userId, planChoice, 'admin');
+    const sub = await subService.setUserPlan(planFor.userId, planChoice, 'admin');
+    if (planChoice !== 'free' && sub.expiresAt) {
+      fetch('/api/email/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'plan-subscribed',
+          data: {
+            userId: planFor.userId,
+            planName: subService.PLANS[planChoice].name,
+            expiresAt: new Date(sub.expiresAt).toLocaleDateString('pt-BR'),
+          },
+        }),
+      }).catch(() => {});
+    }
     refreshPlans(profiles);
     setPlanFor(null);
   };

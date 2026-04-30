@@ -30,7 +30,18 @@ export default function AdminSaquesPage() {
   useLoadOnMount(load);
 
   const handlePaid = async (id: string) => {
+    const w = withdrawals.find(x => x.id === id);
     await walletService.markWithdrawalPaid(id);
+    if (w) {
+      fetch('/api/email/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'withdrawal-paid',
+          data: { userId: w.userId, amount: w.amount, pixKeyType: w.pixKeyType },
+        }),
+      }).catch(() => {});
+    }
     load();
   };
 

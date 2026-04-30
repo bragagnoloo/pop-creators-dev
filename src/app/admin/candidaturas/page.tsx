@@ -136,7 +136,18 @@ export default function AdminCandidaturasPage() {
   };
 
   const handleStatusChange = async (appId: string, status: CampaignApplication['status']) => {
+    const enrichedApp = applications.find(a => a.id === appId);
     await campaignService.updateApplicationStatus(appId, status);
+    if (status === 'approved' && enrichedApp && selectedCampaign) {
+      fetch('/api/email/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'application-approved',
+          data: { userId: enrichedApp.userId, campaignTitle: selectedCampaign.title },
+        }),
+      }).catch(() => {});
+    }
     if (selectedCampaign) openCampaign(selectedCampaign);
   };
 

@@ -77,16 +77,58 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 
   const handleCreate = async (userId: string) => {
     await walletService.createCredit(userId, campaign.id, campaign.cache);
+    fetch('/api/email/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'credit-processing',
+        data: { userId, campaignTitle: campaign.title, amount: campaign.cache },
+      }),
+    }).catch(() => {});
     load();
   };
 
   const handleRelease = async (creditId: string) => {
+    const matchRow = rows.find(r => r.credit?.id === creditId);
     await walletService.releaseCredit(creditId);
+    if (matchRow) {
+      fetch('/api/email/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          event: 'credit-released',
+          data: {
+            userId: matchRow.application.userId,
+            campaignTitle: campaign.title,
+            amount: matchRow.credit!.amount,
+          },
+        }),
+      }).catch(() => {});
+    }
     load();
   };
 
   const handleDeliveryDate = async (deliveryId: string, date: string) => {
     await deliveryService.updateDelivery(deliveryId, { scheduledDate: date ? new Date(date).toISOString() : null });
+    if (date) {
+      const matchRow = rows.find(r => r.deliveries.some(d => d.id === deliveryId));
+      if (matchRow) {
+        const delivery = matchRow.deliveries.find(d => d.id === deliveryId);
+        fetch('/api/email/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'delivery-scheduled',
+            data: {
+              userId: matchRow.application.userId,
+              campaignTitle: campaign.title,
+              deliveryDate: new Date(date).toLocaleDateString('pt-BR'),
+              deliveryIndex: delivery?.index ?? 1,
+            },
+          }),
+        }).catch(() => {});
+      }
+    }
     load();
   };
 
@@ -179,6 +221,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 
       <CampaignNoticesSection
         campaignId={campaign.id}
+        campaignTitle={campaign.title}
         approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
       />
 

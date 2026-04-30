@@ -12,11 +12,12 @@ import Avatar from '@/components/ui/Avatar';
 
 interface Props {
   campaignId: string;
+  campaignTitle: string;
   // Participantes aprovados (para seleção quando aviso é direcionado)
   approved: { application: CampaignApplication; profile: UserProfile | null }[];
 }
 
-export default function CampaignNoticesSection({ campaignId, approved }: Props) {
+export default function CampaignNoticesSection({ campaignId, campaignTitle, approved }: Props) {
   const [notices, setNotices] = useState<CampaignNotice[]>([]);
   const [content, setContent] = useState('');
   const [mode, setMode] = useState<'general' | 'specific'>('general');
@@ -61,6 +62,20 @@ export default function CampaignNoticesSection({ campaignId, approved }: Props) 
       setError(result.error);
       return;
     }
+    fetch('/api/email/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        event: 'campaign-notice',
+        data: {
+          campaignId,
+          campaignTitle,
+          isGeneral: mode === 'general',
+          recipientIds: mode === 'specific' ? recipientIds : [],
+          noticeContent: content.trim(),
+        },
+      }),
+    }).catch(() => {});
     setContent('');
     setRecipientIds([]);
     setMode('general');

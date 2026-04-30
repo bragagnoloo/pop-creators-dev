@@ -74,6 +74,12 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
       onboardingComplete: true,
     });
 
+    fetch('/api/email/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'welcome', data: { userId } }),
+    }).catch(() => {});
+
     setUploading(false);
     onComplete();
   };

@@ -130,7 +130,21 @@ export default function PlanosPage() {
                 className="flex-1"
                 onClick={async () => {
                   // Dev-only shortcut: self-assign to let UX flow be tested
-                  await subService.setUserPlan(user.id, showSubscribe, 'system');
+                  const sub = await subService.setUserPlan(user.id, showSubscribe, 'system');
+                  if (sub.expiresAt) {
+                    fetch('/api/email/notify', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        event: 'plan-subscribed',
+                        data: {
+                          userId: user.id,
+                          planName: subService.PLANS[showSubscribe].name,
+                          expiresAt: new Date(sub.expiresAt).toLocaleDateString('pt-BR'),
+                        },
+                      }),
+                    }).catch(() => {});
+                  }
                   mutateSub();
                   setShowSubscribe(null);
                 }}

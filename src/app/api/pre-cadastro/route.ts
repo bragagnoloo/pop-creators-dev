@@ -53,16 +53,21 @@ export async function POST(request: Request) {
     React.createElement(PreVendaLeadEmail, { nome }),
   ).catch(() => {});
 
-  // Webhook aguardado — request externo precisa completar antes do handler retornar
+  // Webhook aguardado com timeout de 5s — garante entrega sem travar o usuário
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, email, whatsapp, data_cadastro }),
+      signal: controller.signal,
     });
     if (!res.ok) console.error('[pre-cadastro] webhook status', res.status);
   } catch (err) {
     console.error('[pre-cadastro] webhook error', err);
+  } finally {
+    clearTimeout(timer);
   }
 
   return NextResponse.json({ ok: true });

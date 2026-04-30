@@ -19,6 +19,16 @@ export const metadata: Metadata = {
   title: "POPline Creators | powered by UGC+",
   description: "Plataforma que conecta criadores de conteudo com campanhas do Portal POPline - o maior ecossistema de musica do Brasil.",
   applicationName: "POPline Creators",
+  icons: {
+    icon: [
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

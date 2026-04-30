@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { pixelViewContent, pixelInitiateCheckout, pixelPurchase } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { PlanId } from '@/types';
@@ -18,6 +19,10 @@ export default function PlanosPage() {
     user ? ['subscription', user.id] : null,
     ([, uid]) => subService.getUserSubscription(uid)
   );
+
+  useEffect(() => {
+    pixelViewContent({ content_name: 'Planos POPline Creators' });
+  }, []);
 
   const currentPlan = sub?.plan ?? 'free';
   const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
@@ -60,18 +65,18 @@ export default function PlanosPage() {
         <PlanCard
           plan="monthly"
           current={currentPlan}
-          onSubscribe={() => setShowSubscribe('monthly')}
+          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['monthly'].priceTotal, currency: 'BRL', content_name: subService.PLANS['monthly'].name }); setShowSubscribe('monthly'); }}
         />
         <PlanCard
           plan="semester"
           current={currentPlan}
-          onSubscribe={() => setShowSubscribe('semester')}
+          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['semester'].priceTotal, currency: 'BRL', content_name: subService.PLANS['semester'].name }); setShowSubscribe('semester'); }}
           highlighted
         />
         <PlanCard
           plan="yearly"
           current={currentPlan}
-          onSubscribe={() => setShowSubscribe('yearly')}
+          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['yearly'].priceTotal, currency: 'BRL', content_name: subService.PLANS['yearly'].name }); setShowSubscribe('yearly'); }}
         />
       </div>
 
@@ -131,6 +136,11 @@ export default function PlanosPage() {
                 onClick={async () => {
                   // Dev-only shortcut: self-assign to let UX flow be tested
                   const sub = await subService.setUserPlan(user.id, showSubscribe, 'system');
+                  pixelPurchase({
+                    value: subService.PLANS[showSubscribe].priceTotal,
+                    currency: 'BRL',
+                    content_name: subService.PLANS[showSubscribe].name,
+                  });
                   if (sub.expiresAt) {
                     fetch('/api/email/notify', {
                       method: 'POST',

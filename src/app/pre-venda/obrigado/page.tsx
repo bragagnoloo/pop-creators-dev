@@ -1,6 +1,8 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
+import { pixelLead } from '@/lib/pixel';
 
 const WHATSAPP_GROUP_URL = 'https://chat.whatsapp.com/EeWby5665pFDG1SGfEdshE?mode=gi_t';
 
@@ -11,6 +13,10 @@ const TEASERS = [
 ];
 
 export default function ObrigadoPage() {
+  useEffect(() => {
+    pixelLead({ content_name: 'Pre-Cadastro POPline Creators' });
+  }, []);
+
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-x-hidden noise-overlay grid-bg px-4 py-16">
       {/* Background orbs */}

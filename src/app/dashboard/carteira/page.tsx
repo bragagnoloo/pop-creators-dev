@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { pixelAddPaymentInfo, pixelCustom } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { BalanceCredit, Withdrawal, PixKeyType, Campaign } from '@/types';
@@ -80,6 +81,7 @@ export default function CarteiraPage() {
   const confirmPix = async () => {
     if (!user) return;
     await userService.updateProfile(user.id, { pixKey, pixKeyType });
+    pixelAddPaymentInfo();
     setShowPixForm(false);
     setPixConfirm(false);
     mutateWallet();
@@ -100,6 +102,7 @@ export default function CarteiraPage() {
       setWithdrawError(result.error);
       return;
     }
+    pixelCustom('WithdrawalRequested', { value: amount, currency: 'BRL' });
     setShowWithdraw(false);
     mutateWallet();
   };

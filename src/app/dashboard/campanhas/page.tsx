@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { pixelCustom } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import * as campaignService from '@/services/campaigns';
@@ -43,6 +44,7 @@ export default function CampanhasPage() {
   const handleApply = async (campaignId: string) => {
     if (!user) return;
     if (!(await subService.isPaid(user.id))) {
+      pixelCustom('PaywallShown');
       setPaywallOpen(true);
       return;
     }
@@ -57,6 +59,8 @@ export default function CampanhasPage() {
     }
 
     await campaignService.applyToCampaign(campaignId, user.id);
+    const campaign = campaigns.find(c => c.id === campaignId);
+    pixelCustom('AppliedToCampaign', { campaign_id: campaignId, campaign_title: campaign?.title });
     mutateApplications();
   };
 

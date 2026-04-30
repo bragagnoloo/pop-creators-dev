@@ -6,6 +6,7 @@ import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import * as userService from '@/services/users';
+import { pixelCustom } from '@/lib/pixel';
 import { uploadImage, avatarPath } from '@/lib/supabase/storage';
 
 interface OnboardingModalProps {
@@ -79,6 +80,7 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: 'welcome', data: { userId } }),
     }).catch(() => {});
+    pixelCustom('OnboardingComplete', { content_name: 'Onboarding POPline Creators' });
 
     setUploading(false);
     onComplete();

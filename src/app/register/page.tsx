@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { ROUTES } from '@/lib/constants';
+import { pixelCompleteRegistration } from '@/lib/pixel';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -39,6 +40,7 @@ export default function RegisterPage() {
       setLoading(false);
       return;
     }
+    pixelCompleteRegistration({ content_name: 'Cadastro POPline Creators' });
     if (result.needsConfirmation) {
       setSuccessMsg(
         `Conta criada! Enviamos um link de confirmação para ${email}. Abra o email e clique no link para ativar sua conta.`

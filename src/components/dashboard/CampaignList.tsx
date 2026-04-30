@@ -7,6 +7,7 @@ import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
 import { getProfileCompleteness } from '@/lib/profile';
 import { CURRENT_TERM_VERSION } from '@/lib/constants';
+import { pixelCustom } from '@/lib/pixel';
 import CampaignCard from './CampaignCard';
 import CampaignTermModal from '@/components/campaigns/CampaignTermModal';
 import Modal from '@/components/ui/Modal';
@@ -68,6 +69,7 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
       return;
     }
     const campaignTitle = campaigns.find(c => c.id === termForCampaignId)?.title ?? '';
+    pixelCustom('AppliedToCampaign', { campaign_id: termForCampaignId, campaign_title: campaignTitle });
     fetch('/api/email/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

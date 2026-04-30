@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { pixelViewContent } from '@/lib/pixel';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
@@ -17,6 +18,10 @@ function isValidEmail(v: string) {
 
 export default function PreVendaPage() {
   const router = useRouter();
+  useEffect(() => {
+    pixelViewContent({ content_name: 'Pre-Venda POPline Creators' });
+  }, []);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [form, setForm] = useState({ nome: '', email: '', whatsapp: '' });
   const [loading, setLoading] = useState(false);

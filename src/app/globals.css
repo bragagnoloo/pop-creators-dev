@@ -125,6 +125,7 @@ body {
   -webkit-mask-composite: xor;
   opacity: 0;
   transition: opacity 0.3s;
+  pointer-events: none;
 }
 .glow-border:hover::before {
   opacity: 1;

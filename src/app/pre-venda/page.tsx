@@ -8,7 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import SoundWaves from '@/components/landing/SoundWaves';
 
-const MANIFESTO_URL = 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/videos/IMG_0778.MOV';
+const MANIFESTO_URL = 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/videos/Design%20sem%20nome%20(4).mp4';
 
 function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);

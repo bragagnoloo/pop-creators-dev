@@ -8,9 +8,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import SoundWaves from '@/components/landing/SoundWaves';
 
-// ─── Substitua pelo ID do vídeo no YouTube (parte após ?v=) ───────────────────
-const YOUTUBE_VIDEO_ID = 'SUBSTITUIR_AQUI';
-// ─────────────────────────────────────────────────────────────────────────────
+const MANIFESTO_URL = 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/videos/IMG_0778.MOV';
 
 function isValidEmail(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -151,25 +149,14 @@ export default function PreVendaPage() {
             </p>
 
             <div className="w-full max-w-[260px] lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
-              {YOUTUBE_VIDEO_ID === 'SUBSTITUIR_AQUI' ? (
-                <div className="aspect-[9/16] bg-surface flex flex-col items-center justify-center gap-4">
-                  <div className="w-16 h-16 rounded-full gradient-bg flex items-center justify-center shadow-lg shadow-popline-pink/30">
-                    <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </div>
-                  <p className="text-text-secondary text-sm">Vídeo manifesto em breve</p>
-                </div>
-              ) : (
-                <iframe
-                  className="aspect-[9/16] w-full"
-                  src={`https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?rel=0&modestbranding=1`}
-                  title="POPline Creators — Manifesto"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  loading="lazy"
-                />
-              )}
+              <video
+                className="aspect-[9/16] w-full object-cover"
+                src={MANIFESTO_URL}
+                controls
+                playsInline
+                preload="metadata"
+                poster=""
+              />
             </div>
           </div>
 

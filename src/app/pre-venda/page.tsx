@@ -148,14 +148,14 @@ export default function PreVendaPage() {
               Assista nosso manifesto
             </p>
 
-            <div className="w-full max-w-[260px] lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
+            <div className="w-full max-w-[85vw] sm:max-w-xs lg:max-w-none rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
               <video
                 className="aspect-[9/16] w-full object-cover"
                 src={MANIFESTO_URL}
                 controls
                 playsInline
-                preload="metadata"
-                poster=""
+                muted
+                preload="auto"
               />
             </div>
           </div>

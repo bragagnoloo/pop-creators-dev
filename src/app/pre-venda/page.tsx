@@ -152,10 +152,10 @@ export default function PreVendaPage() {
               <video
                 className="aspect-[9/16] w-full object-cover"
                 src={MANIFESTO_URL}
+                poster="/manifesto-poster.jpg"
                 controls
                 playsInline
-                muted
-                preload="auto"
+                preload="metadata"
               />
             </div>
           </div>

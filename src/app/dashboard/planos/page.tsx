@@ -58,8 +58,14 @@ export default function PlanosPage() {
     pixelViewContent({ content_name: 'Planos POPline Creators' });
   }, []);
 
-  const handleSubscribe = useCallback((plan: PlanId) => {
+  const handleSubscribe = useCallback(async (plan: PlanId) => {
     if (!user || plan === 'free') return;
+
+    const checkoutUrl = CHECKOUT_URLS[plan];
+    if (!checkoutUrl) {
+      console.error('[planos] URL de checkout não configurada para:', plan);
+      return;
+    }
 
     pixelInitiateCheckout({
       value: subService.PLANS[plan].priceTotal,
@@ -67,7 +73,7 @@ export default function PlanosPage() {
       content_name: subService.PLANS[plan].name,
     });
 
-    // Captura fbp/fbc antes de sair do domínio
+    // Captura fbp/fbc antes de sair do domínio (fire-and-forget)
     const fbp = getCookie('_fbp');
     const fbc = getCookie('_fbc') || new URLSearchParams(window.location.search).get('fbclid') || '';
     if (fbp || fbc) {
@@ -78,19 +84,22 @@ export default function PlanosPage() {
       }).catch(() => {});
     }
 
-    const checkoutUrl = CHECKOUT_URLS[plan];
     const params = new URLSearchParams({ email: user.email });
 
-    void createClient()
-      .from('profiles')
-      .select('full_name, whatsapp')
-      .eq('id', user.id)
-      .single()
-      .then(({ data }) => {
-        if (data?.full_name) params.set('name', data.full_name);
-        if (data?.whatsapp) params.set('phone', data.whatsapp.replace(/\D/g, ''));
-        window.location.href = `${checkoutUrl}?${params.toString()}`;
-      });
+    // Busca nome e telefone do profile — se falhar, redireciona mesmo assim
+    try {
+      const { data } = await createClient()
+        .from('profiles')
+        .select('full_name, whatsapp')
+        .eq('id', user.id)
+        .single();
+      if (data?.full_name) params.set('name', data.full_name);
+      if (data?.whatsapp) params.set('phone', data.whatsapp.replace(/\D/g, ''));
+    } catch {
+      // Redireciona com apenas o email se o fetch falhar
+    }
+
+    window.location.href = `${checkoutUrl}?${params.toString()}`;
   }, [user]);
 
   return (

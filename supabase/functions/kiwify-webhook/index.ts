@@ -208,6 +208,7 @@ Deno.serve(async (req: Request) => {
       assigned_by: 'payment',
       kiwify_subscription_id: subscriptionId || null,
       payment_method: paymentMethod || null,
+      subscription_status: 'active',
     });
 
     await supabase.from('payments').insert({
@@ -340,6 +341,7 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', userId)
       .single();
 
+    const newStatus = eventType === 'chargeback' ? 'chargeback' : 'refunded';
     await supabase.from('subscriptions').upsert({
       user_id: userId,
       plan: 'free',
@@ -347,6 +349,7 @@ Deno.serve(async (req: Request) => {
       kiwify_subscription_id: null,
       payment_method: null,
       assigned_by: 'system',
+      subscription_status: newStatus,
     });
 
     if (orderId) {

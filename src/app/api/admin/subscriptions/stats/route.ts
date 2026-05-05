@@ -8,11 +8,6 @@ export async function GET(req: NextRequest) {
   if (guard instanceof NextResponse) return guard;
 
   const sp = req.nextUrl.searchParams;
-
-  // Modos:
-  //   all=1                         → todo o período
-  //   from=YYYY-MM-DD&to=YYYY-MM-DD → intervalo customizado
-  //   days=N (padrão: 30)           → últimos N dias
   const allTime   = sp.get('all') === '1';
   const fromParam = sp.get('from');
   const toParam   = sp.get('to');
@@ -24,8 +19,8 @@ export async function GET(req: NextRequest) {
   let periodDays = daysPreset;
 
   if (allTime) {
-    fromISO = '';
-    toISO   = '';
+    fromISO    = '';
+    toISO      = '';
     periodDays = 0;
   } else if (fromParam && toParam) {
     fromISO    = new Date(fromParam).toISOString();
@@ -42,15 +37,68 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const now = new Date().toISOString();
 
-  // Ativos agora
-  const { count: activeCount } = await supabase
+  // =========================================================================
+  // LINHA 1 — Snapshot atual (sem filtro de data)
+  // =========================================================================
+
+  const [activoRes, cancelandoRes, expiradoRes, refundedRes, chargebackRes] = await Promise.all([
+    // Ativos: active + expires_at no futuro + tem renovação
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'active')
+      .not('kiwify_subscription_id', 'is', null)
+      .or(`expires_at.is.null,expires_at.gt.${now}`),
+
+    // Cancelando: active + expires_at no futuro + SEM renovação
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'active')
+      .is('kiwify_subscription_id', null)
+      .gt('expires_at', now),
+
+    // Expirado: active mas expires_at no passado
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'active')
+      .lt('expires_at', now),
+
+    // Reembolsado
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'refunded'),
+
+    // Chargeback
+    supabase.from('subscriptions').select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'chargeback'),
+  ]);
+
+  const snapshot = {
+    ativos:       activoRes.count     ?? 0,
+    cancelando:   cancelandoRes.count ?? 0,
+    expirados:    expiradoRes.count   ?? 0,
+    reembolsados: refundedRes.count   ?? 0,
+    chargebacks:  chargebackRes.count ?? 0,
+  };
+
+  // MRR — baseado nos ativos (não expirados, incluindo "Cancelando" pois ainda pagam)
+  const totalAtivos = snapshot.ativos + snapshot.cancelando;
+  const { data: planRows } = await supabase
     .from('subscriptions')
-    .select('*', { count: 'exact', head: true })
-    .neq('plan', 'free')
+    .select('plan')
+    .eq('subscription_status', 'active')
     .or(`expires_at.is.null,expires_at.gt.${now}`);
 
-  // Builder de query de eventos com filtro de data
-  function eventsBase(eventType: string | string[]) {
+  const byPlan = { monthly: 0, semester: 0, yearly: 0 };
+  for (const r of planRows ?? []) {
+    if (r.plan in byPlan) byPlan[r.plan as keyof typeof byPlan]++;
+  }
+  const mrr =
+    byPlan.monthly  * PLANS.monthly.priceTotal +
+    byPlan.semester * (PLANS.semester.priceTotal / 6) +
+    byPlan.yearly   * (PLANS.yearly.priceTotal / 12);
+
+  // =========================================================================
+  // LINHA 2 — Métricas do período (respeitam filtro de data)
+  // =========================================================================
+
+  // Builder para queries de eventos com date filter
+  function eventPeriodQuery(eventType: string | string[]) {
     let q = supabase.from('subscription_events').select('*', { count: 'exact', head: true });
     if (Array.isArray(eventType)) q = q.in('event_type', eventType);
     else q = q.eq('event_type', eventType);
@@ -59,38 +107,79 @@ export async function GET(req: NextRequest) {
     return q;
   }
 
-  const [newRes, refundRes, cancelRes, renewalRes] = await Promise.all([
-    eventsBase('order_approved'),
-    eventsBase(['order_refunded', 'compra_reembolsada', 'chargeback']),
-    eventsBase('subscription_canceled'),
-    eventsBase('subscription_renewed'),
-  ]);
+  // Novos e Renovações — requerem join com profiles (usar SQL via RPC não disponível, fazemos em memória)
+  const orderApprovedQuery = supabase
+    .from('subscription_events')
+    .select('user_id, created_at')
+    .eq('event_type', 'order_approved');
 
-  const newInPeriod       = newRes.count    ?? 0;
-  const refundsInPeriod   = refundRes.count ?? 0;
-  const cancelInPeriod    = cancelRes.count ?? 0;
-  const renewalsInPeriod  = renewalRes.count ?? 0;
-  // Cancelamentos = quem pediu reembolso/chargeback + quem cancelou renovação
-  const churnInPeriod     = refundsInPeriod + cancelInPeriod;
+  const filteredQuery = fromISO
+    ? (toISO ? orderApprovedQuery.gte('created_at', fromISO).lte('created_at', toISO)
+             : orderApprovedQuery.gte('created_at', fromISO))
+    : orderApprovedQuery;
 
-  // Distribuição por plano + MRR
-  const { data: planRows } = await supabase
-    .from('subscriptions')
-    .select('plan')
-    .neq('plan', 'free')
-    .or(`expires_at.is.null,expires_at.gt.${now}`);
+  const { data: orderApprovedRows } = await filteredQuery;
 
-  const byPlan = { monthly: 0, semester: 0, yearly: 0 };
-  for (const r of planRows ?? []) {
-    if (r.plan in byPlan) byPlan[r.plan as keyof typeof byPlan]++;
+  // Busca first_subscribed_at dos usuários únicos
+  const uniqueUserIds = [...new Set((orderApprovedRows ?? []).map(r => r.user_id).filter(Boolean))];
+  let novos = 0;
+  let renovacoes = 0;
+
+  if (uniqueUserIds.length > 0) {
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('id, first_subscribed_at')
+      .in('id', uniqueUserIds);
+
+    const profileMap = new Map((profileRows ?? []).map(p => [p.id, p.first_subscribed_at]));
+
+    for (const event of orderApprovedRows ?? []) {
+      const firstSub = profileMap.get(event.user_id);
+      const eventTime = new Date(event.created_at).getTime();
+      const firstTime = firstSub ? new Date(firstSub).getTime() : null;
+
+      // Se first_subscribed_at não existe ou é igual ao evento (±1h) = primeira vez
+      if (!firstTime || Math.abs(eventTime - firstTime) < 3600000) {
+        novos++;
+      } else {
+        renovacoes++;
+      }
+    }
   }
 
-  const mrr =
-    byPlan.monthly  * PLANS.monthly.priceTotal +
-    byPlan.semester * (PLANS.semester.priceTotal / 6) +
-    byPlan.yearly   * (PLANS.yearly.priceTotal / 12);
+  // subscription_renewed conta como renovação também
+  const { count: renewedCount } = await eventPeriodQuery('subscription_renewed');
+  renovacoes += renewedCount ?? 0;
 
-  // Série diária
+  // Expirados no período — subscriptions que expiraram dentro do intervalo
+  let expiradosPeriodo = 0;
+  if (fromISO) {
+    const expiradoQ = supabase
+      .from('subscriptions')
+      .select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'active')
+      .gte('expires_at', fromISO)
+      .lt('expires_at', toISO || now);
+    const { count } = await expiradoQ;
+    expiradosPeriodo = count ?? 0;
+  }
+
+  const [refundPeriodRes, chargebackPeriodRes] = await Promise.all([
+    eventPeriodQuery(['order_refunded', 'compra_reembolsada']),
+    eventPeriodQuery('chargeback'),
+  ]);
+
+  const period = {
+    novos,
+    renovacoes,
+    expirados:   expiradosPeriodo,
+    reembolsos:  refundPeriodRes.count   ?? 0,
+    chargebacks: chargebackPeriodRes.count ?? 0,
+  };
+
+  // =========================================================================
+  // Série diária (para o gráfico)
+  // =========================================================================
   const seriesLen  = allTime ? 90 : Math.min(periodDays, 90);
   const seriesFrom = allTime
     ? new Date(Date.now() - 89 * 86400000).toISOString()
@@ -110,14 +199,14 @@ export async function GET(req: NextRequest) {
 
   const { data: subRows } = await supabase
     .from('subscriptions')
-    .select('started_at, expires_at, plan')
-    .neq('plan', 'free');
+    .select('started_at, expires_at, subscription_status');
 
   const dailySeries = Array.from({ length: seriesLen }, (_, i) => {
     const d = new Date(new Date(seriesFrom).getTime() + i * 86400000);
     d.setHours(23, 59, 59);
     const date = d.toISOString().slice(0, 10);
     const active = (subRows ?? []).filter((s) => {
+      if (s.subscription_status !== 'active') return false;
       const started = new Date(s.started_at).getTime();
       const expires = s.expires_at ? new Date(s.expires_at).getTime() : Infinity;
       return started <= d.getTime() && expires >= d.getTime();
@@ -125,7 +214,9 @@ export async function GET(req: NextRequest) {
     return { date, novos: dailyNewMap[date] ?? 0, ativos: active };
   });
 
-  // UTM breakdown
+  // =========================================================================
+  // UTM breakdown (período)
+  // =========================================================================
   async function utmBreakdown(field: string, eventType: string | string[]) {
     let q = supabase.from('subscription_events').select(field).not(field, 'is', null);
     if (Array.isArray(eventType)) q = q.in('event_type', eventType);
@@ -144,30 +235,31 @@ export async function GET(req: NextRequest) {
   const [srcEntries, campEntries, churnSrcEntries] = await Promise.all([
     utmBreakdown('utm_source', 'order_approved'),
     utmBreakdown('utm_campaign', 'order_approved'),
-    utmBreakdown('utm_source', ['order_refunded', 'compra_reembolsada', 'chargeback', 'subscription_canceled']),
+    utmBreakdown('utm_source', ['order_refunded', 'compra_reembolsada', 'chargeback']),
   ]);
 
   const totalWithUTM = srcEntries.reduce((s, [, c]) => s + c, 0);
-  const direto = newInPeriod - totalWithUTM;
+  const direto = novos + renovacoes - totalWithUTM;
   const bySource = [
     ...srcEntries.map(([source, count]) => ({ source, count })),
     ...(direto > 0 ? [{ source: '(direto)', count: direto }] : []),
   ].sort((a, b) => b.count - a.count);
 
   return NextResponse.json({
-    activeCount,
-    newInPeriod,
-    refundsInPeriod,
-    cancelInPeriod,
-    churnInPeriod,
-    renewalsInPeriod,
-    churnRate: newInPeriod > 0 ? Math.round((churnInPeriod / newInPeriod) * 100) : 0,
+    // Linha 1 — snapshot atual
+    snapshot,
+    totalAtivos,
     mrr: Math.round(mrr * 100) / 100,
     byPlan,
+    // Linha 2 — período
+    period,
+    // Gráfico
     dailySeries,
+    // UTM
     bySource,
     byCampaign:    campEntries.map(([campaign, count]) => ({ campaign, count })),
     churnBySource: churnSrcEntries.map(([source, count]) => ({ source, count })),
+    // Meta
     periodDays,
     allTime,
   });

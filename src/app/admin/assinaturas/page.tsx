@@ -196,22 +196,39 @@ export default function AdminAssinaturasPage() {
           </Card>
         </div>
 
-        {/* MRR em destaque próprio */}
-        <div className="mt-3 flex items-center gap-4 px-4 py-3 rounded-xl bg-surface border border-border">
-          <div>
-            <p className="text-xs text-text-secondary">MRR estimado</p>
+        {/* MRR + LTV + ARPU */}
+        <div className="mt-3 grid md:grid-cols-4 gap-3">
+          <div className="px-4 py-3 rounded-xl bg-surface border border-border">
+            <p className="text-xs text-text-secondary mb-0.5">MRR estimado</p>
             <p className="text-2xl font-bold gradient-text">{stats ? formatBRL(stats.mrr) : '—'}</p>
+            <div className="flex gap-3 mt-1">
+              {(['monthly','semester','yearly'] as PlanId[]).map(p => (
+                <span key={p} className="text-[10px] text-text-secondary">
+                  {PLANS[p].name.slice(0,3)}: <span className="text-text-primary">{byPlan[p] ?? 0}</span>
+                </span>
+              ))}
+            </div>
           </div>
-          <div className="h-8 w-px bg-border" />
-          <div className="flex gap-4 text-sm">
-            {(['monthly','semester','yearly'] as PlanId[]).map(p => (
-              <span key={p} className="text-text-secondary">
-                {PLANS[p].name}: <span className="text-text-primary font-medium">{byPlan[p] ?? 0}</span>
-              </span>
-            ))}
+          <div className="px-4 py-3 rounded-xl bg-surface border border-border">
+            <p className="text-xs text-text-secondary mb-0.5">ARPU</p>
+            <p className="text-2xl font-bold">{stats?.arpu ? formatBRL(stats.arpu) : '—'}</p>
+            <p className="text-[10px] text-text-secondary mt-1">receita média por assinante/mês</p>
           </div>
-          <div className="ml-auto text-xs text-text-secondary">
-            {totalAtivos} assinantes com acesso ativo
+          <div className="px-4 py-3 rounded-xl bg-surface border border-border">
+            <p className="text-xs text-text-secondary mb-0.5">LTV observado</p>
+            <p className="text-2xl font-bold">
+              {stats?.ltvObservado ? formatBRL(stats.ltvObservado) : '—'}
+            </p>
+            <p className="text-[10px] text-text-secondary mt-1">média pago por usuário (real)</p>
+          </div>
+          <div className="px-4 py-3 rounded-xl bg-surface border border-border">
+            <p className="text-xs text-text-secondary mb-0.5">LTV projetado</p>
+            <p className="text-2xl font-bold">
+              {stats?.ltvProjetado ? formatBRL(stats.ltvProjetado) : '—'}
+            </p>
+            <p className="text-[10px] text-text-secondary mt-1">
+              {stats?.ltvProjetado ? 'ARPU ÷ churn mensal (30d)' : 'dados insuficientes'}
+            </p>
           </div>
         </div>
       </div>

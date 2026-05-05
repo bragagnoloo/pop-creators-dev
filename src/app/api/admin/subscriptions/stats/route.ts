@@ -94,6 +94,39 @@ export async function GET(req: NextRequest) {
     byPlan.yearly   * (PLANS.yearly.priceTotal / 12);
 
   // =========================================================================
+  // LTV
+  // =========================================================================
+
+  // LTV Observado — média do total pago por usuário (dados reais de pagamentos)
+  const { data: paymentRows } = await supabase
+    .from('payments')
+    .select('user_id, amount')
+    .eq('status', 'CONFIRMED');
+
+  const userTotals: Record<string, number> = {};
+  for (const row of paymentRows ?? []) {
+    userTotals[row.user_id] = (userTotals[row.user_id] ?? 0) + Number(row.amount);
+  }
+  const totalsArr = Object.values(userTotals);
+  const ltvObservado = totalsArr.length > 0
+    ? Math.round((totalsArr.reduce((a, b) => a + b, 0) / totalsArr.length) * 100) / 100
+    : null;
+
+  // LTV Projetado — ARPU / taxa de churn mensal (normalizada para 30 dias)
+  // Usa churn dos últimos 30 dias para taxa mais estável
+  const { count: churn30 } = await supabase
+    .from('subscription_events')
+    .select('*', { count: 'exact', head: true })
+    .in('event_type', ['order_refunded', 'compra_reembolsada', 'chargeback'])
+    .gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
+
+  const arpu = totalAtivos > 0 ? mrr / totalAtivos : 0;
+  const monthlyChurnRate = totalAtivos > 0 ? (churn30 ?? 0) / totalAtivos : 0;
+  const ltvProjetado = monthlyChurnRate > 0 && arpu > 0
+    ? Math.round((arpu / monthlyChurnRate) * 100) / 100
+    : null; // null = dados insuficientes para projetar
+
+  // =========================================================================
   // LINHA 2 — Métricas do período (respeitam filtro de data)
   // =========================================================================
 
@@ -249,7 +282,10 @@ export async function GET(req: NextRequest) {
     // Linha 1 — snapshot atual
     snapshot,
     totalAtivos,
-    mrr: Math.round(mrr * 100) / 100,
+    mrr:            Math.round(mrr * 100) / 100,
+    ltvObservado,
+    ltvProjetado,
+    arpu:           Math.round(arpu * 100) / 100,
     byPlan,
     // Linha 2 — período
     period,

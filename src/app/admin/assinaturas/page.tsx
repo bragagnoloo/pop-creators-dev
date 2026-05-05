@@ -172,7 +172,7 @@ export default function AdminAssinaturasPage() {
         </Card>
         <Card>
           <p className="text-xs text-text-secondary mb-1">
-            Churn ({allTime ? 'total' : showCustom ? 'período' : `${days}d`})
+            Cancelamentos ({allTime ? 'total' : showCustom ? 'período' : `${days}d`})
           </p>
           <p className="text-3xl font-bold">
             {stats?.churnInPeriod ?? '—'}
@@ -180,6 +180,11 @@ export default function AdminAssinaturasPage() {
               <span className="text-sm font-normal text-text-secondary ml-1">({stats.churnRate}%)</span>
             )}
           </p>
+          {stats && (
+            <p className="text-[10px] text-text-secondary mt-1">
+              {stats.refundsInPeriod} reembolso{stats.refundsInPeriod !== 1 ? 's' : ''} · {stats.cancelInPeriod} cancelamento{stats.cancelInPeriod !== 1 ? 's' : ''}
+            </p>
+          )}
         </Card>
         <Card>
           <p className="text-xs text-text-secondary mb-1">MRR</p>
@@ -289,9 +294,9 @@ export default function AdminAssinaturasPage() {
 
         {/* Churn por fonte */}
         <Card>
-          <h3 className="text-sm font-semibold mb-4">Churn por origem</h3>
+          <h3 className="text-sm font-semibold mb-4">Cancelamentos por origem</h3>
           {churnBySource.length === 0 ? (
-            <p className="text-xs text-text-secondary text-center py-4">Sem churn no período</p>
+            <p className="text-xs text-text-secondary text-center py-4">Sem cancelamentos no período</p>
           ) : (
             <div className="space-y-2.5">
               {churnBySource.map(({ source, count }) => (

@@ -59,15 +59,19 @@ export async function GET(req: NextRequest) {
     return q;
   }
 
-  const [newRes, churnRes, renewalRes] = await Promise.all([
+  const [newRes, refundRes, cancelRes, renewalRes] = await Promise.all([
     eventsBase('order_approved'),
     eventsBase(['order_refunded', 'compra_reembolsada', 'chargeback']),
+    eventsBase('subscription_canceled'),
     eventsBase('subscription_renewed'),
   ]);
 
-  const newInPeriod      = newRes.count    ?? 0;
-  const churnInPeriod    = churnRes.count  ?? 0;
-  const renewalsInPeriod = renewalRes.count ?? 0;
+  const newInPeriod       = newRes.count    ?? 0;
+  const refundsInPeriod   = refundRes.count ?? 0;
+  const cancelInPeriod    = cancelRes.count ?? 0;
+  const renewalsInPeriod  = renewalRes.count ?? 0;
+  // Cancelamentos = quem pediu reembolso/chargeback + quem cancelou renovação
+  const churnInPeriod     = refundsInPeriod + cancelInPeriod;
 
   // Distribuição por plano + MRR
   const { data: planRows } = await supabase
@@ -140,7 +144,7 @@ export async function GET(req: NextRequest) {
   const [srcEntries, campEntries, churnSrcEntries] = await Promise.all([
     utmBreakdown('utm_source', 'order_approved'),
     utmBreakdown('utm_campaign', 'order_approved'),
-    utmBreakdown('utm_source', ['order_refunded', 'compra_reembolsada', 'chargeback']),
+    utmBreakdown('utm_source', ['order_refunded', 'compra_reembolsada', 'chargeback', 'subscription_canceled']),
   ]);
 
   const totalWithUTM = srcEntries.reduce((s, [, c]) => s + c, 0);
@@ -153,6 +157,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     activeCount,
     newInPeriod,
+    refundsInPeriod,
+    cancelInPeriod,
     churnInPeriod,
     renewalsInPeriod,
     churnRate: newInPeriod > 0 ? Math.round((churnInPeriod / newInPeriod) * 100) : 0,

@@ -32,23 +32,32 @@ function methodLabel(method: string | null) {
   return '—';
 }
 
-const PERIOD_OPTIONS = [
-  { label: '7 dias',  value: 7  },
-  { label: '14 dias', value: 14 },
-  { label: '30 dias', value: 30 },
-  { label: '60 dias', value: 60 },
-  { label: '90 dias', value: 90 },
+const PRESET_OPTIONS = [
+  { label: '7d',  value: 7  },
+  { label: '14d', value: 14 },
+  { label: '30d', value: 30 },
+  { label: '60d', value: 60 },
+  { label: '90d', value: 90 },
 ];
 
 export default function AdminAssinaturasPage() {
   const [days, setDays] = useState(30);
+  const [allTime, setAllTime] = useState(false);
+  const [customFrom, setCustomFrom] = useState('');
+  const [customTo, setCustomTo] = useState('');
+  const [showCustom, setShowCustom] = useState(false);
   const [page, setPage] = useState(1);
   const [filterPlan, setFilterPlan] = useState('');
   const [filterMethod, setFilterMethod] = useState('');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
 
-  const { data: stats } = useSWR(`/api/admin/subscriptions/stats?days=${days}`, fetcher);
+  const statsUrl = (() => {
+    if (allTime) return '/api/admin/subscriptions/stats?all=1';
+    if (showCustom && customFrom && customTo) return `/api/admin/subscriptions/stats?from=${customFrom}&to=${customTo}`;
+    return `/api/admin/subscriptions/stats?days=${days}`;
+  })();
+  const { data: stats } = useSWR(statsUrl, fetcher);
 
   const listParams = new URLSearchParams({ page: String(page), limit: '50' });
   if (filterPlan)   listParams.set('plan', filterPlan);
@@ -94,13 +103,13 @@ export default function AdminAssinaturasPage() {
         <h1 className="text-2xl font-bold">Assinaturas</h1>
         <div className="flex items-center gap-3">
           {/* Filtro de período */}
-          <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-1">
-            {PERIOD_OPTIONS.map((opt) => (
+          <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-1 flex-wrap">
+            {PRESET_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setDays(opt.value)}
+                onClick={() => { setDays(opt.value); setAllTime(false); setShowCustom(false); }}
                 className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  days === opt.value
+                  !allTime && !showCustom && days === opt.value
                     ? 'bg-popline-pink text-white'
                     : 'text-text-secondary hover:text-white'
                 }`}
@@ -108,7 +117,43 @@ export default function AdminAssinaturasPage() {
                 {opt.label}
               </button>
             ))}
+            <button
+              onClick={() => { setAllTime(true); setShowCustom(false); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                allTime ? 'bg-popline-pink text-white' : 'text-text-secondary hover:text-white'
+              }`}
+            >
+              Tudo
+            </button>
+            <button
+              onClick={() => { setShowCustom(true); setAllTime(false); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                showCustom ? 'bg-popline-pink text-white' : 'text-text-secondary hover:text-white'
+              }`}
+            >
+              Personalizado
+            </button>
           </div>
+
+          {/* Seletor de data customizado */}
+          {showCustom && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="text-xs bg-background border border-border rounded-lg px-2 py-1.5"
+              />
+              <span className="text-text-secondary text-xs">até</span>
+              <input
+                type="date"
+                value={customTo}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="text-xs bg-background border border-border rounded-lg px-2 py-1.5"
+              />
+            </div>
+          )}
           <Button variant="secondary" onClick={exportCSV}>Exportar CSV</Button>
         </div>
       </div>
@@ -120,11 +165,15 @@ export default function AdminAssinaturasPage() {
           <p className="text-3xl font-bold">{totalActive}</p>
         </Card>
         <Card>
-          <p className="text-xs text-text-secondary mb-1">Novos ({days}d)</p>
+          <p className="text-xs text-text-secondary mb-1">
+            Novos ({allTime ? 'total' : showCustom ? 'período' : `${days}d`})
+          </p>
           <p className="text-3xl font-bold">{stats?.newInPeriod ?? '—'}</p>
         </Card>
         <Card>
-          <p className="text-xs text-text-secondary mb-1">Churn ({days}d)</p>
+          <p className="text-xs text-text-secondary mb-1">
+            Churn ({allTime ? 'total' : showCustom ? 'período' : `${days}d`})
+          </p>
           <p className="text-3xl font-bold">
             {stats?.churnInPeriod ?? '—'}
             {stats?.churnRate != null && (
@@ -142,7 +191,11 @@ export default function AdminAssinaturasPage() {
       <div className="grid md:grid-cols-3 gap-4">
         <Card className="md:col-span-2">
           <h3 className="text-sm font-semibold mb-4">
-            Assinantes por dia — últimos {days} dias
+            Assinantes por dia —{' '}
+            {allTime ? 'todo o período (últimos 90d visíveis)'
+              : showCustom && customFrom && customTo
+              ? `${new Date(customFrom).toLocaleDateString('pt-BR')} a ${new Date(customTo).toLocaleDateString('pt-BR')}`
+              : `últimos ${days} dias`}
           </h3>
           <LineChart
             data={stats?.dailySeries ?? []}

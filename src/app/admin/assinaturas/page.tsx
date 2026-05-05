@@ -171,16 +171,15 @@ export default function AdminAssinaturasPage() {
       {/* ------------------------------------------------------------------ */}
       <div>
         <p className="text-xs text-text-secondary mb-2 font-medium uppercase tracking-wider">Estado atual</p>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card>
             <p className="text-xs text-text-secondary mb-1">Ativos</p>
-            <p className="text-3xl font-bold text-green-400">{snap.ativos ?? '—'}</p>
-            <p className="text-[10px] text-text-secondary mt-1">com renovação automática</p>
-          </Card>
-          <Card>
-            <p className="text-xs text-text-secondary mb-1">Cancelando</p>
-            <p className="text-3xl font-bold text-amber-400">{snap.cancelando ?? '—'}</p>
-            <p className="text-[10px] text-text-secondary mt-1">sem renovação, ainda com acesso</p>
+            <p className="text-3xl font-bold text-green-400">{totalAtivos ?? '—'}</p>
+            {snap.cancelando > 0 && (
+              <p className="text-[10px] text-amber-400 mt-1">
+                {snap.cancelando} sem renovação automática
+              </p>
+            )}
           </Card>
           <Card>
             <p className="text-xs text-text-secondary mb-1">Expirados</p>

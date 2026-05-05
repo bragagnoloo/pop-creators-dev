@@ -163,8 +163,8 @@ Deno.serve(async (req: Request) => {
   const plan: string | undefined =
     KIWIFY_PLAN_MAP[planId] ?? FREQUENCY_MAP[planFrequency];
 
-  // Registra TODOS os eventos para analytics
-  void supabase.from('subscription_events').insert({
+  // Registra TODOS os eventos para analytics (await — Edge Function termina antes de void resolver)
+  await supabase.from('subscription_events').insert({
     user_id: profile?.id ?? null,
     event_type: eventType,
     kiwify_order_id: orderId || null,
@@ -230,7 +230,7 @@ Deno.serve(async (req: Request) => {
 
     // Primeira assinatura no profile
     if (!profile.first_subscribed_at) {
-      void supabase.from('profiles').update({
+      await supabase.from('profiles').update({
         first_subscribed_at: new Date().toISOString(),
         first_utm_source:   tracking.utm_source   ?? null,
         first_utm_campaign: tracking.utm_campaign ?? null,
@@ -298,7 +298,7 @@ Deno.serve(async (req: Request) => {
       .eq('user_id', userId)
       .single();
 
-    void supabase
+    await supabase
       .from('subscriptions')
       .update({ kiwify_subscription_id: null })
       .eq('user_id', userId);

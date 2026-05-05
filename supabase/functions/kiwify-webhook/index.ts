@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
   // Lookup do usuário
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, full_name, meta_fbp, meta_fbc, first_subscribed_at')
+    .select('id, full_name, meta_fbp, meta_fbc, first_subscribed_at, state, city, cep, whatsapp')
     .eq('email', email)
     .single();
 
@@ -238,16 +238,23 @@ Deno.serve(async (req: Request) => {
     }
 
     // CAPI Purchase server-side
-    const phone = digitsOnly(String(customer.mobile ?? ''));
+    const phone = digitsOnly(String(customer.mobile ?? '') || String(profile.whatsapp ?? ''));
     const names = String(profile.full_name ?? '').trim().split(' ').filter(Boolean);
     const amount = commissions.charge_amount ? Number(commissions.charge_amount) / 100 : 0;
 
-    const [em, ph, fn, ln, extId] = await Promise.all([
+    const city  = String(profile.city  ?? '').trim().toLowerCase();
+    const state = String(profile.state ?? '').trim().toLowerCase();
+    const cep   = digitsOnly(String(profile.cep ?? ''));
+
+    const [em, ph, fn, ln, extId, ct, st, zp] = await Promise.all([
       hashSHA256(email),
       phone ? hashSHA256(phone) : Promise.resolve(undefined),
       names[0] ? hashSHA256(names[0].toLowerCase()) : Promise.resolve(undefined),
       names.length > 1 ? hashSHA256(names[names.length - 1].toLowerCase()) : Promise.resolve(undefined),
       hashSHA256(userId),
+      city  ? hashSHA256(city)  : Promise.resolve(undefined),
+      state ? hashSHA256(state) : Promise.resolve(undefined),
+      cep   ? hashSHA256(cep)   : Promise.resolve(undefined),
     ]);
 
     void sendCAPIEvents([{
@@ -262,6 +269,9 @@ Deno.serve(async (req: Request) => {
         ...(fn && { fn }),
         ...(ln && { ln }),
         external_id: extId,
+        ...(ct && { ct }),
+        ...(st && { st }),
+        ...(zp && { zp }),
         ...(profile.meta_fbp && { fbp: profile.meta_fbp }),
         ...(profile.meta_fbc && { fbc: profile.meta_fbc }),
         ...(customer.ip && { client_ip_address: String(customer.ip) }),

@@ -75,7 +75,8 @@ export default function PlanosPage() {
 
     // Captura fbp/fbc antes de sair do domínio (fire-and-forget)
     const fbp = getCookie('_fbp');
-    const fbc = getCookie('_fbc') || new URLSearchParams(window.location.search).get('fbclid') || '';
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    const fbc = getCookie('_fbc') || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : '');
     if (fbp || fbc) {
       fetch('/api/tracking/meta-params', {
         method: 'POST',

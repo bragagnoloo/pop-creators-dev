@@ -18,6 +18,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  verification: {
+    other: {
+      'facebook-domain-verification': 'pja9cmcc9z5e93vqgbo16k8pjurmnr',
+    },
+  },
   title: "POPline Creators | powered by UGC+",
   description: "Plataforma que conecta criadores de conteudo com campanhas do Portal POPline - o maior ecossistema de musica do Brasil.",
   applicationName: "POPline Creators",

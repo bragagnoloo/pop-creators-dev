@@ -90,7 +90,8 @@ export default function AdminAssinaturasPage() {
   const byPlan  = stats?.byPlan   ?? { monthly: 0, semester: 0, yearly: 0 };
   const bySource: { source: string; count: number }[]     = stats?.bySource   ?? [];
   const byCampaign: { campaign: string; count: number }[] = stats?.byCampaign ?? [];
-  const churnBySource: { source: string; count: number }[] = stats?.churnBySource ?? [];
+  const byAd: { ad: string; count: number }[] = stats?.byAd ?? [];
+  const maxAd = byAd[0]?.count ?? 1;
   const maxSource   = bySource[0]?.count   ?? 1;
   const maxCampaign = byCampaign[0]?.count ?? 1;
   const totalAtivos = stats?.totalAtivos ?? 0;
@@ -333,18 +334,19 @@ export default function AdminAssinaturasPage() {
         </Card>
 
         <Card>
-          <h3 className="text-sm font-semibold mb-4">Cancelamentos por origem</h3>
-          {churnBySource.length === 0
-            ? <p className="text-xs text-text-secondary text-center py-4">Sem cancelamentos no período</p>
-            : <div className="space-y-2.5">{churnBySource.map(({ source, count }) => (
-                <div key={source}>
+          <h3 className="text-sm font-semibold mb-4">Conversões por anúncio</h3>
+          <p className="text-[10px] text-text-secondary mb-3">via utm_content</p>
+          {byAd.length === 0
+            ? <p className="text-xs text-text-secondary text-center py-4">Sem dados — adicione utm_content nos seus anúncios</p>
+            : <div className="space-y-2.5">{byAd.map(({ ad, count }) => (
+                <div key={ad}>
                   <div className="flex justify-between text-sm mb-1">
-                    <span className="truncate">{source}</span>
-                    <span className="text-amber-400 ml-2 shrink-0">{count}</span>
+                    <span className="truncate text-xs">{ad}</span>
+                    <span className="text-text-secondary ml-2 shrink-0">{count}</span>
                   </div>
                   <div className="w-full bg-border rounded-full h-1">
-                    <div className="bg-amber-400 h-1 rounded-full"
-                      style={{ width: `${Math.round((count / (churnBySource[0]?.count ?? 1)) * 100)}%` }} />
+                    <div className="bg-green-400 h-1 rounded-full"
+                      style={{ width: `${Math.round((count / maxAd) * 100)}%` }} />
                   </div>
                 </div>
               ))}</div>

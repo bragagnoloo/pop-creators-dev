@@ -232,10 +232,10 @@ export async function GET(req: NextRequest) {
     return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, 8);
   }
 
-  const [srcEntries, campEntries, churnSrcEntries] = await Promise.all([
+  const [srcEntries, campEntries, adEntries] = await Promise.all([
     utmBreakdown('utm_source', 'order_approved'),
     utmBreakdown('utm_campaign', 'order_approved'),
-    utmBreakdown('utm_source', ['order_refunded', 'compra_reembolsada', 'chargeback']),
+    utmBreakdown('utm_content', 'order_approved'),   // anúncio específico
   ]);
 
   const totalWithUTM = srcEntries.reduce((s, [, c]) => s + c, 0);
@@ -258,7 +258,7 @@ export async function GET(req: NextRequest) {
     // UTM
     bySource,
     byCampaign:    campEntries.map(([campaign, count]) => ({ campaign, count })),
-    churnBySource: churnSrcEntries.map(([source, count]) => ({ source, count })),
+    byAd: adEntries.map(([ad, count]) => ({ ad, count })),
     // Meta
     periodDays,
     allTime,

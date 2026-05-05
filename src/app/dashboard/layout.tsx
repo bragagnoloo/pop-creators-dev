@@ -9,6 +9,8 @@ import BottomNav from '@/components/ui/BottomNav';
 import MobileTopBar from '@/components/ui/MobileTopBar';
 import { ROUTES } from '@/lib/constants';
 import { recordDailyLogin } from '@/services/ranking';
+import { initPixelWithUser } from '@/lib/pixel';
+import { createClient } from '@/lib/supabase/client';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -26,6 +28,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (user && !dailyLoginRecorded.current) {
       dailyLoginRecorded.current = true;
       recordDailyLogin();
+      // Advanced Matching: inicializa pixel com dados do usuário para melhor EMQ
+      void createClient()
+        .from('profiles')
+        .select('email, whatsapp, full_name, state, city, cep')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            initPixelWithUser({
+              email: data.email,
+              whatsapp: data.whatsapp ?? '',
+              fullName: data.full_name ?? '',
+              state: data.state ?? '',
+              city: data.city ?? '',
+              cep: data.cep ?? '',
+            });
+          }
+        });
     }
   }, [user]);
 

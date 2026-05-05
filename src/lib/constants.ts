@@ -33,6 +33,7 @@ export const ROUTES = {
   ADMIN_CANDIDATURAS: '/admin/candidaturas',
   ADMIN_AULAS: '/admin/aulas',
   ADMIN_SAQUES: '/admin/saques',
+  ADMIN_ASSINATURAS: '/admin/assinaturas',
 } as const;
 
 export const ADMIN_SEED = {

@@ -1,6 +1,18 @@
 import { Subscription, PlanId } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
+export const KIWIFY_PLAN_MAP: Record<string, PlanId> = {
+  [process.env.KIWIFY_PLAN_ID_MONTHLY ?? '']:  'monthly',
+  [process.env.KIWIFY_PLAN_ID_SEMESTER ?? '']: 'semester',
+  [process.env.KIWIFY_PLAN_ID_YEARLY ?? '']:   'yearly',
+};
+
+export const KIWIFY_FREQUENCY_MAP: Record<string, PlanId> = {
+  monthly:    'monthly',
+  semiannual: 'semester',
+  annual:     'yearly',
+};
+
 export interface PlanInfo {
   id: PlanId;
   name: string;
@@ -62,7 +74,9 @@ type Row = {
   plan: PlanId;
   started_at: string;
   expires_at: string | null;
-  assigned_by: 'system' | 'admin';
+  assigned_by: 'system' | 'admin' | 'payment';
+  kiwify_subscription_id?: string | null;
+  payment_method?: string | null;
 };
 
 function toSubscription(r: Row): Subscription {
@@ -72,6 +86,8 @@ function toSubscription(r: Row): Subscription {
     startedAt: r.started_at,
     expiresAt: r.expires_at,
     assignedBy: r.assigned_by,
+    kiwifySubscriptionId: r.kiwify_subscription_id ?? null,
+    paymentMethod: (r.payment_method as 'pix' | 'credit_card') ?? null,
   };
 }
 
@@ -79,7 +95,7 @@ export async function getUserSubscription(userId: string): Promise<Subscription>
   const supabase = createClient();
   const { data } = await supabase
     .from('subscriptions')
-    .select('user_id, plan, started_at, expires_at, assigned_by')
+    .select('user_id, plan, started_at, expires_at, assigned_by, kiwify_subscription_id, payment_method')
     .eq('user_id', userId)
     .single();
 
@@ -90,6 +106,8 @@ export async function getUserSubscription(userId: string): Promise<Subscription>
       startedAt: new Date().toISOString(),
       expiresAt: null,
       assignedBy: 'system',
+      kiwifySubscriptionId: null,
+      paymentMethod: null,
     };
   }
 
@@ -131,7 +149,7 @@ export async function setUserPlan(
       expires_at: expiresAt,
       assigned_by: assignedBy,
     })
-    .select('user_id, plan, started_at, expires_at, assigned_by')
+    .select('user_id, plan, started_at, expires_at, assigned_by, kiwify_subscription_id, payment_method')
     .single();
 
   return toSubscription(data as Row);

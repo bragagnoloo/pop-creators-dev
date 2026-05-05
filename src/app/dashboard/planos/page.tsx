@@ -1,34 +1,119 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { pixelViewContent, pixelInitiateCheckout, pixelPurchase } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { PlanId } from '@/types';
 import * as subService from '@/services/subscriptions';
+import { createClient } from '@/lib/supabase/client';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
-import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
+
+const CHECKOUT_URLS: Record<PlanId, string> = {
+  free:     '',
+  monthly:  process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_MONTHLY  ?? '',
+  semester: process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_SEMESTER ?? '',
+  yearly:   process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_YEARLY   ?? '',
+};
+
+function getCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : '';
+}
 
 export default function PlanosPage() {
   const { user } = useAuth();
-  const [showSubscribe, setShowSubscribe] = useState<PlanId | null>(null);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const paymentSuccess = searchParams.get('payment') === 'success';
 
   const { data: sub, mutate: mutateSub } = useSWR(
     user ? ['subscription', user.id] : null,
-    ([, uid]) => subService.getUserSubscription(uid)
+    ([, uid]) => subService.getUserSubscription(uid),
+    { refreshInterval: paymentSuccess ? 3000 : 0 },
   );
+
+  const currentPlan = sub?.plan ?? 'free';
+  const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
+
+  // Polling: quando voltar com ?payment=success, aguardar plano ativar
+  useEffect(() => {
+    if (!paymentSuccess) return;
+    if (currentPlan !== 'free') {
+      pixelPurchase({
+        value: subService.PLANS[currentPlan].priceTotal,
+        currency: 'BRL',
+        content_name: subService.PLANS[currentPlan].name,
+      });
+      // Remove o parâmetro da URL após confirmar
+      router.replace('/dashboard/planos');
+    }
+  }, [paymentSuccess, currentPlan, router]);
 
   useEffect(() => {
     pixelViewContent({ content_name: 'Planos POPline Creators' });
   }, []);
 
-  const currentPlan = sub?.plan ?? 'free';
-  const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
+  const handleSubscribe = useCallback((plan: PlanId) => {
+    if (!user || plan === 'free') return;
+
+    pixelInitiateCheckout({
+      value: subService.PLANS[plan].priceTotal,
+      currency: 'BRL',
+      content_name: subService.PLANS[plan].name,
+    });
+
+    // Captura fbp/fbc antes de sair do domínio
+    const fbp = getCookie('_fbp');
+    const fbc = getCookie('_fbc') || new URLSearchParams(window.location.search).get('fbclid') || '';
+    if (fbp || fbc) {
+      fetch('/api/tracking/meta-params', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fbp: fbp || undefined, fbc: fbc || undefined }),
+      }).catch(() => {});
+    }
+
+    const checkoutUrl = CHECKOUT_URLS[plan];
+    const params = new URLSearchParams({ email: user.email });
+
+    void createClient()
+      .from('profiles')
+      .select('full_name, whatsapp')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.full_name) params.set('name', data.full_name);
+        if (data?.whatsapp) params.set('phone', data.whatsapp.replace(/\D/g, ''));
+        window.location.href = `${checkoutUrl}?${params.toString()}`;
+      });
+  }, [user]);
 
   return (
     <div className="py-8 space-y-8">
+      {/* Banner de verificação pós-pagamento */}
+      {paymentSuccess && currentPlan === 'free' && (
+        <div className="p-4 rounded-xl bg-popline-pink/10 border border-popline-pink/20 text-center">
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <div className="w-4 h-4 border-2 border-popline-pink border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-medium text-popline-pink">Verificando seu pagamento...</span>
+          </div>
+          <p className="text-xs text-text-secondary">Isso pode levar alguns segundos.</p>
+        </div>
+      )}
+
+      {paymentSuccess && currentPlan !== 'free' && (
+        <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center">
+          <p className="text-sm font-medium text-green-400">
+            Plano {subService.PLANS[currentPlan].name} ativado com sucesso!
+          </p>
+        </div>
+      )}
+
       <div className="text-center max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold">Escolha seu plano</h1>
         <p className="text-text-secondary mt-2">
@@ -36,7 +121,7 @@ export default function PlanosPage() {
         </p>
       </div>
 
-      {/* Current plan card */}
+      {/* Plano atual */}
       <Card>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
@@ -49,6 +134,9 @@ export default function PlanosPage() {
             {expiresAt && currentPlan !== 'free' && (
               <p className="text-xs text-text-secondary mt-1">
                 Expira em {expiresAt.toLocaleDateString('pt-BR')}
+                {sub?.kiwifySubscriptionId
+                  ? ' · Renovação automática ativa'
+                  : ' · Sem renovação automática'}
               </p>
             )}
             {currentPlan === 'free' && (
@@ -60,27 +148,14 @@ export default function PlanosPage() {
         </div>
       </Card>
 
-      {/* Plans grid */}
+      {/* Grade de planos */}
       <div className="grid md:grid-cols-3 gap-5">
-        <PlanCard
-          plan="monthly"
-          current={currentPlan}
-          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['monthly'].priceTotal, currency: 'BRL', content_name: subService.PLANS['monthly'].name }); setShowSubscribe('monthly'); }}
-        />
-        <PlanCard
-          plan="semester"
-          current={currentPlan}
-          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['semester'].priceTotal, currency: 'BRL', content_name: subService.PLANS['semester'].name }); setShowSubscribe('semester'); }}
-          highlighted
-        />
-        <PlanCard
-          plan="yearly"
-          current={currentPlan}
-          onSubscribe={() => { pixelInitiateCheckout({ value: subService.PLANS['yearly'].priceTotal, currency: 'BRL', content_name: subService.PLANS['yearly'].name }); setShowSubscribe('yearly'); }}
-        />
+        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => handleSubscribe('monthly')} />
+        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => handleSubscribe('semester')} highlighted />
+        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => handleSubscribe('yearly')} />
       </div>
 
-      {/* Comparison */}
+      {/* Tabela comparativa */}
       <Card>
         <h3 className="text-lg font-semibold mb-4">Comparação de benefícios</h3>
         <div className="overflow-x-auto">
@@ -95,102 +170,34 @@ export default function PlanosPage() {
               </tr>
             </thead>
             <tbody className="[&>tr]:border-b [&>tr]:border-border/50">
-              <ComparisonRow label="Visualizar campanhas" values={['✓', '✓', '✓', '✓']} />
-              <ComparisonRow label="Candidatar-se a campanhas" values={['—', '✓', '✓', '✓']} />
-              <ComparisonRow label="Assistir aulas" values={['—', '✓', '✓', '✓']} />
-              <ComparisonRow label="IA de Roteiros" values={['—', '✓', '✓', '✓']} />
+              <ComparisonRow label="Visualizar campanhas"     values={['✓', '✓', '✓', '✓']} />
+              <ComparisonRow label="Candidatar-se"           values={['—', '✓', '✓', '✓']} />
+              <ComparisonRow label="Assistir aulas"          values={['—', '✓', '✓', '✓']} />
+              <ComparisonRow label="IA de Roteiros"          values={['—', '✓', '✓', '✓']} />
               <ComparisonRow label="Modificador de aprovação" values={['—', '1x', '2x', '5x']} />
-              <ComparisonRow label="Prêmios exclusivos" values={['—', '—', '✓', '✓ VIP']} />
+              <ComparisonRow label="Prêmios exclusivos"      values={['—', '—', '✓', '✓ VIP']} />
             </tbody>
           </table>
         </div>
       </Card>
-
-      {/* Subscribe modal (mock payment) */}
-      {showSubscribe && user && (
-        <Modal isOpen onClose={() => setShowSubscribe(null)} title="Assinar plano">
-          <div className="space-y-4">
-            <div className="p-4 rounded-xl bg-background border border-border">
-              <p className="text-xs text-text-secondary">Plano selecionado</p>
-              <p className="text-lg font-bold">{subService.PLANS[showSubscribe].name}</p>
-              <p className="text-sm">
-                {subService.formatBRL(subService.PLANS[showSubscribe].priceTotal)}
-                {showSubscribe !== 'monthly' && (
-                  <span className="text-text-secondary">
-                    {' '}
-                    · {subService.formatBRL(subService.PLANS[showSubscribe].monthlyEquivalent)}/mês
-                  </span>
-                )}
-              </p>
-            </div>
-            <p className="text-sm text-text-secondary">
-              A integração de pagamento será plugada na próxima etapa (Stripe / Mercado Pago). Por enquanto,
-              para ativar o plano, fale com a gente pelo WhatsApp ou peça ao administrador para liberar.
-            </p>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setShowSubscribe(null)}>
-                Fechar
-              </Button>
-              <Button
-                className="flex-1"
-                onClick={async () => {
-                  // Dev-only shortcut: self-assign to let UX flow be tested
-                  const sub = await subService.setUserPlan(user.id, showSubscribe, 'system');
-                  pixelPurchase({
-                    value: subService.PLANS[showSubscribe].priceTotal,
-                    currency: 'BRL',
-                    content_name: subService.PLANS[showSubscribe].name,
-                  });
-                  if (sub.expiresAt) {
-                    fetch('/api/email/notify', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        event: 'plan-subscribed',
-                        data: {
-                          userId: user.id,
-                          planName: subService.PLANS[showSubscribe].name,
-                          expiresAt: new Date(sub.expiresAt).toLocaleDateString('pt-BR'),
-                        },
-                      }),
-                    }).catch(() => {});
-                  }
-                  mutateSub();
-                  setShowSubscribe(null);
-                }}
-              >
-                Ativar (demo)
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
 
 function PlanCard({
-  plan,
-  current,
-  onSubscribe,
-  highlighted = false,
+  plan, current, onSubscribe, highlighted = false,
 }: {
-  plan: PlanId;
-  current: PlanId;
-  onSubscribe: () => void;
-  highlighted?: boolean;
+  plan: PlanId; current: PlanId; onSubscribe: () => void; highlighted?: boolean;
 }) {
   const info = subService.PLANS[plan];
   const isCurrent = current === plan;
 
   return (
-    <div
-      className={`relative rounded-3xl border p-6 flex flex-col gap-4 transition-all ${
-        highlighted
-          ? 'border-popline-pink bg-popline-pink/[0.04] shadow-lg shadow-popline-pink/10'
-          : 'border-border bg-surface'
-      }`}
-    >
+    <div className={`relative rounded-3xl border p-6 flex flex-col gap-4 transition-all ${
+      highlighted
+        ? 'border-popline-pink bg-popline-pink/[0.04] shadow-lg shadow-popline-pink/10'
+        : 'border-border bg-surface'
+    }`}>
       {highlighted && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full gradient-bg text-white">
           Mais popular
@@ -200,7 +207,6 @@ function PlanCard({
         <h3 className="text-lg font-bold">{info.name}</h3>
         <p className="text-xs text-text-secondary mt-1">{info.tagline}</p>
       </div>
-
       <div>
         <p className="text-3xl font-bold">
           {subService.formatBRL(info.priceTotal)}
@@ -214,16 +220,14 @@ function PlanCard({
           </p>
         )}
       </div>
-
       <ul className="space-y-2 text-sm flex-1">
         <FeatureLine label="Candidaturas ilimitadas" />
         <FeatureLine label="Todas as aulas" />
         <FeatureLine label="IA de Roteiros" />
-        <FeatureLine label={`${info.modifier}x chance de aprovação em campanhas`} highlight={info.modifier > 1} />
+        <FeatureLine label={`${info.modifier}x chance de aprovação`} highlight={info.modifier > 1} />
         {info.prizes && <FeatureLine label="Prêmios exclusivos" highlight />}
         {plan === 'yearly' && <FeatureLine label="Destaque VIP nas campanhas" highlight />}
       </ul>
-
       <Button onClick={onSubscribe} disabled={isCurrent} className="w-full">
         {isCurrent ? 'Plano atual' : 'Assinar'}
       </Button>

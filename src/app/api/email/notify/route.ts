@@ -11,6 +11,8 @@ import WithdrawalPaidEmail from '@/emails/withdrawal-paid';
 import DeliveryScheduledEmail from '@/emails/delivery-scheduled';
 import CampaignNoticeEmail from '@/emails/campaign-notice';
 import PlanSubscribedEmail from '@/emails/plan-subscribed';
+import SubscriptionCancelledEmail from '@/emails/subscription-cancelled';
+import RefundConfirmedEmail from '@/emails/refund-confirmed';
 import type { PixKeyType } from '@/types';
 
 const supabaseAdmin = createClient(
@@ -167,6 +169,36 @@ export async function POST(req: NextRequest) {
             fullName: user.fullName,
             planName: data.planName as string,
             expiresAt: data.expiresAt as string,
+          }),
+        );
+        break;
+      }
+
+      case 'subscription-cancelled': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Renovação do plano ${data.planName} cancelada`,
+          React.createElement(SubscriptionCancelledEmail, {
+            fullName: user.fullName,
+            planName: data.planName as string,
+            accessUntil: data.accessUntil as string,
+          }),
+        );
+        break;
+      }
+
+      case 'refund-confirmed': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Reembolso de ${data.amount} confirmado`,
+          React.createElement(RefundConfirmedEmail, {
+            fullName: user.fullName,
+            planName: data.planName as string,
+            amount: data.amount as string,
           }),
         );
         break;

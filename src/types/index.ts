@@ -173,7 +173,37 @@ export interface Subscription {
   plan: PlanId;
   startedAt: string;
   expiresAt: string | null;
-  assignedBy: 'system' | 'admin';
+  assignedBy: 'system' | 'admin' | 'payment';
+  kiwifySubscriptionId: string | null;
+  paymentMethod: 'pix' | 'credit_card' | null;
+}
+
+export interface Payment {
+  id: string;
+  userId: string;
+  kiwifyOrderId: string;
+  plan: PlanId;
+  amount: number;
+  status: string;
+  paymentMethod: string | null;
+  capiEventId: string | null;
+  utmSource: string | null;
+  utmCampaign: string | null;
+  createdAt: string;
+}
+
+export interface SubscriptionEvent {
+  id: string;
+  userId: string | null;
+  eventType: string;
+  kiwifyOrderId: string | null;
+  plan: PlanId | null;
+  amount: number | null;
+  paymentMethod: string | null;
+  utmSource: string | null;
+  utmMedium: string | null;
+  utmCampaign: string | null;
+  createdAt: string;
 }
 
 export type AuthResult = {

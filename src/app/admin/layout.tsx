@@ -9,6 +9,7 @@ import { ROUTES } from '@/lib/constants';
 
 const navItems = [
   { label: 'Dashboard', href: ROUTES.ADMIN },
+  { label: 'Assinaturas', href: ROUTES.ADMIN_ASSINATURAS },
   { label: 'Usuarios', href: ROUTES.ADMIN_USERS },
   { label: 'Campanhas', href: ROUTES.ADMIN_CAMPAIGNS },
   { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },

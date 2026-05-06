@@ -17,11 +17,6 @@ const EXPERTS = [
     thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376206168-zjzyij.jpeg',
   },
   {
-    name: 'Carol Prado',
-    title: 'STORYTELLING E AUTORIDADE',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376266233-m3lv7e.jpeg',
-  },
-  {
     name: 'Alessandra Pitanga',
     title: 'CONTEÚDO QUE VIRA DINHEIRO',
     thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376386741-w23v8d.jpeg',

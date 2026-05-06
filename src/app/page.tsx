@@ -18,20 +18,6 @@ export default async function Home() {
     .eq('status', 'open')
     .order('created_at', { ascending: false });
 
-  // Busca oficinas (workshops) com expert para a seção de experts na LP
-  const { data: workshops } = await supabase
-    .from('workshops')
-    .select('id, title, expert, thumbnail_url, description')
-    .not('expert', 'is', null)
-    .order('position');
-
-  const expertWorkshops = (workshops ?? []).map((w) => ({
-    id: w.id as string,
-    title: w.title as string,
-    expert: w.expert as string,
-    thumbnail_url: (w.thumbnail_url as string | null) ?? null,
-    description: w.description as string,
-  }));
 
   return (
     <>
@@ -40,7 +26,7 @@ export default async function Home() {
         <HeroSection />
         <CampaignsMarquee campaigns={(campaigns ?? []).map(c => ({ id: c.id as string, title: c.title as string }))} />
         <FeaturesSection />
-        <ExpertsSection lessons={expertWorkshops} />
+        <ExpertsSection />
         <HowItWorksSection />
         <PlansSection />
         <CTASection />

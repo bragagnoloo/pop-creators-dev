@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useState, useRef } from 'react';
-import { Workshop, Lesson } from '@/types';
+import { Workshop, Lesson, WorkshopStatus } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as workshopService from '@/services/workshops';
 import * as lessonService from '@/services/lessons';
@@ -26,6 +26,7 @@ function WorkshopModal({
   const [title, setTitle] = useState(editing?.title ?? '');
   const [expert, setExpert] = useState(editing?.expert ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
+  const [status, setStatus] = useState<WorkshopStatus>(editing?.status ?? 'available');
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(editing?.thumbnailUrl ?? null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
   const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
@@ -53,7 +54,7 @@ function WorkshopModal({
       );
       if (uploaded) finalThumb = uploaded;
     }
-    const data = { title, expert: expert.trim() || null, description, thumbnailUrl: finalThumb };
+    const data = { title, expert: expert.trim() || null, description, thumbnailUrl: finalThumb, status };
     if (editing) {
       await workshopService.updateWorkshop(editing.id, data);
     } else {
@@ -98,6 +99,30 @@ function WorkshopModal({
         <Input label="Título da oficina" value={title} onChange={e => setTitle(e.target.value)} required />
         <Input label="Expert (com)" value={expert} onChange={e => setExpert(e.target.value)} placeholder="Nome do expert (opcional)" />
         <Textarea label="Descrição" value={description} onChange={e => setDescription(e.target.value)} rows={3} required />
+
+        {/* Status */}
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-2">Status</label>
+          <div className="flex gap-3">
+            {(['available', 'coming_soon'] as WorkshopStatus[]).map(s => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatus(s)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                  status === s
+                    ? s === 'available'
+                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                      : 'bg-amber-500/20 border-amber-500/50 text-amber-400'
+                    : 'bg-transparent border-border text-text-secondary hover:border-white/20'
+                }`}
+              >
+                {s === 'available' ? '✓ Disponível' : '⏳ Em Breve'}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-3">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancelar</Button>
           <Button type="submit" className="flex-1" disabled={saving}>{saving ? 'Enviando...' : editing ? 'Salvar' : 'Criar'}</Button>
@@ -237,7 +262,16 @@ function WorkshopRow({
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-semibold">{workshop.title}</h3>
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h3 className="font-semibold">{workshop.title}</h3>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                    workshop.status === 'coming_soon'
+                      ? 'bg-amber-500/20 text-amber-400'
+                      : 'bg-emerald-500/20 text-emerald-400'
+                  }`}>
+                    {workshop.status === 'coming_soon' ? 'Em Breve' : 'Disponível'}
+                  </span>
+                </div>
                 {workshop.expert && <p className="text-xs text-popline-light mt-0.5">Com {workshop.expert}</p>}
                 <p className="text-sm text-text-secondary line-clamp-2 mt-1">{workshop.description}</p>
               </div>

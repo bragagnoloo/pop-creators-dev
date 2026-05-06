@@ -8,6 +8,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { Workshop } from '@/types';
 import * as workshopService from '@/services/workshops';
 import * as lessonService from '@/services/lessons';
+import * as subService from '@/services/subscriptions';
+import Paywall from '@/components/ui/Paywall';
 import { ROUTES } from '@/lib/constants';
 
 type Filter = 'all' | 'inprogress' | 'new';
@@ -16,6 +18,13 @@ export default function OficinaListPage() {
   const { user } = useAuth();
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  const { data: sub } = useSWR(
+    user ? ['subscription', user.id] : null,
+    ([, uid]) => subService.getUserSubscription(uid)
+  );
+  const isPaid = sub ? sub.plan !== 'free' : false;
 
   const { data: workshops = [] } = useSWR('workshops', workshopService.getAllWorkshops);
   const { data: watched } = useSWR(
@@ -94,10 +103,18 @@ export default function OficinaListPage() {
         </div>
       </div>
 
+      <Paywall
+        isOpen={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        feature="Assistir oficinas"
+        description="Para acessar as oficinas você precisa ter um plano ativo."
+      />
+
       {/* Hero — primeira oficina em destaque */}
       {hero && (
-        <Link
-          href={`${ROUTES.OFICINAS}/${hero.id}`}
+        <button
+          type="button"
+          onClick={() => isPaid ? (window.location.href = `${ROUTES.OFICINAS}/${hero.id}`) : setPaywallOpen(true)}
           className="group relative w-full overflow-hidden rounded-3xl border border-border bg-surface text-left hover:border-popline-pink/40 transition-all block"
         >
           <div className="grid md:grid-cols-[1.3fr_1fr] gap-0">
@@ -121,10 +138,15 @@ export default function OficinaListPage() {
                   </svg>
                 </div>
               </div>
-              <div className="absolute top-4 left-4">
+              <div className="absolute top-4 left-4 flex gap-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-popline-pink text-white">
                   Em destaque
                 </span>
+                {hero.status === 'coming_soon' && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-md bg-amber-500 text-white">
+                    Em Breve
+                  </span>
+                )}
               </div>
               {hero.progress > 0 && (
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
@@ -152,7 +174,7 @@ export default function OficinaListPage() {
               </div>
             </div>
           </div>
-        </Link>
+        </button>
       )}
 
       {/* Filtros + busca */}
@@ -195,7 +217,14 @@ export default function OficinaListPage() {
       ) : (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {grid.map(workshop => (
-            <WorkshopCard key={workshop.id} workshop={workshop} />
+            <WorkshopCard
+              key={workshop.id}
+              workshop={workshop}
+              onEnter={() => isPaid
+                ? (window.location.href = `${ROUTES.OFICINAS}/${workshop.id}`)
+                : setPaywallOpen(true)
+              }
+            />
           ))}
         </div>
       )}
@@ -203,13 +232,15 @@ export default function OficinaListPage() {
   );
 }
 
-function WorkshopCard({ workshop }: {
+function WorkshopCard({ workshop, onEnter }: {
   workshop: Workshop & { total: number; watchedCount: number; progress: number; isNew: boolean };
+  onEnter: () => void;
 }) {
   return (
-    <Link
-      href={`${ROUTES.OFICINAS}/${workshop.id}`}
-      className="group flex flex-col text-left bg-surface border border-border rounded-2xl overflow-hidden hover:border-popline-pink/40 transition-all hover:-translate-y-0.5"
+    <button
+      type="button"
+      onClick={onEnter}
+      className="group flex flex-col text-left bg-surface border border-border rounded-2xl overflow-hidden hover:border-popline-pink/40 transition-all hover:-translate-y-0.5 w-full"
     >
       <div className="relative w-full overflow-hidden bg-background" style={{ paddingBottom: '125%' }}>
         {workshop.thumbnailUrl ? (
@@ -236,13 +267,18 @@ function WorkshopCard({ workshop }: {
           </div>
         </div>
 
-        {workshop.isNew && (
-          <div className="absolute top-3 left-3">
+        <div className="absolute top-3 left-3 flex gap-1.5">
+          {workshop.status === 'coming_soon' && (
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500 text-white">
+              Em Breve
+            </span>
+          )}
+          {workshop.isNew && workshop.status !== 'coming_soon' && (
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-popline-pink text-white">
               Nova
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {workshop.progress > 0 && (
           <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/40">
@@ -270,6 +306,6 @@ function WorkshopCard({ workshop }: {
           {workshop.progress > 0 && workshop.progress < 100 && ` · ${workshop.progress}% concluído`}
         </p>
       </div>
-    </Link>
+    </button>
   );
 }

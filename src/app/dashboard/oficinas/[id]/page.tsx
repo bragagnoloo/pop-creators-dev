@@ -11,10 +11,8 @@ import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as workshopService from '@/services/workshops';
 import * as lessonService from '@/services/lessons';
 import * as userService from '@/services/users';
-import * as subService from '@/services/subscriptions';
 import Avatar from '@/components/ui/Avatar';
 import Button from '@/components/ui/Button';
-import Paywall from '@/components/ui/Paywall';
 import { ROUTES } from '@/lib/constants';
 
 type Filter = 'all' | 'unwatched' | 'new';
@@ -26,7 +24,6 @@ export default function OficinaDetailPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [paywallOpen, setPaywallOpen] = useState(false);
   const [watched, setWatched] = useState<Set<string>>(new Set());
 
   const { data: workshop } = useSWR(
@@ -59,10 +56,6 @@ export default function OficinaDetailPage() {
   }, [lessons, watched, filter, search]);
 
   const handlePlay = async (lesson: Lesson) => {
-    if (user && !(await subService.isPaid(user.id))) {
-      setPaywallOpen(true);
-      return;
-    }
     setExpandedId(prev => (prev === lesson.id ? null : lesson.id));
     if (user && lesson.youtubeUrl && !watched.has(lesson.id)) {
       await lessonService.markWatched(user.id, lesson.id);
@@ -210,12 +203,6 @@ export default function OficinaDetailPage() {
         </>
       )}
 
-      <Paywall
-        isOpen={paywallOpen}
-        onClose={() => setPaywallOpen(false)}
-        feature="Assistir aulas"
-        description="Para assistir às aulas você precisa ter um plano ativo."
-      />
     </div>
   );
 }

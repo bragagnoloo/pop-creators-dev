@@ -138,6 +138,8 @@ export interface SavedScript {
   createdAt: string;
 }
 
+export type WorkshopStatus = 'available' | 'coming_soon';
+
 export interface Workshop {
   id: string;
   title: string;
@@ -146,6 +148,7 @@ export interface Workshop {
   thumbnailUrl: string | null;
   position: number;
   createdAt: string;
+  status: WorkshopStatus;
 }
 
 export interface WorkshopWithLessons extends Workshop {

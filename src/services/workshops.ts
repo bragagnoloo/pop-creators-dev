@@ -1,4 +1,4 @@
-import { Workshop, WorkshopWithLessons, Lesson } from '@/types';
+import { Workshop, WorkshopWithLessons, WorkshopStatus, Lesson } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
 type WorkshopRow = {
@@ -9,6 +9,7 @@ type WorkshopRow = {
   thumbnail_url: string | null;
   position: number;
   created_at: string;
+  status: WorkshopStatus;
 };
 
 type LessonRow = {
@@ -30,6 +31,7 @@ function toWorkshop(r: WorkshopRow): Workshop {
     thumbnailUrl: r.thumbnail_url,
     position: r.position,
     createdAt: r.created_at,
+    status: r.status ?? 'available',
   };
 }
 
@@ -45,7 +47,7 @@ function toLesson(r: LessonRow): Lesson {
   };
 }
 
-const W_SELECT = 'id, title, expert, description, thumbnail_url, position, created_at';
+const W_SELECT = 'id, title, expert, description, thumbnail_url, position, created_at, status';
 const L_SELECT = 'id, workshop_id, title, description, youtube_url, position, created_at';
 
 // ---------- Workshop CRUD ----------
@@ -99,6 +101,7 @@ export async function createWorkshop(
       expert: data.expert,
       description: data.description,
       thumbnail_url: data.thumbnailUrl,
+      status: data.status ?? 'available',
       position: nextPosition,
     })
     .select(W_SELECT)
@@ -116,6 +119,7 @@ export async function updateWorkshop(
   if (data.expert !== undefined) patch.expert = data.expert;
   if (data.description !== undefined) patch.description = data.description;
   if (data.thumbnailUrl !== undefined) patch.thumbnail_url = data.thumbnailUrl;
+  if (data.status !== undefined) patch.status = data.status;
 
   const { data: updated } = await supabase
     .from('workshops')

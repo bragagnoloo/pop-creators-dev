@@ -5,7 +5,7 @@ import { ROUTES } from '@/lib/constants';
 
 export default function HeroSection() {
   return (
-    <section className="relative grid-bg overflow-x-hidden">
+    <section className="relative grid-bg overflow-x-clip">
       {/* Background orbs — z-0 */}
       <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/15 rounded-full blur-[120px] animate-pulse-glow pointer-events-none z-0" />
       <div className="absolute bottom-0 -right-20 w-[400px] h-[400px] bg-popline-pink/10 rounded-full blur-[100px] animate-pulse-glow pointer-events-none z-0" style={{ animationDelay: '2s' }} />

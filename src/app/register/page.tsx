@@ -9,15 +9,27 @@ import Input from '@/components/ui/Input';
 import { ROUTES } from '@/lib/constants';
 import { pixelCompleteRegistration } from '@/lib/pixel';
 
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 11);
+  if (digits.length <= 2) return digits.length ? `(${digits}` : '';
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
   const [email, setEmail] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setWhatsapp(formatPhone(e.target.value));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,22 +44,38 @@ export default function RegisterPage() {
       setError('As senhas não coincidem.');
       return;
     }
+    const phoneDigits = whatsapp.replace(/\D/g, '');
+    if (phoneDigits.length < 10) {
+      setError('Digite um telefone válido com DDD.');
+      return;
+    }
 
     setLoading(true);
     const result = await register(email, password);
+
     if (!result.success) {
       setError(result.error || 'Erro ao cadastrar.');
       setLoading(false);
       return;
     }
+
     pixelCompleteRegistration({ content_name: 'Cadastro POPline Creators' });
+
     if (result.needsConfirmation) {
+      // Salvar telefone no perfil e disparar webhook (fire-and-forget)
+      fetch('/api/register/complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: result.userId, email, whatsapp }),
+      }).catch(() => {});
+
       setSuccessMsg(
         `Conta criada! Enviamos um link de confirmação para ${email}. Abra o email e clique no link para ativar sua conta.`
       );
       setLoading(false);
       return;
     }
+
     router.push(ROUTES.DASHBOARD);
   };
 
@@ -94,10 +122,21 @@ export default function RegisterPage() {
           />
 
           <Input
+            label="WhatsApp"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="(11) 99999-9999"
+            value={whatsapp}
+            onChange={handlePhoneChange}
+            required
+          />
+
+          <Input
             label="Senha"
             type="password"
             autoComplete="new-password"
-            placeholder="Minimo 6 caracteres"
+            placeholder="Mínimo 6 caracteres"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
@@ -121,7 +160,7 @@ export default function RegisterPage() {
         </form>
 
         <p className="text-center text-sm text-text-secondary mt-6">
-          Ja tem uma conta?{' '}
+          Já tem uma conta?{' '}
           <Link href={ROUTES.LOGIN} className="text-popline-pink hover:text-popline-light transition-colors">
             Entrar
           </Link>

@@ -9,7 +9,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  register: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean }>;
+  register: (email: string, password: string) => Promise<{ success: boolean; error?: string; needsConfirmation?: boolean; userId?: string; userEmail?: string }>;
   logout: () => Promise<void>;
 }
 

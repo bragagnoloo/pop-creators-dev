@@ -53,7 +53,7 @@ export async function login(email: string, password: string): Promise<AuthResult
 
 export type RegisterResult =
   | { success: true; user: AuthUser }
-  | { success: true; needsConfirmation: true }
+  | { success: true; needsConfirmation: true; userId: string; userEmail: string }
   | { success: false; error: string };
 
 export async function register(email: string, password: string): Promise<RegisterResult> {
@@ -67,11 +67,11 @@ export async function register(email: string, password: string): Promise<Registe
   }
   // Sem sessão = confirmação de email habilitada no projeto Supabase.
   if (!data.session) {
-    return { success: true, needsConfirmation: true };
+    return { success: true, needsConfirmation: true, userId: data.user?.id ?? '', userEmail: email };
   }
   const user = await getCurrentUser();
   if (!user) {
-    return { success: true, needsConfirmation: true };
+    return { success: true, needsConfirmation: true, userId: data.user?.id ?? '', userEmail: email };
   }
   return { success: true, user };
 }

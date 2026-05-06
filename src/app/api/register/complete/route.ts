@@ -5,34 +5,42 @@ const WEBHOOK_URL = 'https://webhook.mktarmy.com.br/webhook/cadastro-popline-cre
 
 export async function POST(req: NextRequest) {
   const { userId, email, whatsapp } = await req.json() as {
-    userId: string;
+    userId?: string;
     email: string;
     whatsapp?: string;
   };
 
-  if (!userId || !email) {
-    return NextResponse.json({ error: 'Campos obrigatórios ausentes.' }, { status: 400 });
+  if (!email) {
+    return NextResponse.json({ error: 'Email é obrigatório.' }, { status: 400 });
   }
 
-  // Salvar telefone no perfil usando service role (usuário ainda não tem sessão)
-  if (whatsapp) {
-    const supabase = createAdminClient();
-    await supabase
-      .from('profiles')
-      .update({ whatsapp })
-      .eq('id', userId);
+  // Salvar telefone no perfil (só se userId disponível)
+  if (userId && whatsapp) {
+    try {
+      const supabase = createAdminClient();
+      await supabase
+        .from('profiles')
+        .update({ whatsapp })
+        .eq('id', userId);
+    } catch {
+      // Falha no profile não bloqueia o webhook
+    }
   }
 
-  // Disparar webhook (fire-and-forget, falha não bloqueia o cadastro)
-  fetch(WEBHOOK_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      nome: '',
-      email,
-      telefone: whatsapp ?? '',
-    }),
-  }).catch(() => {});
+  // Disparar webhook — await garante execução antes da função serverless encerrar
+  try {
+    await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nome: '',
+        email,
+        telefone: whatsapp ?? '',
+      }),
+    });
+  } catch {
+    // Falha no webhook não bloqueia o cadastro
+  }
 
   return NextResponse.json({ ok: true });
 }

@@ -5,7 +5,7 @@ import { ROUTES } from '@/lib/constants';
 
 export default function HeroSection() {
   return (
-    <section className="relative grid-bg">
+    <section className="relative grid-bg overflow-x-hidden">
       {/* Background orbs — z-0 */}
       <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/15 rounded-full blur-[120px] animate-pulse-glow pointer-events-none z-0" />
       <div className="absolute bottom-0 -right-20 w-[400px] h-[400px] bg-popline-pink/10 rounded-full blur-[100px] animate-pulse-glow pointer-events-none z-0" style={{ animationDelay: '2s' }} />
@@ -27,20 +27,20 @@ export default function HeroSection() {
 
         {/* Headline */}
         <h1 className="font-black leading-[1.05] tracking-tight mb-6 sm:mb-8">
-          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
+          <span className="block text-3xl sm:text-5xl lg:text-6xl text-text-primary">
             Crie conteúdo para o
           </span>
-          <span className="block text-4xl sm:text-5xl lg:text-6xl gradient-text">
+          <span className="block text-3xl sm:text-5xl lg:text-6xl gradient-text">
             maior ecossistema
           </span>
-          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
-            sobre música e{' '}
+          <span className="block text-3xl sm:text-5xl lg:text-6xl text-text-primary">
+            sobre música e
+          </span>
+          <span className="block text-3xl sm:text-5xl lg:text-6xl text-text-primary">
             <em style={{ fontFamily: 'var(--font-playfair)', fontStyle: 'italic', fontWeight: 400 }}>
               cultura pop
             </em>
-          </span>
-          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
-            do Brasil.
+            {' '}do Brasil.
           </span>
         </h1>
 

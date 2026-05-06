@@ -68,7 +68,7 @@ const Icons = {
 const primaryItems = [
   { label: 'Home', href: ROUTES.DASHBOARD, icon: Icons.Dashboard, exact: true },
   { label: 'Campanhas', href: ROUTES.CAMPANHAS, icon: Icons.Campanhas },
-  { label: 'Aulas', href: ROUTES.AULAS, icon: Icons.Aulas },
+  { label: 'Oficinas', href: ROUTES.OFICINAS, icon: Icons.Aulas },
   { label: 'Carteira', href: ROUTES.CARTEIRA, icon: Icons.Carteira },
 ];
 

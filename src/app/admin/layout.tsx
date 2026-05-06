@@ -13,7 +13,7 @@ const navItems = [
   { label: 'Usuarios', href: ROUTES.ADMIN_USERS },
   { label: 'Campanhas', href: ROUTES.ADMIN_CAMPAIGNS },
   { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },
-  { label: 'Aulas', href: ROUTES.ADMIN_AULAS },
+  { label: 'Oficinas', href: ROUTES.ADMIN_OFICINAS },
   { label: 'Saques', href: ROUTES.ADMIN_SAQUES },
 ];
 

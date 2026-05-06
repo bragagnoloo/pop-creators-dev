@@ -138,15 +138,28 @@ export interface SavedScript {
   createdAt: string;
 }
 
-export interface Lesson {
+export interface Workshop {
   id: string;
   title: string;
   expert: string | null;
   description: string;
   thumbnailUrl: string | null;
-  youtubeUrl: string;
-  createdAt: string;
   position: number;
+  createdAt: string;
+}
+
+export interface WorkshopWithLessons extends Workshop {
+  lessons: Lesson[];
+}
+
+export interface Lesson {
+  id: string;
+  workshopId: string;
+  title: string;
+  description: string;
+  youtubeUrl: string;
+  position: number;
+  createdAt: string;
 }
 
 export interface LessonRating {

@@ -24,18 +24,18 @@ export default function CTASection() {
 
           <div className="relative">
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
-              Pronto para <span className="gradient-text">criar</span>?
+              Pronto para <span className="gradient-text">monetizar</span>?
             </h2>
             <p className="text-text-secondary max-w-lg mx-auto mb-8 text-lg">
-              Junte-se a centenas de criadores que ja estao construindo carreira
-              com a POPline e a UGC+.
+              Junte-se a centenas de criadores que já estão sendo pagos para criar
+              sobre música e cultura pop. Seu próximo cachê está a um clique.
             </p>
             <Link href={ROUTES.REGISTER}>
               <Button size="lg" className="min-w-[220px] text-base shadow-lg shadow-popline-pink/20">
                 Criar Minha Conta
               </Button>
             </Link>
-            <p className="text-xs text-text-secondary mt-4">Cadastro gratuito. Sem cartao de credito.</p>
+            <p className="text-xs text-text-secondary mt-4">Cadastro gratuito. Assine quando quiser.</p>
           </div>
         </div>
       </div>

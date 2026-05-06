@@ -1,88 +1,76 @@
-import UgcLogo from '@/components/ui/UgcLogo';
-
 const steps = [
   {
     number: '01',
     title: 'Crie sua Conta',
-    description: 'Cadastre-se gratuitamente na plataforma POPline Creators powered by UGC+.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-      </svg>
-    ),
+    description: 'Cadastro gratuito em minutos. Preencha seu perfil com suas redes sociais e mostre seu potencial como creator.',
   },
   {
     number: '02',
-    title: 'Complete seu Perfil',
-    description: 'Adicione suas redes sociais, localizacao e mostre quem voce e como criador.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
+    title: 'Assine um Plano',
+    description: 'Desbloqueie candidaturas a campanhas, acesso às aulas com experts e a IA de geração de roteiros.',
   },
   {
     number: '03',
-    title: 'Participe de Campanhas',
-    description: 'Candidate-se para campanhas exclusivas, crie conteudo e seja recompensado.',
-    icon: (
-      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
+    title: 'Participe & Aprenda',
+    description: 'Candidate-se a campanhas exclusivas, assista aulas com especialistas do mercado e gere roteiros com IA.',
+  },
+  {
+    number: '04',
+    title: 'Receba pelo PIX',
+    description: 'Seu cachê das campanhas aprovadas fica disponível na carteira. Saque quando quiser, direto via PIX.',
   },
 ];
 
 export default function HowItWorksSection() {
   return (
     <section id="como-funciona" className="relative py-28 px-4 overflow-hidden">
-      {/* Subtle bg */}
-      <div className="absolute inset-0 bg-gradient-to-b from-surface/0 via-surface/50 to-surface/0 pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-surface/0 via-surface/40 to-surface/0 pointer-events-none" />
 
-      <div className="relative max-w-5xl mx-auto">
+      <div className="relative max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <span className="inline-block text-xs font-semibold tracking-widest uppercase text-popline-pink mb-4">Passo a passo</span>
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-4">
             Como <span className="gradient-text">Funciona</span>?
           </h2>
           <p className="text-text-secondary max-w-xl mx-auto text-lg">
-            Em tres passos voce ja esta participando de campanhas.
+            Em quatro passos simples você já está criando conteúdo e sendo pago por isso.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
           {steps.map((step, index) => (
             <div key={step.number} className="relative">
-              {/* Connector line */}
+              {/* Linha conectora */}
               {index < steps.length - 1 && (
-                <div className="hidden md:block absolute top-10 left-[calc(50%+40px)] w-[calc(100%-80px)] h-px bg-gradient-to-r from-popline-pink/30 to-popline-pink/10" />
+                <div className="hidden lg:block absolute top-[52px] left-[calc(50%+36px)] w-[calc(100%-72px)] h-px bg-gradient-to-r from-popline-pink/20 via-popline-pink/10 to-transparent" />
               )}
 
-              <div className="glass-card rounded-2xl p-8 text-center group hover:border-popline-pink/20 transition-all duration-300">
-                {/* Number */}
-                <div className="text-5xl font-black text-popline-pink/10 mb-4 group-hover:text-popline-pink/20 transition-colors">
-                  {step.number}
+              <div className="relative rounded-2xl border border-white/5 bg-surface/40 p-7 group hover:border-popline-pink/20 transition-all duration-300 overflow-hidden h-full">
+                {/* Brilho sutil no hover */}
+                <div className="absolute inset-0 bg-gradient-to-br from-popline-pink/0 to-popline-pink/0 group-hover:from-popline-pink/[0.03] group-hover:to-transparent transition-all duration-500 pointer-events-none" />
+
+                {/* Número grande com efeito */}
+                <div className="relative mb-6">
+                  {/* Glow por trás do número */}
+                  <div className="absolute -top-2 -left-1 w-14 h-14 bg-popline-pink/10 rounded-full blur-2xl group-hover:bg-popline-pink/20 transition-colors duration-300" />
+                  <span
+                    className="relative block text-7xl font-black leading-none select-none tracking-tighter"
+                    style={{
+                      WebkitTextStroke: '1.5px rgba(233,30,140,0.5)',
+                      color: 'transparent',
+                    }}
+                  >
+                    {step.number}
+                  </span>
+                  {/* Linha decorativa abaixo do número */}
+                  <div className="mt-3 h-px w-8 bg-gradient-to-r from-popline-pink/50 to-transparent" />
                 </div>
 
-                {/* Icon circle */}
-                <div className="w-14 h-14 rounded-full gradient-bg mx-auto flex items-center justify-center text-white mb-5 group-hover:scale-110 transition-transform duration-300 shadow-lg shadow-popline-pink/20">
-                  {step.icon}
-                </div>
-
-                <h3 className="text-lg font-semibold mb-2">{step.title}</h3>
+                <h3 className="text-base font-bold mb-2 text-text-primary">{step.title}</h3>
                 <p className="text-sm text-text-secondary leading-relaxed">{step.description}</p>
               </div>
             </div>
           ))}
-        </div>
-
-        {/* UGC+ floating badge */}
-        <div className="flex items-center justify-center mt-12 gap-3 text-text-secondary text-sm">
-          <div className="h-px w-12 bg-border" />
-          <UgcLogo size={20} />
-          <span>Tecnologia UGC+</span>
-          <div className="h-px w-12 bg-border" />
         </div>
       </div>
     </section>

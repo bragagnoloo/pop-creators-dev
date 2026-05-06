@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import UgcLogo from '@/components/ui/UgcLogo';
 import { ROUTES } from '@/lib/constants';
 
 export default function Navbar() {
@@ -12,7 +11,7 @@ export default function Navbar() {
   const links = [
     { label: 'Como Funciona', href: '#como-funciona' },
     { label: 'Vantagens', href: '#vantagens' },
-    { label: 'Parceiro', href: '#parceiro' },
+    { label: 'Planos', href: '#planos' },
   ];
 
   return (
@@ -23,10 +22,6 @@ export default function Navbar() {
           <Link href="/" className="flex items-center gap-3">
             <span className="text-xl font-bold gradient-text">POPline</span>
             <span className="text-sm text-text-secondary font-medium">Creators</span>
-            <span className="text-[10px] text-text-secondary/60 border border-border rounded-full px-2 py-0.5 hidden sm:block">
-              powered by
-            </span>
-            <UgcLogo size={22} className="hidden sm:block" />
           </Link>
 
           {/* Desktop nav */}

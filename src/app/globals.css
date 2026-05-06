@@ -197,6 +197,19 @@ body {
   }
 }
 
+/* Marquee infinito */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: marquee 35s linear infinite;
+  will-change: transform;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
 /* Grid background */
 .grid-bg {
   background-image:

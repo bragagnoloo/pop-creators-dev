@@ -21,7 +21,8 @@ export const ROUTES = {
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
   CAMPANHAS: '/dashboard/campanhas',
-  AULAS: '/dashboard/aulas',
+  OFICINAS: '/dashboard/oficinas',
+  OFICINA: '/dashboard/oficinas',
   ROTEIROS: '/dashboard/roteiros',
   CARTEIRA: '/dashboard/carteira',
   RANKING: '/dashboard/ranking',
@@ -31,7 +32,7 @@ export const ROUTES = {
   ADMIN_USERS: '/admin/users',
   ADMIN_CAMPAIGNS: '/admin/campaigns',
   ADMIN_CANDIDATURAS: '/admin/candidaturas',
-  ADMIN_AULAS: '/admin/aulas',
+  ADMIN_OFICINAS: '/admin/oficinas',
   ADMIN_SAQUES: '/admin/saques',
   ADMIN_ASSINATURAS: '/admin/assinaturas',
 } as const;

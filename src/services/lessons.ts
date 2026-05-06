@@ -3,10 +3,9 @@ import { createClient } from '@/lib/supabase/client';
 
 type LessonRow = {
   id: string;
+  workshop_id: string;
   title: string;
-  expert: string | null;
   description: string;
-  thumbnail_url: string | null;
   youtube_url: string;
   created_at: string;
   position: number;
@@ -24,69 +23,24 @@ type CommentRow = {
 function toLesson(r: LessonRow): Lesson {
   return {
     id: r.id,
+    workshopId: r.workshop_id,
     title: r.title,
-    expert: r.expert,
     description: r.description,
-    thumbnailUrl: r.thumbnail_url,
     youtubeUrl: r.youtube_url,
     createdAt: r.created_at,
     position: r.position,
   };
 }
 
-const L_SELECT = 'id, title, expert, description, thumbnail_url, youtube_url, created_at, position';
-
-// ---------- Lessons CRUD ----------
+const L_SELECT = 'id, workshop_id, title, description, youtube_url, created_at, position';
 
 export async function getAllLessons(): Promise<Lesson[]> {
   const supabase = createClient();
-  const { data } = await supabase.from('lessons').select(L_SELECT).order('position', { ascending: true });
-  if (!data) return [];
-  return (data as LessonRow[]).map(toLesson);
-}
-
-export async function createLesson(data: Omit<Lesson, 'id' | 'createdAt' | 'position'>): Promise<Lesson | null> {
-  const supabase = createClient();
-  const { data: maxRow } = await supabase.from('lessons').select('position').order('position', { ascending: false }).limit(1).maybeSingle();
-  const nextPosition = ((maxRow as LessonRow | null)?.position ?? 0) + 1;
-  const { data: inserted } = await supabase
+  const { data } = await supabase
     .from('lessons')
-    .insert({
-      title: data.title,
-      expert: data.expert,
-      description: data.description,
-      thumbnail_url: data.thumbnailUrl,
-      youtube_url: data.youtubeUrl,
-      position: nextPosition,
-    })
     .select(L_SELECT)
-    .single();
-  return inserted ? toLesson(inserted as LessonRow) : null;
-}
-
-export async function reorderLessons(ids: string[]): Promise<void> {
-  const supabase = createClient();
-  await Promise.all(ids.map((id, index) =>
-    supabase.from('lessons').update({ position: index + 1 }).eq('id', id)
-  ));
-}
-
-export async function updateLesson(id: string, data: Partial<Lesson>): Promise<Lesson | null> {
-  const supabase = createClient();
-  const patch: Record<string, unknown> = {};
-  if (data.title !== undefined) patch.title = data.title;
-  if (data.expert !== undefined) patch.expert = data.expert;
-  if (data.description !== undefined) patch.description = data.description;
-  if (data.thumbnailUrl !== undefined) patch.thumbnail_url = data.thumbnailUrl;
-  if (data.youtubeUrl !== undefined) patch.youtube_url = data.youtubeUrl;
-
-  const { data: updated } = await supabase.from('lessons').update(patch).eq('id', id).select(L_SELECT).single();
-  return updated ? toLesson(updated as LessonRow) : null;
-}
-
-export async function deleteLesson(id: string): Promise<void> {
-  const supabase = createClient();
-  await supabase.from('lessons').delete().eq('id', id);
+    .order('position', { ascending: true });
+  return (data ?? []).map(r => toLesson(r as LessonRow));
 }
 
 // ---------- YouTube helpers ----------
@@ -109,32 +63,46 @@ export function getYoutubeEmbedUrl(url: string): string | null {
   return id ? `https://www.youtube.com/embed/${id}` : null;
 }
 
-// ---------- Watched ----------
-
-export async function getWatchedIds(userId: string): Promise<Set<string>> {
-  const supabase = createClient();
-  const { data } = await supabase.from('watched_lessons').select('lesson_id').eq('user_id', userId);
-  return new Set((data || []).map(r => r.lesson_id));
-}
-
-export async function markWatched(userId: string, lessonId: string): Promise<void> {
-  const supabase = createClient();
-  await supabase.from('watched_lessons').upsert({ user_id: userId, lesson_id: lessonId });
-}
-
 export function isNew(lesson: Lesson, days = 7): boolean {
   const created = new Date(lesson.createdAt).getTime();
   return Date.now() - created <= days * 24 * 60 * 60 * 1000;
 }
 
-// ---------- Ratings ----------
+// ---------- Watched ----------
 
-export async function setRating(userId: string, lessonId: string, stars: 1 | 2 | 3 | 4 | 5): Promise<void> {
+export async function getWatchedIds(userId: string): Promise<Set<string>> {
   const supabase = createClient();
-  await supabase.from('lesson_ratings').upsert({ user_id: userId, lesson_id: lessonId, stars });
+  const { data } = await supabase
+    .from('watched_lessons')
+    .select('lesson_id')
+    .eq('user_id', userId);
+  return new Set((data ?? []).map(r => r.lesson_id));
 }
 
-export async function getUserRating(userId: string, lessonId: string): Promise<number | null> {
+export async function markWatched(userId: string, lessonId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from('watched_lessons')
+    .upsert({ user_id: userId, lesson_id: lessonId });
+}
+
+// ---------- Ratings ----------
+
+export async function setRating(
+  userId: string,
+  lessonId: string,
+  stars: 1 | 2 | 3 | 4 | 5
+): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from('lesson_ratings')
+    .upsert({ user_id: userId, lesson_id: lessonId, stars });
+}
+
+export async function getUserRating(
+  userId: string,
+  lessonId: string
+): Promise<number | null> {
   const supabase = createClient();
   const { data } = await supabase
     .from('lesson_ratings')
@@ -145,9 +113,14 @@ export async function getUserRating(userId: string, lessonId: string): Promise<n
   return data?.stars ?? null;
 }
 
-export async function getLessonRatingSummary(lessonId: string): Promise<{ average: number; count: number }> {
+export async function getLessonRatingSummary(
+  lessonId: string
+): Promise<{ average: number; count: number }> {
   const supabase = createClient();
-  const { data } = await supabase.from('lesson_ratings').select('stars').eq('lesson_id', lessonId);
+  const { data } = await supabase
+    .from('lesson_ratings')
+    .select('stars')
+    .eq('lesson_id', lessonId);
   if (!data || data.length === 0) return { average: 0, count: 0 };
   const sum = data.reduce((acc, r) => acc + r.stars, 0);
   return { average: sum / data.length, count: data.length };
@@ -159,7 +132,9 @@ export async function getLessonComments(lessonId: string): Promise<LessonComment
   const supabase = createClient();
   const { data } = await supabase
     .from('lesson_comments')
-    .select('id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)')
+    .select(
+      'id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)'
+    )
     .eq('lesson_id', lessonId)
     .order('created_at', { ascending: false });
   if (!data) return [];
@@ -181,7 +156,9 @@ export async function addComment(
   const { data: inserted } = await supabase
     .from('lesson_comments')
     .insert({ lesson_id: data.lessonId, user_id: data.userId, content: data.content })
-    .select('id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)')
+    .select(
+      'id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)'
+    )
     .single();
   if (!inserted) return null;
   const r = inserted as unknown as CommentRow;

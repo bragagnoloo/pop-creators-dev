@@ -223,10 +223,10 @@ export default function RankingPage() {
                 Assista aulas, participe de campanhas e faça login todos os dias para começar a pontuar.
               </p>
               <button
-                onClick={() => router.push(ROUTES.AULAS ?? '/dashboard/aulas')}
+                onClick={() => router.push(ROUTES.OFICINAS)}
                 className="mt-2 text-sm text-popline-pink font-medium hover:text-popline-light transition-colors"
               >
-                Ver aulas disponíveis →
+                Ver oficinas disponíveis →
               </button>
             </div>
           ) : null}

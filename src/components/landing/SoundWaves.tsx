@@ -1,8 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+
 const BAR_COUNT = 80;
 
-// PRNG determinística baseada em seno — mesma saída a cada render, sem Math.random().
 function pseudoRandom(seed: number): number {
   const x = Math.sin(seed * 12.9898) * 43758.5453;
   return x - Math.floor(x);
@@ -27,10 +28,13 @@ function getColor(i: number): string {
 }
 
 export default function SoundWaves() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+
   return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden">
-      {/* Left side */}
-      <div className="absolute left-0 right-1/2 flex items-center justify-end">
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+      <div className="absolute left-0 right-1/2 flex items-center justify-end overflow-hidden">
         <div className="flex items-center justify-end w-full gap-[2px] sm:gap-[4px] lg:gap-[6px]">
           {BARS.map((bar, i) => (
             <div
@@ -48,9 +52,7 @@ export default function SoundWaves() {
           ))}
         </div>
       </div>
-
-      {/* Right side */}
-      <div className="absolute left-1/2 right-0 flex items-center justify-start">
+      <div className="absolute left-1/2 right-0 flex items-center justify-start overflow-hidden">
         <div className="flex items-center justify-start w-full gap-[2px] sm:gap-[4px] lg:gap-[6px]">
           {BARS.map((bar, i) => (
             <div

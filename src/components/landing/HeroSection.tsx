@@ -1,85 +1,85 @@
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import UgcLogo from '@/components/ui/UgcLogo';
-import Popline20Logo from '@/components/ui/Popline20Logo';
 import SoundWaves from './SoundWaves';
 import { ROUTES } from '@/lib/constants';
 
 export default function HeroSection() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center pt-16 overflow-hidden noise-overlay grid-bg">
-      {/* Animated gradient orbs */}
-      <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/20 rounded-full blur-[120px] animate-pulse-glow" />
-      <div className="absolute bottom-1/4 -right-40 w-[500px] h-[500px] bg-popline-pink/15 rounded-full blur-[120px] animate-pulse-glow" style={{ animationDelay: '2s' }} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-popline-light/5 rounded-full blur-[150px]" />
+    <section className="relative grid-bg">
+      {/* Background orbs — z-0 */}
+      <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/15 rounded-full blur-[120px] animate-pulse-glow pointer-events-none z-0" />
+      <div className="absolute bottom-0 -right-20 w-[400px] h-[400px] bg-popline-pink/10 rounded-full blur-[100px] animate-pulse-glow pointer-events-none z-0" style={{ animationDelay: '2s' }} />
 
-      {/* Floating POPline 20 Anos logos */}
-      <div className="absolute top-28 right-[8%] animate-float opacity-15 hidden lg:block">
-        <Popline20Logo size={100} />
-      </div>
-      <div className="absolute bottom-36 left-[6%] animate-float-delay opacity-10 hidden lg:block">
-        <Popline20Logo size={70} />
-      </div>
-      <div className="absolute top-52 left-[14%] animate-float-slow opacity-[0.07] hidden lg:block">
-        <Popline20Logo size={50} />
-      </div>
-      <div className="absolute bottom-52 right-[15%] animate-float-slow opacity-[0.06] hidden xl:block" style={{ animationDelay: '3s' }}>
-        <Popline20Logo size={45} />
-      </div>
-
-      {/* Sound frequency waves */}
+      {/* SoundWaves — z-0, só client */}
       <SoundWaves />
 
-      <div className="relative max-w-4xl mx-auto px-4 text-center">
-        {/* UGC+ badge */}
-        <div className="animate-slide-up inline-flex items-center gap-3 px-5 py-2.5 rounded-full glass-card mb-8">
-          <UgcLogo size={24} />
-          <span className="text-sm text-text-secondary">powered by <span className="text-text-primary font-semibold">UGC+</span></span>
+      {/* Conteúdo — z-10, sempre acima */}
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 sm:pt-36 pb-16 sm:pb-24 text-center">
+
+        {/* Eyebrow */}
+        <div className="inline-flex items-center gap-3 mb-6 sm:mb-8">
+          <span className="h-px w-6 bg-popline-pink" />
+          <span className="text-xs font-bold tracking-[0.2em] uppercase text-popline-pink">
+            Plataforma para Creators
+          </span>
+          <span className="h-px w-6 bg-popline-pink" />
         </div>
 
-        <h1 className="animate-slide-up-delay-1 text-3xl sm:text-5xl lg:text-7xl font-bold leading-[1.1] mb-6 tracking-tight">
-          Crie conteúdo para o{' '}
-          <span className="gradient-text">maior ecossistema</span>
-          <br className="hidden sm:block" />
-          sobre <span className="gradient-text">música e cultura pop</span>{' '}
-          do Brasil
+        {/* Headline */}
+        <h1 className="font-black leading-[1.05] tracking-tight mb-6 sm:mb-8">
+          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
+            Crie conteúdo para o
+          </span>
+          <span className="block text-4xl sm:text-5xl lg:text-6xl gradient-text">
+            maior ecossistema
+          </span>
+          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
+            sobre música e{' '}
+            <em style={{ fontFamily: 'var(--font-playfair)', fontStyle: 'italic', fontWeight: 400 }}>
+              cultura pop
+            </em>
+          </span>
+          <span className="block text-4xl sm:text-5xl lg:text-6xl text-text-primary">
+            do Brasil.
+          </span>
         </h1>
 
-        <p className="animate-slide-up-delay-2 text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto mb-10 leading-relaxed">
-          <span className="text-text-primary font-medium">POPline Creators</span> conecta você
-          com experts, comunidade exclusiva e campanhas do POPline.
-          Participe, crie e seja recompensado.
+        {/* Description */}
+        <p className="text-base sm:text-xl text-text-secondary max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed">
+          Campanhas com cachê, aulas com experts e IA de roteiros —
+          tudo que você precisa para monetizar sua criatividade.
         </p>
 
-        <div className="animate-slide-up-delay-3 flex flex-col sm:flex-row items-center justify-center gap-4">
+        {/* CTAs */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mb-12 sm:mb-16">
           <Link href={ROUTES.REGISTER}>
-            <Button size="lg" className="min-w-[200px] text-base">Começar Agora</Button>
+            <Button size="lg" className="text-base min-w-[200px]">Começar agora</Button>
           </Link>
-          <a href="#como-funciona">
-            <Button variant="secondary" size="lg" className="min-w-[200px] text-base">Como Funciona?</Button>
+          <a href="#planos">
+            <Button variant="secondary" size="lg" className="text-base min-w-[200px]">Ver planos</Button>
           </a>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-4 sm:gap-8 mt-20 max-w-lg mx-auto">
-          {[
-            { value: '100+', label: 'Criadores' },
-            { value: '10+', label: 'Campanhas' },
-            { value: '+10M', label: 'Alcance' },
-          ].map((stat, i) => (
-            <div key={stat.label} className="group" style={{ animationDelay: `${0.6 + i * 0.1}s` }}>
-              <div className="text-2xl sm:text-3xl font-bold shimmer-text">{stat.value}</div>
-              <div className="text-xs sm:text-sm text-text-secondary mt-1 group-hover:text-text-primary transition-colors">{stat.label}</div>
+        <div className="border-t border-white/5 pt-8 sm:pt-10">
+          <div className="flex items-center justify-center gap-8 sm:gap-16">
+            <div className="text-center">
+              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">100+</div>
+              <div className="text-[10px] sm:text-sm text-text-secondary uppercase tracking-wider font-medium">Criadores</div>
             </div>
-          ))}
+            <div className="w-px h-8 bg-border shrink-0" />
+            <div className="text-center">
+              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">10+</div>
+              <div className="text-[10px] sm:text-sm text-text-secondary uppercase tracking-wider font-medium">Campanhas</div>
+            </div>
+            <div className="w-px h-8 bg-border shrink-0" />
+            <div className="text-center">
+              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">+10M</div>
+              <div className="text-[10px] sm:text-sm text-text-secondary uppercase tracking-wider font-medium">Alcance</div>
+            </div>
+          </div>
         </div>
 
-        {/* Scroll indicator */}
-        <div className="mt-16 animate-float">
-          <svg className="w-6 h-6 mx-auto text-text-secondary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-          </svg>
-        </div>
       </div>
     </section>
   );

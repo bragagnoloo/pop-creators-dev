@@ -7,6 +7,7 @@ function deriveStatus(sub: {
   subscription_status: string;
   expires_at: string | null;
   kiwify_subscription_id: string | null;
+  assigned_by: string;
 }): string {
   const now = Date.now();
   if (sub.subscription_status === 'refunded')   return 'refunded';
@@ -14,7 +15,9 @@ function deriveStatus(sub: {
   if (sub.subscription_status === 'active') {
     const expiry = sub.expires_at ? new Date(sub.expires_at).getTime() : null;
     if (expiry && expiry < now) return 'expired';
-    if (!sub.kiwify_subscription_id) return 'cancelando';
+    // "Cancelando" só se veio de pagamento e perdeu o kiwify_subscription_id (cancelou renovação)
+    // Ativações manuais (admin/payment sem ID) ficam como ativo
+    if (!sub.kiwify_subscription_id && sub.assigned_by === 'payment') return 'cancelando';
     const daysLeft = expiry ? Math.ceil((expiry - now) / 86400000) : null;
     if (daysLeft !== null && daysLeft <= 7) return 'expiring_soon';
     return 'active';
@@ -42,7 +45,7 @@ export async function GET(req: NextRequest) {
     .from('subscriptions')
     .select(`
       user_id, plan, started_at, expires_at,
-      kiwify_subscription_id, payment_method, subscription_status,
+      kiwify_subscription_id, payment_method, subscription_status, assigned_by,
       profiles!inner(
         full_name, email, created_at,
         first_subscribed_at, first_utm_source, first_utm_campaign
@@ -90,9 +93,10 @@ export async function GET(req: NextRequest) {
   let rows = (data ?? []).map((r) => {
     const p = r.profiles as unknown as ProfileJoin;
     const derivedStatus = deriveStatus({
-      subscription_status:   r.subscription_status,
-      expires_at:            r.expires_at,
+      subscription_status:    r.subscription_status,
+      expires_at:             r.expires_at,
       kiwify_subscription_id: r.kiwify_subscription_id,
+      assigned_by:            r.assigned_by,
     });
 
     const expiry = r.expires_at ? new Date(r.expires_at).getTime() : null;

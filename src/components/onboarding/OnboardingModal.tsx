@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
@@ -17,6 +17,13 @@ interface OnboardingModalProps {
 export default function OnboardingModal({ userId, onComplete }: OnboardingModalProps) {
   const [fullName, setFullName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+
+  useEffect(() => {
+    userService.getProfile(userId).then(profile => {
+      if (profile?.fullName) setFullName(profile.fullName);
+      if (profile?.whatsapp) setWhatsapp(profile.whatsapp);
+    });
+  }, [userId]);
   const [photoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);

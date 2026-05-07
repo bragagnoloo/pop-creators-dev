@@ -19,6 +19,7 @@ function formatPhone(value: string): string {
 export default function RegisterPage() {
   const router = useRouter();
   const { register } = useAuth();
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [password, setPassword] = useState('');
@@ -65,7 +66,7 @@ export default function RegisterPage() {
     fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, email, whatsapp }),
+      body: JSON.stringify({ userId, email, whatsapp, fullName }),
     }).catch(() => {});
 
     if (result.needsConfirmation) {
@@ -107,6 +108,16 @@ export default function RegisterPage() {
               <span>{successMsg}</span>
             </div>
           )}
+
+          <Input
+            label="Nome Completo"
+            type="text"
+            autoComplete="name"
+            placeholder="Seu nome completo"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            required
+          />
 
           <Input
             label="Email"

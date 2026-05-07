@@ -4,10 +4,11 @@ import { createAdminClient } from '@/lib/supabase/server';
 const WEBHOOK_URL = 'https://webhook.mktarmy.com.br/webhook/cadastro-popline-creators';
 
 export async function POST(req: NextRequest) {
-  const { userId, email, whatsapp } = await req.json() as {
+  const { userId, email, whatsapp, fullName } = await req.json() as {
     userId?: string;
     email: string;
     whatsapp?: string;
+    fullName?: string;
   };
 
   if (!email) {
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
       const supabase = createAdminClient();
       await supabase
         .from('profiles')
-        .update({ whatsapp })
+        .update({ whatsapp, ...(fullName ? { full_name: fullName.trim() } : {}) })
         .eq('id', userId);
     } catch {
       // Falha no profile não bloqueia o webhook
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nome: '',
+        nome: fullName ?? '',
         email,
         telefone: whatsapp ?? '',
       }),

@@ -61,14 +61,14 @@ export default function RegisterPage() {
 
     pixelCompleteRegistration({ content_name: 'Cadastro POPline Creators' });
 
-    if (result.needsConfirmation) {
-      // Salvar telefone no perfil e disparar webhook (fire-and-forget)
-      fetch('/api/register/complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: result.userId, email, whatsapp }),
-      }).catch(() => {});
+    const userId = result.needsConfirmation ? result.userId : (result as { success: true; user: { id: string } }).user.id;
+    fetch('/api/register/complete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, email, whatsapp }),
+    }).catch(() => {});
 
+    if (result.needsConfirmation) {
       setSuccessMsg(
         `Conta criada! Enviamos um link de confirmação para ${email}. Abra o email e clique no link para ativar sua conta.`
       );

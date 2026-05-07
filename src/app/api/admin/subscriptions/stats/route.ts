@@ -42,15 +42,16 @@ export async function GET(req: NextRequest) {
   // =========================================================================
 
   const [activoRes, cancelandoRes, expiradoRes, refundedRes, chargebackRes] = await Promise.all([
-    // Ativos: active + expires_at no futuro + tem renovação
+    // Ativos: active + não expirado + (tem kiwify_subscription_id OU ativado por admin/system)
     supabase.from('subscriptions').select('*', { count: 'exact', head: true })
       .eq('subscription_status', 'active')
-      .not('kiwify_subscription_id', 'is', null)
+      .or('kiwify_subscription_id.not.is.null,assigned_by.neq.payment')
       .or(`expires_at.is.null,expires_at.gt.${now}`),
 
-    // Cancelando: active + expires_at no futuro + SEM renovação
+    // Cancelando: active + não expirado + ativado via pagamento + SEM renovação (cancelou)
     supabase.from('subscriptions').select('*', { count: 'exact', head: true })
       .eq('subscription_status', 'active')
+      .eq('assigned_by', 'payment')
       .is('kiwify_subscription_id', null)
       .gt('expires_at', now),
 

@@ -47,12 +47,6 @@ function expiresAt(plan: PlanId): string {
 }
 
 export async function POST(req: NextRequest) {
-  // Token validation
-  const token = req.nextUrl.searchParams.get('token');
-  if (!token || token !== process.env.KIWIFY_WEBHOOK_TOKEN) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
   let payload: KiwifyPayload;
   try {
     payload = await req.json();

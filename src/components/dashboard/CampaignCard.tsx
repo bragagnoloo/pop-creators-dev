@@ -1,10 +1,12 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { Campaign, CampaignApplication } from '@/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
 import { formatBRL } from '@/services/wallet';
 
 interface CampaignCardProps {
@@ -59,6 +61,7 @@ function CompensationChips({ campaign }: { campaign: Campaign }) {
 }
 
 export default function CampaignCard({ campaign, application, onApply }: CampaignCardProps) {
+  const [showDescription, setShowDescription] = useState(false);
   const showAcceptAllNote = !application && (
     (campaign.hasCache ? 1 : 0) + (campaign.hasPermuta ? 1 : 0) + (campaign.hasCommission ? 1 : 0)
   ) > 1;
@@ -99,15 +102,47 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
         </p>
       )}
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-2">
         {application ? (
           <Badge variant={appStatusMap[application.status].variant}>
             {appStatusMap[application.status].label}
           </Badge>
         ) : (
-          <Button size="sm" onClick={onApply}>Participar</Button>
+          <>
+            <Button size="sm" variant="secondary" onClick={() => setShowDescription(true)}>Ver descrição</Button>
+            <Button size="sm" onClick={onApply}>Participar</Button>
+          </>
         )}
       </div>
+
+      {showDescription && (
+        <Modal isOpen onClose={() => setShowDescription(false)} title={campaign.title}>
+          <div className="space-y-4">
+            {campaign.imageUrl && (
+              <Image
+                src={campaign.imageUrl}
+                alt={campaign.title}
+                width={48}
+                height={48}
+                className="w-12 h-12 rounded-xl object-cover border border-border"
+                sizes="48px"
+              />
+            )}
+            <CompensationChips campaign={campaign} />
+            <p className="text-sm text-text-secondary whitespace-pre-line leading-relaxed">
+              {campaign.description}
+            </p>
+            {campaign.deadline && (
+              <p className="text-xs text-text-secondary">
+                Prazo: <span className="text-text-primary font-medium">{new Date(campaign.deadline).toLocaleDateString('pt-BR')}</span>
+              </p>
+            )}
+            <Button className="w-full" onClick={() => { setShowDescription(false); onApply(); }}>
+              Participar
+            </Button>
+          </div>
+        </Modal>
+      )}
     </Card>
   );
 }

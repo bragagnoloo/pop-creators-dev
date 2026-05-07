@@ -11,7 +11,7 @@ import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
-import { uploadImage, lessonThumbnailPath } from '@/lib/supabase/storage';
+import { uploadImage, lessonThumbnailPath, uploadVideo, videoPath } from '@/lib/supabase/storage';
 
 // ---------- Workshop Form Modal ----------
 function WorkshopModal({
@@ -133,6 +133,8 @@ function WorkshopModal({
 }
 
 // ---------- Lesson Form Modal ----------
+type VideoMode = 'url' | 'file';
+
 function LessonModal({
   workshopId,
   editing,
@@ -144,26 +146,54 @@ function LessonModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const isSupabaseUrl = (url: string) => url.includes('/storage/v1/object/public/');
+  const initialMode: VideoMode = editing?.youtubeUrl && isSupabaseUrl(editing.youtubeUrl) ? 'file' : 'url';
+
   const [title, setTitle] = useState(editing?.title ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
-  const [youtubeUrl, setYoutubeUrl] = useState(editing?.youtubeUrl ?? '');
+  const [videoMode, setVideoMode] = useState<VideoMode>(initialMode);
+  const [videoUrl, setVideoUrl] = useState(editing?.youtubeUrl ?? '');
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (youtubeUrl && !lessonService.extractYoutubeId(youtubeUrl)) {
-      setUrlError('URL do YouTube inválida.');
-      return;
+
+    if (videoMode === 'url' && videoUrl) {
+      const isYoutube = !!lessonService.extractYoutubeId(videoUrl);
+      const isSupabase = isSupabaseUrl(videoUrl);
+      if (!isYoutube && !isSupabase) {
+        setUrlError('Cole uma URL válida do YouTube ou do Supabase.');
+        return;
+      }
     }
+
     setSaving(true);
-    const data = { title, description, youtubeUrl };
+    let finalVideoUrl = videoUrl;
+
+    if (videoMode === 'file' && videoFile) {
+      const path = videoPath(videoFile);
+      const uploaded = await uploadVideo(path, videoFile, setUploadProgress, editing?.youtubeUrl ?? null);
+      if (!uploaded) {
+        setSaving(false);
+        setUploadProgress(null);
+        alert('Falha no envio do vídeo. Tente novamente.');
+        return;
+      }
+      finalVideoUrl = uploaded;
+    }
+
+    const data = { title, description, youtubeUrl: finalVideoUrl };
     if (editing) {
       await workshopService.updateLesson(editing.id, data);
     } else {
       await workshopService.createLesson(workshopId, data);
     }
     setSaving(false);
+    setUploadProgress(null);
     onSaved();
     onClose();
   };
@@ -173,19 +203,89 @@ function LessonModal({
       <form onSubmit={handleSave} className="space-y-4">
         <Input label="Título da aula" value={title} onChange={e => setTitle(e.target.value)} required />
         <Textarea label="Descrição" value={description} onChange={e => setDescription(e.target.value)} rows={3} />
+
         <div>
-          <Input
-            label="URL do YouTube"
-            value={youtubeUrl}
-            onChange={e => { setYoutubeUrl(e.target.value); setUrlError(null); }}
-            placeholder="https://youtube.com/watch?v=..."
-            required
-          />
-          {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
+          <label className="block text-sm font-medium text-text-secondary mb-2">Vídeo</label>
+          <div className="flex mb-3">
+            {(['url', 'file'] as VideoMode[]).map((mode, i) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => { setVideoMode(mode); setUrlError(null); }}
+                className={`flex-1 py-2 text-sm font-semibold border transition-all ${
+                  i === 0 ? 'rounded-l-xl' : 'rounded-r-xl border-l-0'
+                } ${
+                  videoMode === mode
+                    ? 'bg-popline-pink text-white border-popline-pink'
+                    : 'bg-transparent border-border text-text-secondary hover:border-white/20'
+                }`}
+              >
+                {mode === 'url' ? 'Colar URL' : 'Fazer Upload'}
+              </button>
+            ))}
+          </div>
+
+          {videoMode === 'url' && (
+            <div>
+              <Input
+                label=""
+                value={videoUrl}
+                onChange={e => { setVideoUrl(e.target.value); setUrlError(null); }}
+                placeholder="https://youtube.com/watch?v=..."
+              />
+              {urlError && <p className="text-xs text-red-400 mt-1">{urlError}</p>}
+            </div>
+          )}
+
+          {videoMode === 'file' && (
+            <div className="space-y-2">
+              <input
+                ref={videoFileRef}
+                type="file"
+                accept="video/mp4,video/webm,video/quicktime"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) setVideoFile(f);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => videoFileRef.current?.click()}
+                className="w-full py-3 rounded-xl border-2 border-dashed border-border text-text-secondary hover:border-popline-pink/50 hover:text-text-primary transition-colors text-sm"
+              >
+                {videoFile ? videoFile.name : 'Clique para selecionar MP4, MOV ou WebM'}
+              </button>
+
+              {!videoFile && editing?.youtubeUrl && isSupabaseUrl(editing.youtubeUrl) && (
+                <p className="text-xs text-text-secondary">
+                  Vídeo atual: <span className="text-popline-light">Supabase Storage</span>. Selecione um arquivo para substituir.
+                </p>
+              )}
+
+              {uploadProgress !== null && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-text-secondary">
+                    <span>Enviando...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-popline-pink to-popline-light transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
         <div className="flex gap-3">
           <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>Cancelar</Button>
-          <Button type="submit" className="flex-1" disabled={saving}>{saving ? 'Enviando...' : editing ? 'Salvar' : 'Criar'}</Button>
+          <Button type="submit" className="flex-1" disabled={saving || uploadProgress !== null}>
+            {uploadProgress !== null ? `Enviando ${uploadProgress}%...` : saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar'}
+          </Button>
         </div>
       </form>
     </Modal>

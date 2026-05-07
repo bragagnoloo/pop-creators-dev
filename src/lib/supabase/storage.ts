@@ -41,7 +41,7 @@ export async function removeImage(bucket: string, url: string | null): Promise<v
   await supabase.storage.from(bucket).remove([path]);
 }
 
-function extractPathFromPublicUrl(url: string, bucket: string): string | null {
+export function extractPathFromPublicUrl(url: string, bucket: string): string | null {
   // Formato: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
   const marker = `/storage/v1/object/public/${bucket}/`;
   const idx = url.indexOf(marker);
@@ -65,4 +65,65 @@ export function campaignLogoPath(file: File): string {
 export function lessonThumbnailPath(file: File): string {
   const ext = file.name.split('.').pop() || 'jpg';
   return `thumb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+export function videoPath(file: File): string {
+  const ext = file.name.split('.').pop() || 'mp4';
+  return `lesson-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+/**
+ * Faz upload de um vídeo para o bucket "videos" com callback de progresso.
+ * Usa createSignedUploadUrl + XHR para expor onprogress (o SDK não expõe isso).
+ */
+export async function uploadVideo(
+  path: string,
+  file: File,
+  onProgress?: (pct: number) => void,
+  oldUrl?: string | null
+): Promise<string | null> {
+  const supabase = createClient();
+
+  if (oldUrl) {
+    const oldPath = extractPathFromPublicUrl(oldUrl, 'videos');
+    if (oldPath && oldPath !== path) {
+      await supabase.storage.from('videos').remove([oldPath]);
+    }
+  }
+
+  const { data: signed, error: signErr } = await supabase.storage
+    .from('videos')
+    .createSignedUploadUrl(path, { upsert: true });
+
+  if (signErr || !signed) {
+    console.error('[storage] createSignedUploadUrl error', signErr);
+    return null;
+  }
+
+  const contentType = file.type || (
+    file.name.endsWith('.mov') ? 'video/quicktime' :
+    file.name.endsWith('.webm') ? 'video/webm' : 'video/mp4'
+  );
+
+  const ok = await new Promise<boolean>((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', signed.signedUrl);
+    xhr.setRequestHeader('Content-Type', contentType);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onProgress) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    };
+    xhr.onload = () => resolve(xhr.status >= 200 && xhr.status < 300);
+    xhr.onerror = () => resolve(false);
+    xhr.send(file);
+  });
+
+  if (!ok) {
+    console.error('[storage] XHR video upload failed');
+    return null;
+  }
+
+  const { data } = supabase.storage.from('videos').getPublicUrl(path);
+  return data.publicUrl;
 }

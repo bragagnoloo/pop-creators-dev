@@ -63,6 +63,15 @@ export function getYoutubeEmbedUrl(url: string): string | null {
   return id ? `https://www.youtube.com/embed/${id}` : null;
 }
 
+export type VideoType = 'youtube' | 'supabase' | 'none';
+
+export function getVideoType(url: string | null | undefined): VideoType {
+  if (!url) return 'none';
+  if (extractYoutubeId(url)) return 'youtube';
+  if (url.includes('/storage/v1/object/public/')) return 'supabase';
+  return 'none';
+}
+
 export function isNew(lesson: Lesson, days = 7): boolean {
   const created = new Date(lesson.createdAt).getTime();
   return Date.now() - created <= days * 24 * 60 * 60 * 1000;

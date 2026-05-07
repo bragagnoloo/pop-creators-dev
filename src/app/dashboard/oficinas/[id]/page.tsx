@@ -293,7 +293,8 @@ function ExpandedLesson({
   profile: UserProfile | null;
   onClose: () => void;
 }) {
-  const embedUrl = lessonService.getYoutubeEmbedUrl(lesson.youtubeUrl);
+  const videoType = lessonService.getVideoType(lesson.youtubeUrl);
+  const embedUrl = videoType === 'youtube' ? lessonService.getYoutubeEmbedUrl(lesson.youtubeUrl) : null;
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -306,13 +307,22 @@ function ExpandedLesson({
       className="rounded-3xl border border-popline-pink/30 bg-surface overflow-hidden scroll-mt-6 shadow-lg shadow-popline-pink/5"
     >
       <div className="relative aspect-video w-full bg-black">
-        {embedUrl ? (
+        {videoType === 'youtube' && embedUrl ? (
           <iframe
             src={`${embedUrl}?autoplay=1`}
             title={lesson.title}
             className="w-full h-full"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen
+          />
+        ) : videoType === 'supabase' ? (
+          <video
+            src={lesson.youtubeUrl}
+            className="w-full h-full"
+            controls
+            autoPlay
+            playsInline
+            preload="metadata"
           />
         ) : workshopThumbnail ? (
           <Image src={workshopThumbnail} alt={lesson.title} fill className="object-cover opacity-40" />

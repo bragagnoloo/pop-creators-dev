@@ -279,6 +279,28 @@ function LessonRow({
   );
 }
 
+// ---------- ExpandableDescription ----------
+function ExpandableDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const lines = text.split('\n');
+  const shouldClamp = lines.length > 4 || text.length > 200;
+  return (
+    <div>
+      <p className={`text-sm text-text-secondary whitespace-pre-line ${!expanded && shouldClamp ? 'line-clamp-4' : ''}`}>
+        {text}
+      </p>
+      {shouldClamp && (
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="text-xs text-popline-pink hover:text-popline-light mt-1 transition-colors"
+        >
+          {expanded ? 'Ver menos' : 'Ver mais'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ---------- ExpandedLesson ----------
 function ExpandedLesson({
   lesson,
@@ -341,9 +363,7 @@ function ExpandedLesson({
       <div className="p-6 space-y-6">
         <div>
           <h2 className="text-xl font-bold mb-1">{lesson.title}</h2>
-          {lesson.description && (
-            <p className="text-sm text-text-secondary whitespace-pre-line">{lesson.description}</p>
-          )}
+          {lesson.description && <ExpandableDescription text={lesson.description} />}
         </div>
         <RatingSection lessonId={lesson.id} userId={user?.id ?? null} />
         <CommentsSection lesson={lesson} user={user} profile={profile} />

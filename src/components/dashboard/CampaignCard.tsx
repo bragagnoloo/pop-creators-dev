@@ -103,15 +103,13 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
       )}
 
       <div className="flex items-center justify-end gap-2">
+        <Button size="sm" variant="secondary" onClick={() => setShowDescription(true)}>Ver descrição</Button>
         {application ? (
           <Badge variant={appStatusMap[application.status].variant}>
             {appStatusMap[application.status].label}
           </Badge>
         ) : (
-          <>
-            <Button size="sm" variant="secondary" onClick={() => setShowDescription(true)}>Ver descrição</Button>
-            <Button size="sm" onClick={onApply}>Participar</Button>
-          </>
+          <Button size="sm" onClick={onApply}>Participar</Button>
         )}
       </div>
 

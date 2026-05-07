@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { KIWIFY_PLAN_MAP, KIWIFY_FREQUENCY_MAP, PLANS } from '@/services/subscriptions';
+import { KIWIFY_PLAN_MAP, PLANS } from '@/services/subscriptions';
 import type { PlanId } from '@/types';
 
 type KiwifyPayload = {
   webhook_event_type: string;
   order_id: string;
-  amount?: number;
+  subscription_id?: string;
+  checkout_link?: string;
   payment_method?: string;
-  subscription?: {
-    id?: string;
+  Subscription?: {
     plan?: {
       id?: string;
       frequency?: string;
@@ -21,7 +21,7 @@ type KiwifyPayload = {
     mobile?: string;
     ip?: string;
   };
-  tracking?: {
+  TrackingParameters?: {
     src?: string;
     sck?: string;
     utm_source?: string;
@@ -30,14 +30,27 @@ type KiwifyPayload = {
     utm_content?: string;
     utm_term?: string;
   };
+  Commissions?: {
+    charge_amount?: number;
+    product_base_price?: number;
+  };
+};
+
+const FREQUENCY_MAP: Record<string, PlanId> = {
+  monthly:      'monthly',
+  semiannually: 'semester',
+  semiannual:   'semester',
+  annually:     'yearly',
+  annual:       'yearly',
 };
 
 function resolvePlan(payload: KiwifyPayload): PlanId | null {
-  const planId   = payload.subscription?.plan?.id;
-  const freq     = payload.subscription?.plan?.frequency;
-
-  if (planId && KIWIFY_PLAN_MAP[planId]) return KIWIFY_PLAN_MAP[planId];
-  if (freq   && KIWIFY_FREQUENCY_MAP[freq]) return KIWIFY_FREQUENCY_MAP[freq];
+  // checkout_link bate com KIWIFY_PLAN_ID_* (ex: "G2MKaHm")
+  if (payload.checkout_link && KIWIFY_PLAN_MAP[payload.checkout_link]) {
+    return KIWIFY_PLAN_MAP[payload.checkout_link];
+  }
+  const freq = payload.Subscription?.plan?.frequency;
+  if (freq && FREQUENCY_MAP[freq]) return FREQUENCY_MAP[freq];
   return null;
 }
 
@@ -56,6 +69,7 @@ export async function POST(req: NextRequest) {
 
   const { webhook_event_type, order_id } = payload;
   const email = payload.Customer?.email?.toLowerCase().trim();
+  const tracking = payload.TrackingParameters;
 
   const supabase = createAdminClient();
 
@@ -63,17 +77,19 @@ export async function POST(req: NextRequest) {
   await supabase.from('subscription_events').insert({
     event_type:             webhook_event_type,
     kiwify_order_id:        order_id,
-    kiwify_subscription_id: payload.subscription?.id ?? null,
+    kiwify_subscription_id: payload.subscription_id ?? null,
     plan:                   resolvePlan(payload),
-    amount:                 payload.amount ? payload.amount / 100 : null,
+    amount:                 payload.Commissions?.charge_amount
+                              ? payload.Commissions.charge_amount / 100
+                              : null,
     payment_method:         payload.payment_method ?? null,
-    utm_source:             payload.tracking?.utm_source ?? null,
-    utm_medium:             payload.tracking?.utm_medium ?? null,
-    utm_campaign:           payload.tracking?.utm_campaign ?? null,
-    utm_content:            payload.tracking?.utm_content ?? null,
-    utm_term:               payload.tracking?.utm_term ?? null,
-    kiwify_src:             payload.tracking?.src ?? null,
-    kiwify_sck:             payload.tracking?.sck ?? null,
+    utm_source:             tracking?.utm_source ?? null,
+    utm_medium:             tracking?.utm_medium ?? null,
+    utm_campaign:           tracking?.utm_campaign ?? null,
+    utm_content:            tracking?.utm_content ?? null,
+    utm_term:               tracking?.utm_term ?? null,
+    kiwify_src:             tracking?.src ?? null,
+    kiwify_sck:             tracking?.sck ?? null,
     raw_payload:            payload as unknown as Record<string, unknown>,
   });
 
@@ -90,7 +106,6 @@ export async function POST(req: NextRequest) {
 
   const userId = profile?.id ?? null;
 
-  // Update subscription_events with user_id if found
   if (userId) {
     await supabase
       .from('subscription_events')
@@ -101,11 +116,11 @@ export async function POST(req: NextRequest) {
   if (webhook_event_type === 'order_approved' || webhook_event_type === 'subscription_renewed') {
     const plan = resolvePlan(payload);
     if (!plan) {
-      console.error('[webhook/kiwify] unresolvable plan', payload.subscription?.plan);
+      console.error('[webhook/kiwify] unresolvable plan', payload.checkout_link, payload.Subscription?.plan);
       return NextResponse.json({ ok: true, skipped: 'unresolved_plan' });
     }
 
-    // Idempotency — skip if this exact order was already processed
+    // Idempotency
     const { data: existing } = await supabase
       .from('payments')
       .select('id')
@@ -122,8 +137,10 @@ export async function POST(req: NextRequest) {
     }
 
     const exp = expiresAt(plan);
+    const amount = payload.Commissions?.charge_amount
+      ? payload.Commissions.charge_amount / 100
+      : 0;
 
-    // Activate subscription atomically
     await supabase.from('subscriptions').upsert({
       user_id:                userId,
       plan,
@@ -131,43 +148,39 @@ export async function POST(req: NextRequest) {
       expires_at:             exp,
       assigned_by:            'payment',
       subscription_status:    'active',
-      kiwify_subscription_id: payload.subscription?.id ?? null,
+      kiwify_subscription_id: payload.subscription_id ?? null,
       payment_method:         payload.payment_method ?? null,
     });
 
-    // Record payment
     await supabase.from('payments').insert({
-      user_id:        userId,
+      user_id:         userId,
       kiwify_order_id: order_id,
       plan,
-      amount:         payload.amount ? payload.amount / 100 : 0,
-      status:         'CONFIRMED',
-      payment_method: payload.payment_method ?? null,
-      client_ip:      payload.Customer?.ip ?? null,
-      utm_source:     payload.tracking?.utm_source ?? null,
-      utm_medium:     payload.tracking?.utm_medium ?? null,
-      utm_campaign:   payload.tracking?.utm_campaign ?? null,
-      utm_content:    payload.tracking?.utm_content ?? null,
-      utm_term:       payload.tracking?.utm_term ?? null,
-      kiwify_src:     payload.tracking?.src ?? null,
-      kiwify_sck:     payload.tracking?.sck ?? null,
+      amount,
+      status:          'CONFIRMED',
+      payment_method:  payload.payment_method ?? null,
+      client_ip:       payload.Customer?.ip ?? null,
+      utm_source:      tracking?.utm_source ?? null,
+      utm_medium:      tracking?.utm_medium ?? null,
+      utm_campaign:    tracking?.utm_campaign ?? null,
+      utm_content:     tracking?.utm_content ?? null,
+      utm_term:        tracking?.utm_term ?? null,
+      kiwify_src:      tracking?.src ?? null,
+      kiwify_sck:      tracking?.sck ?? null,
     });
 
-    // first_subscribed_at — only set once
     await supabase
       .from('profiles')
       .update({
-        kiwify_subscription_id: payload.subscription?.id ?? null,
+        kiwify_subscription_id: payload.subscription_id ?? null,
         first_subscribed_at:    new Date().toISOString(),
-        first_utm_source:       payload.tracking?.utm_source ?? null,
-        first_utm_campaign:     payload.tracking?.utm_campaign ?? null,
+        first_utm_source:       tracking?.utm_source ?? null,
+        first_utm_campaign:     tracking?.utm_campaign ?? null,
       })
       .eq('id', userId)
       .is('first_subscribed_at', null);
 
-    // Send welcome email (fire-and-forget)
-    const baseUrl = 'https://poplinecreators.com.br';
-    fetch(`${baseUrl}/api/email/notify`, {
+    fetch('https://poplinecreators.com.br/api/email/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ event: 'plan-subscribed', data: { userId, planName: PLANS[plan].name, expiresAt: exp } }),
@@ -177,12 +190,10 @@ export async function POST(req: NextRequest) {
   if (webhook_event_type === 'order_refunded' || webhook_event_type === 'chargeback') {
     if (!userId) return NextResponse.json({ ok: true, skipped: 'user_not_found' });
 
-    const newStatus = webhook_event_type === 'chargeback' ? 'chargeback' : 'refunded';
-
     await supabase.from('subscriptions').update({
-      plan:                'free',
-      expires_at:          null,
-      subscription_status: newStatus,
+      plan:                   'free',
+      expires_at:             null,
+      subscription_status:    webhook_event_type === 'chargeback' ? 'chargeback' : 'refunded',
       kiwify_subscription_id: null,
     }).eq('user_id', userId);
   }
@@ -190,7 +201,6 @@ export async function POST(req: NextRequest) {
   if (webhook_event_type === 'subscription_cancelled') {
     if (!userId) return NextResponse.json({ ok: true, skipped: 'user_not_found' });
 
-    // Keep access until expiry — just remove kiwify_subscription_id so UI shows "cancelando"
     await supabase.from('subscriptions').update({
       kiwify_subscription_id: null,
     }).eq('user_id', userId);

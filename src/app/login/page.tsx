@@ -28,6 +28,8 @@ export default function LoginPage() {
       const current = await authService.getCurrentUser();
       if (current?.role === 'admin') {
         router.push(ROUTES.ADMIN);
+      } else if (current?.role === 'campaign_admin') {
+        router.push(ROUTES.ADMIN_CAMPAIGNS);
       } else {
         router.push(ROUTES.DASHBOARD);
       }

@@ -1,15 +1,44 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { pixelCustom } from '@/lib/pixel';
+import { useAuth } from '@/providers/AuthProvider';
+import { isPaid } from '@/services/subscriptions';
 
 const COMMUNITY_URL = 'https://chat.whatsapp.com/Hims22XDcjQL8N9AwV7dI3';
 
 export default function ObrigadoAssinaturaPage() {
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
+  const [allowed, setAllowed] = useState(false);
+
   useEffect(() => {
-    pixelCustom('Purchase', { content_name: 'Assinatura POPline Creators' });
-  }, []);
+    if (isLoading) return;
+
+    if (!user) {
+      router.replace('/dashboard/planos');
+      return;
+    }
+
+    isPaid(user.id).then(paid => {
+      if (!paid) {
+        router.replace('/dashboard/planos');
+        return;
+      }
+      setAllowed(true);
+      pixelCustom('Purchase', { content_name: 'Assinatura POPline Creators' });
+    });
+  }, [user, isLoading, router]);
+
+  if (!allowed) {
+    return (
+      <main className="min-h-screen flex items-center justify-center noise-overlay grid-bg">
+        <div className="w-8 h-8 rounded-full border-2 border-popline-pink border-t-transparent animate-spin" />
+      </main>
+    );
+  }
 
   return (
     <main className="relative min-h-screen flex flex-col items-center justify-center overflow-x-hidden noise-overlay grid-bg px-4 py-16">

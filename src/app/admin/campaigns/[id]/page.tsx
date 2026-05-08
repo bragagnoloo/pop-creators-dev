@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback, use, useMemo } from 'react';
-import { useLoadOnMount } from '@/hooks/useLoadOnMount';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useAuth } from '@/providers/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
@@ -30,10 +32,26 @@ interface Row {
 
 export default function CampaignControlPanel({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const { user } = useAuth();
+  const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
 
   const load = useCallback(async () => {
+    if (user?.role === 'campaign_admin') {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from('admin_campaign_assignments')
+        .select('campaign_id')
+        .eq('admin_id', user.id)
+        .eq('campaign_id', id)
+        .maybeSingle();
+      if (!data) {
+        router.replace('/admin/campaigns');
+        return;
+      }
+    }
+
     const c = await campaignService.getCampaignById(id);
     if (c) {
       c.cache = c.cache ?? 0;
@@ -58,9 +76,12 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
       })
     );
     setRows(rows);
-  }, [id]);
+  }, [id, user, router]);
 
-  useLoadOnMount(load, [load]);
+  useEffect(() => {
+    if (!user) return;
+    load();
+  }, [user?.id, load]);
 
   if (!campaign) {
     return (

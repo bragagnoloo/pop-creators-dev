@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import type { UserRole } from '@/types';
 
 export interface GuardResult {
   userId: string;
   email: string;
-  role: 'creator' | 'admin';
+  role: UserRole;
   plan: string;
 }
 
@@ -48,24 +49,60 @@ export async function requireUser(): Promise<GuardResult | NextResponse> {
 }
 
 /**
- * Exige role admin.
+ * Exige role admin (master admin apenas). Mantido para compatibilidade retroativa.
  */
 export async function requireAdmin(): Promise<GuardResult | NextResponse> {
+  return requireMasterAdmin();
+}
+
+/**
+ * Exige master admin (role = 'admin').
+ */
+export async function requireMasterAdmin(): Promise<GuardResult | NextResponse> {
   const result = await requireUser();
   if (result instanceof NextResponse) return result;
   if (result.role !== 'admin') {
+    return NextResponse.json({ error: 'Acesso restrito ao administrador master.' }, { status: 403 });
+  }
+  return result;
+}
+
+/**
+ * Exige qualquer admin (master ou campaign_admin).
+ */
+export async function requireAnyAdmin(): Promise<GuardResult | NextResponse> {
+  const result = await requireUser();
+  if (result instanceof NextResponse) return result;
+  if (result.role !== 'admin' && result.role !== 'campaign_admin') {
     return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
   }
   return result;
 }
 
 /**
- * Valida sessão + exige plano pago (ou admin).
+ * Exige acesso à campanha: master admin ou campaign_admin com atribuição.
+ * Consulta a função can_manage_campaign do Supabase.
+ */
+export async function requireCampaignAccess(campaignId: string): Promise<GuardResult | NextResponse> {
+  const result = await requireAnyAdmin();
+  if (result instanceof NextResponse) return result;
+  if (result.role === 'admin') return result;
+
+  const supabase = await createClient();
+  const { data } = await supabase.rpc('can_manage_campaign', { p_campaign_id: campaignId });
+  if (!data) {
+    return NextResponse.json({ error: 'Sem acesso a esta campanha.' }, { status: 403 });
+  }
+  return result;
+}
+
+/**
+ * Valida sessão + exige plano pago (ou qualquer admin).
  */
 export async function requirePaidUser(): Promise<GuardResult | NextResponse> {
   const result = await requireUser();
   if (result instanceof NextResponse) return result;
-  if (result.plan === 'free' && result.role !== 'admin') {
+  if (result.plan === 'free' && result.role === 'creator') {
     return NextResponse.json(
       { error: 'Recurso exclusivo para assinantes.' },
       { status: 403 }

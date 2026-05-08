@@ -1,8 +1,17 @@
+export type UserRole = 'creator' | 'admin' | 'campaign_admin';
+
 export interface AuthUser {
   id: string;
   email: string;
-  role: 'creator' | 'admin';
+  role: UserRole;
   createdAt: string;
+}
+
+export interface AdminCampaignAssignment {
+  adminId: string;
+  campaignId: string;
+  assignedAt: string;
+  assignedBy: string | null;
 }
 
 export interface UserProfile {

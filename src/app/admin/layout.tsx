@@ -7,7 +7,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import Button from '@/components/ui/Button';
 import { ROUTES } from '@/lib/constants';
 
-const navItems = [
+const masterNavItems = [
   { label: 'Dashboard', href: ROUTES.ADMIN },
   { label: 'Assinaturas', href: ROUTES.ADMIN_ASSINATURAS },
   { label: 'Usuarios', href: ROUTES.ADMIN_USERS },
@@ -15,6 +15,12 @@ const navItems = [
   { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },
   { label: 'Oficinas', href: ROUTES.ADMIN_OFICINAS },
   { label: 'Saques', href: ROUTES.ADMIN_SAQUES },
+  { label: 'Admins', href: ROUTES.ADMIN_ADMINS },
+];
+
+const campaignAdminNavItems = [
+  { label: 'Campanhas', href: ROUTES.ADMIN_CAMPAIGNS },
+  { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -22,13 +28,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
 
+  const isAdmin = user?.role === 'admin' || user?.role === 'campaign_admin';
+
   useEffect(() => {
-    if (!isLoading && (!user || user.role !== 'admin')) {
+    if (!isLoading && (!user || !isAdmin)) {
       router.push(ROUTES.LOGIN);
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, isAdmin]);
 
-  if (isLoading || !user || user.role !== 'admin') {
+  if (isLoading || !user || !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-popline-pink border-t-transparent rounded-full animate-spin" />
@@ -36,13 +44,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  const navItems = user.role === 'campaign_admin' ? campaignAdminNavItems : masterNavItems;
+
   return (
     <div className="min-h-screen">
       <header className="fixed top-0 left-0 right-0 z-40 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-6">
-              <Link href={ROUTES.ADMIN} className="flex items-center gap-2">
+              <Link href={ROUTES.ADMIN_CAMPAIGNS} className="flex items-center gap-2">
                 <span className="text-xl font-bold gradient-text">POPline</span>
                 <span className="text-sm text-text-secondary">Admin</span>
               </Link>

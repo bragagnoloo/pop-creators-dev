@@ -1,7 +1,7 @@
-import { AuthUser, AuthResult } from '@/types';
+import { AuthUser, AuthResult, UserRole } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
-function mapUser(id: string, email: string, role: 'creator' | 'admin', createdAt: string): AuthUser {
+function mapUser(id: string, email: string, role: UserRole, createdAt: string): AuthUser {
   return { id, email, role, createdAt };
 }
 
@@ -25,7 +25,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
   return mapUser(
     session.user.id,
     profile.email,
-    profile.role as 'creator' | 'admin',
+    profile.role as UserRole,
     profile.created_at
   );
 }
@@ -48,7 +48,7 @@ export async function login(email: string, password: string): Promise<AuthResult
   if (!profile) {
     return { success: false, error: 'Falha ao carregar perfil.' };
   }
-  return { success: true, user: mapUser(data.user.id, profile.email, profile.role as 'creator' | 'admin', profile.created_at) };
+  return { success: true, user: mapUser(data.user.id, profile.email, profile.role as UserRole, profile.created_at) };
 }
 
 export type RegisterResult =
@@ -90,5 +90,5 @@ export async function getAllUsers(): Promise<AuthUser[]> {
     .from('profiles')
     .select('id, email, role, created_at');
   if (!data) return [];
-  return data.map(p => mapUser(p.id, p.email, p.role, p.created_at));
+  return data.map(p => mapUser(p.id, p.email, p.role as UserRole, p.created_at));
 }

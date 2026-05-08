@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { Campaign, CampaignApplication, UserProfile } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
+import { useAuth } from '@/providers/AuthProvider';
+import { createClient } from '@/lib/supabase/client';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -106,6 +108,7 @@ function downloadCsv(campaign: Campaign, applications: EnrichedApplication[]) {
 }
 
 export default function AdminCandidaturasPage() {
+  const { user } = useAuth();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [applications, setApplications] = useState<EnrichedApplication[]>([]);
@@ -114,14 +117,27 @@ export default function AdminCandidaturasPage() {
   const [appCountsState, setAppCountsState] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    if (!user) return;
     (async () => {
-      setCampaigns(await campaignService.getAllCampaigns());
+      let list = await campaignService.getAllCampaigns();
+
+      if (user.role === 'campaign_admin') {
+        const supabase = createClient();
+        const { data: assignments } = await supabase
+          .from('admin_campaign_assignments')
+          .select('campaign_id')
+          .eq('admin_id', user.id);
+        const ids = new Set((assignments ?? []).map((a: { campaign_id: string }) => a.campaign_id));
+        list = list.filter(c => ids.has(c.id));
+      }
+
+      setCampaigns(list);
       const all = await campaignService.getAllApplications();
       const counts: Record<string, number> = {};
       for (const a of all) counts[a.campaignId] = (counts[a.campaignId] || 0) + 1;
       setAppCountsState(counts);
     })();
-  }, []);
+  }, [user?.id]);
 
   const openCampaign = async (campaign: Campaign) => {
     const apps = await campaignService.getCampaignApplications(campaign.id);

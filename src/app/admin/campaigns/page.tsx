@@ -1,13 +1,14 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { Campaign, CampaignApplication, UserProfile } from '@/types';
-import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { uploadImage, campaignLogoPath } from '@/lib/supabase/storage';
+import { createClient } from '@/lib/supabase/client';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
+import { useAuth } from '@/providers/AuthProvider';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
@@ -29,6 +30,8 @@ const statusLabel: Record<Campaign['status'], string> = {
 };
 
 export default function AdminCampaignsPage() {
+  const { user } = useAuth();
+  const isCampaignAdmin = user?.role === 'campaign_admin';
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
@@ -58,7 +61,18 @@ export default function AdminCampaignsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCampaigns = async () => {
-    const list = await campaignService.getAllCampaigns();
+    let list = await campaignService.getAllCampaigns();
+
+    if (user?.role === 'campaign_admin') {
+      const supabase = createClient();
+      const { data: assignments } = await supabase
+        .from('admin_campaign_assignments')
+        .select('campaign_id')
+        .eq('admin_id', user.id);
+      const ids = new Set((assignments ?? []).map((a: { campaign_id: string }) => a.campaign_id));
+      list = list.filter(c => ids.has(c.id));
+    }
+
     setCampaigns(list);
     const allApps = await campaignService.getAllApplications();
     const counts: Record<string, number> = {};
@@ -66,7 +80,11 @@ export default function AdminCampaignsPage() {
     setAppCounts(counts);
   };
 
-  useLoadOnMount(loadCampaigns);
+  useEffect(() => {
+    if (!user) return;
+    loadCampaigns();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -210,7 +228,7 @@ export default function AdminCampaignsPage() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Campanhas</h1>
-        <Button onClick={openCreate}>Nova Campanha</Button>
+        {!isCampaignAdmin && <Button onClick={openCreate}>Nova Campanha</Button>}
       </div>
 
       {/* Campaign Form Modal */}
@@ -516,9 +534,11 @@ export default function AdminCampaignsPage() {
                 <Button variant="secondary" size="sm" onClick={() => openEdit(campaign)}>
                   Editar
                 </Button>
-                <Button variant="danger" size="sm" onClick={() => setConfirmDelete(campaign.id)}>
-                  Excluir
-                </Button>
+                {!isCampaignAdmin && (
+                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(campaign.id)}>
+                    Excluir
+                  </Button>
+                )}
               </div>
             </div>
           </Card>

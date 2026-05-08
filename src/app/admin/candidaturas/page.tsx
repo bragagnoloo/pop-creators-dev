@@ -324,10 +324,16 @@ export default function AdminCandidaturasPage() {
                                 </>
                               )}
                               {app.status === 'approved' && (
-                                <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                                <>
+                                  <Button variant="secondary" size="sm" onClick={() => handleStatusChange(app.id, 'pending')}>Pendente</Button>
+                                  <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                                </>
                               )}
                               {app.status === 'rejected' && (
-                                <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
+                                <>
+                                  <Button variant="secondary" size="sm" onClick={() => handleStatusChange(app.id, 'pending')}>Pendente</Button>
+                                  <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
+                                </>
                               )}
                             </div>
                           </td>
@@ -371,10 +377,16 @@ export default function AdminCandidaturasPage() {
                           </>
                         )}
                         {app.status === 'approved' && (
-                          <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                          <>
+                            <Button variant="secondary" size="sm" onClick={() => handleStatusChange(app.id, 'pending')}>Pendente</Button>
+                            <Button variant="danger" size="sm" onClick={() => handleStatusChange(app.id, 'rejected')}>Desclassificar</Button>
+                          </>
                         )}
                         {app.status === 'rejected' && (
-                          <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
+                          <>
+                            <Button variant="secondary" size="sm" onClick={() => handleStatusChange(app.id, 'pending')}>Pendente</Button>
+                            <Button size="sm" onClick={() => handleStatusChange(app.id, 'approved')}>Aprovar</Button>
+                          </>
                         )}
                       </div>
                     </div>

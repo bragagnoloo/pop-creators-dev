@@ -466,17 +466,23 @@ export default function AdminCampaignsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {app.status === 'pending' ? (
+                      {app.status === 'pending' && (
                         <>
-                          <Button size="sm" onClick={() => handleAppStatusChange(app.id, 'approved')}>
-                            Aprovar
-                          </Button>
-                          <Button variant="danger" size="sm" onClick={() => handleAppStatusChange(app.id, 'rejected')}>
-                            Rejeitar
-                          </Button>
+                          <Button size="sm" onClick={() => handleAppStatusChange(app.id, 'approved')}>Aprovar</Button>
+                          <Button variant="danger" size="sm" onClick={() => handleAppStatusChange(app.id, 'rejected')}>Rejeitar</Button>
                         </>
-                      ) : (
-                        <Badge variant={s.variant}>{s.label}</Badge>
+                      )}
+                      {app.status === 'approved' && (
+                        <>
+                          <Badge variant="success">Aprovado</Badge>
+                          <Button variant="secondary" size="sm" onClick={() => handleAppStatusChange(app.id, 'pending')}>Pendente</Button>
+                        </>
+                      )}
+                      {app.status === 'rejected' && (
+                        <>
+                          <Badge variant="default">Rejeitado</Badge>
+                          <Button variant="secondary" size="sm" onClick={() => handleAppStatusChange(app.id, 'pending')}>Pendente</Button>
+                        </>
                       )}
                     </div>
                   </div>

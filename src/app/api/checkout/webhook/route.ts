@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { KIWIFY_PLAN_MAP, PLANS } from '@/services/subscriptions';
+import { sendCAPIEvents, sha256, digitsOnly } from '@/lib/meta-capi';
 import type { PlanId } from '@/types';
 
 type KiwifyPayload = {
@@ -97,10 +98,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, skipped: 'no_email' });
   }
 
-  // Find user by email
+  // Find user by email — busca dados completos para CAPI
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id')
+    .select('id, email, whatsapp, full_name, meta_fbp, meta_fbc')
     .eq('email', email)
     .single();
 
@@ -160,6 +161,7 @@ export async function POST(req: NextRequest) {
       status:          'CONFIRMED',
       payment_method:  payload.payment_method ?? null,
       client_ip:       payload.Customer?.ip ?? null,
+      capi_event_id:   order_id,
       utm_source:      tracking?.utm_source ?? null,
       utm_medium:      tracking?.utm_medium ?? null,
       utm_campaign:    tracking?.utm_campaign ?? null,
@@ -168,6 +170,36 @@ export async function POST(req: NextRequest) {
       kiwify_src:      tracking?.src ?? null,
       kiwify_sck:      tracking?.sck ?? null,
     });
+
+    // CAPI — Purchase server-side
+    if (profile) {
+      const names = (profile.full_name ?? '').trim().split(' ').filter(Boolean);
+      sendCAPIEvents([{
+        event_name:        'Purchase',
+        event_time:        Math.floor(Date.now() / 1000),
+        event_id:          order_id,
+        event_source_url:  'https://poplinecreators.com.br/obrigado',
+        action_source:     'website',
+        user_data: {
+          em:                  sha256(profile.email),
+          ph:                  profile.whatsapp ? sha256(digitsOnly(profile.whatsapp)) : undefined,
+          fn:                  names[0]            ? sha256(names[0].toLowerCase())                   : undefined,
+          ln:                  names.length > 1    ? sha256(names[names.length - 1].toLowerCase())    : undefined,
+          external_id:         sha256(userId),
+          fbp:                 profile.meta_fbp ?? undefined,
+          fbc:                 profile.meta_fbc ?? undefined,
+          client_ip_address:   payload.Customer?.ip ?? undefined,
+        },
+        custom_data: {
+          currency:      'BRL',
+          value:         amount,
+          content_name:  PLANS[plan].name,
+          content_ids:   [plan],
+          content_type:  'product',
+          order_id:      order_id,
+        },
+      }]).catch(err => console.error('[capi] Purchase error:', err));
+    }
 
     await supabase
       .from('profiles')

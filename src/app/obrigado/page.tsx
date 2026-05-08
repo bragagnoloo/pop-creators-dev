@@ -3,9 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { pixelCustom } from '@/lib/pixel';
+import { pixelPurchase } from '@/lib/pixel';
 import { useAuth } from '@/providers/AuthProvider';
-import { isPaid } from '@/services/subscriptions';
+import { getUserSubscription, PLANS } from '@/services/subscriptions';
 
 const COMMUNITY_URL = 'https://chat.whatsapp.com/Hims22XDcjQL8N9AwV7dI3';
 
@@ -23,15 +23,19 @@ export default function ObrigadoAssinaturaPage() {
       return;
     }
 
-    isPaid(user.id).then(paid => {
-      if (!paid) {
+    getUserSubscription(user.id).then(sub => {
+      if (sub.plan === 'free') {
         router.replace('/dashboard/planos');
         return;
       }
       setAllowed(true);
       // Só dispara o pixel se vier do redirect da Kiwify (?ref=kiwify)
       if (searchParams.get('ref') === 'kiwify') {
-        pixelCustom('Purchase', { content_name: 'Assinatura POPline Creators' });
+        pixelPurchase({
+          value:        PLANS[sub.plan].priceTotal,
+          currency:     'BRL',
+          content_name: PLANS[sub.plan].name,
+        });
       }
     });
   }, [user, isLoading, router, searchParams]);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { pixelPurchase } from '@/lib/pixel';
@@ -9,7 +9,7 @@ import { getUserSubscription, PLANS } from '@/services/subscriptions';
 
 const COMMUNITY_URL = 'https://chat.whatsapp.com/Hims22XDcjQL8N9AwV7dI3';
 
-export default function ObrigadoAssinaturaPage() {
+function ObrigadoContent() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,5 +144,13 @@ export default function ObrigadoAssinaturaPage() {
         }
       `}</style>
     </main>
+  );
+}
+
+export default function ObrigadoAssinaturaPage() {
+  return (
+    <Suspense>
+      <ObrigadoContent />
+    </Suspense>
   );
 }

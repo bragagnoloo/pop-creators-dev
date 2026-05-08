@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { pixelCustom } from '@/lib/pixel';
 import { useAuth } from '@/providers/AuthProvider';
@@ -12,6 +12,7 @@ const COMMUNITY_URL = 'https://chat.whatsapp.com/Hims22XDcjQL8N9AwV7dI3';
 export default function ObrigadoAssinaturaPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
@@ -28,9 +29,12 @@ export default function ObrigadoAssinaturaPage() {
         return;
       }
       setAllowed(true);
-      pixelCustom('Purchase', { content_name: 'Assinatura POPline Creators' });
+      // Só dispara o pixel se vier do redirect da Kiwify (?ref=kiwify)
+      if (searchParams.get('ref') === 'kiwify') {
+        pixelCustom('Purchase', { content_name: 'Assinatura POPline Creators' });
+      }
     });
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, searchParams]);
 
   if (!allowed) {
     return (

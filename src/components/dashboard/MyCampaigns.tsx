@@ -7,6 +7,8 @@ import * as campaignService from '@/services/campaigns';
 import * as noticesService from '@/services/notices';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
 import ParticipatingCard from './ParticipatingCard';
 
 interface MyCampaignsProps {
@@ -25,32 +27,71 @@ const campaignStatusLabel: Record<Campaign['status'], string> = {
   completed: 'Finalizada',
 };
 
-function CampaignRow({ campaign, application }: { campaign: Campaign; application: CampaignApplication }) {
+function CampaignRow({ campaign, application, onWithdraw }: {
+  campaign: Campaign;
+  application: CampaignApplication;
+  onWithdraw?: () => void;
+}) {
   const s = appStatusMap[application.status];
+  const [confirm, setConfirm] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleWithdraw = async () => {
+    setLoading(true);
+    await campaignService.withdrawApplication(application.id);
+    setConfirm(false);
+    onWithdraw?.();
+  };
+
   return (
-    <div className="flex items-center gap-4 p-4 rounded-xl bg-background border border-border">
-      {campaign.imageUrl ? (
-        <Image
-          src={campaign.imageUrl}
-          alt={campaign.title}
-          width={40}
-          height={40}
-          className="w-10 h-10 rounded-lg object-cover border border-border shrink-0"
-          sizes="40px"
-        />
-      ) : (
-        <div className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center shrink-0">
-          <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+    <>
+      <div className="flex items-center gap-4 p-4 rounded-xl bg-background border border-border">
+        {campaign.imageUrl ? (
+          <Image
+            src={campaign.imageUrl}
+            alt={campaign.title}
+            width={40}
+            height={40}
+            className="w-10 h-10 rounded-lg object-cover border border-border shrink-0"
+            sizes="40px"
+          />
+        ) : (
+          <div className="w-10 h-10 rounded-lg bg-surface border border-border flex items-center justify-center shrink-0">
+            <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <h4 className="font-medium text-sm truncate">{campaign.title}</h4>
+          <p className="text-xs text-text-secondary mt-0.5">{campaignStatusLabel[campaign.status]}</p>
         </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <h4 className="font-medium text-sm truncate">{campaign.title}</h4>
-        <p className="text-xs text-text-secondary mt-0.5">{campaignStatusLabel[campaign.status]}</p>
+        <div className="flex items-center gap-3 shrink-0">
+          <Badge variant={s.variant}>{s.label}</Badge>
+          {application.status === 'pending' && onWithdraw && (
+            <Button variant="danger" size="sm" onClick={() => setConfirm(true)}>
+              Retirar
+            </Button>
+          )}
+        </div>
       </div>
-      <Badge variant={s.variant}>{s.label}</Badge>
-    </div>
+
+      {confirm && (
+        <Modal isOpen onClose={() => setConfirm(false)} title="Retirar candidatura">
+          <div className="space-y-4">
+            <p className="text-text-secondary text-sm">
+              Tem certeza que deseja retirar sua candidatura de <strong>{campaign.title}</strong>? Você poderá se candidatar novamente enquanto a campanha estiver aberta.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setConfirm(false)}>Cancelar</Button>
+              <Button variant="danger" className="flex-1" disabled={loading} onClick={handleWithdraw}>
+                {loading ? 'Retirando...' : 'Retirar candidatura'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -105,6 +146,7 @@ export default function MyCampaigns({ userId }: MyCampaignsProps) {
                   userId={userId}
                   noticeCounts={noticeCounts[app.campaignId]}
                   onNoticesRead={() => refreshNoticeCounts(applications)}
+                  onWithdraw={load}
                 />
               );
             })}
@@ -120,7 +162,7 @@ export default function MyCampaigns({ userId }: MyCampaignsProps) {
             {inscribed.map(app => {
               const campaign = getCampaign(app.campaignId);
               if (!campaign) return null;
-              return <CampaignRow key={app.id} campaign={campaign} application={app} />;
+              return <CampaignRow key={app.id} campaign={campaign} application={app} onWithdraw={load} />;
             })}
           </div>
         </div>

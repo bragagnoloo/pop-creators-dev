@@ -230,9 +230,9 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
             {application.status === 'pending' && onWithdraw && (
               <Button
-                variant="ghost"
+                variant="danger"
                 size="sm"
-                className="text-text-secondary hover:text-red-400 w-fit text-xs"
+                className="w-fit"
                 onClick={e => { e.stopPropagation(); setConfirmWithdraw(true); }}
               >
                 Retirar candidatura

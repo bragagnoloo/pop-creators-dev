@@ -7,8 +7,6 @@ import * as campaignService from '@/services/campaigns';
 import * as noticesService from '@/services/notices';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import Badge from '@/components/ui/Badge';
-import Button from '@/components/ui/Button';
-import Modal from '@/components/ui/Modal';
 import ParticipatingCard from './ParticipatingCard';
 
 interface MyCampaignsProps {
@@ -27,25 +25,14 @@ const campaignStatusLabel: Record<Campaign['status'], string> = {
   completed: 'Finalizada',
 };
 
-function CampaignRow({ campaign, application, onWithdraw }: {
+function CampaignRow({ campaign, application }: {
   campaign: Campaign;
   application: CampaignApplication;
-  onWithdraw?: () => void;
 }) {
   const s = appStatusMap[application.status];
-  const [confirm, setConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  const handleWithdraw = async () => {
-    setLoading(true);
-    await campaignService.withdrawApplication(application.id);
-    setConfirm(false);
-    onWithdraw?.();
-  };
 
   return (
-    <>
-      <div className="flex items-center gap-4 p-4 rounded-xl bg-background border border-border">
+    <div className="flex items-center gap-4 p-4 rounded-xl bg-background border border-border">
         {campaign.imageUrl ? (
           <Image
             src={campaign.imageUrl}
@@ -66,32 +53,8 @@ function CampaignRow({ campaign, application, onWithdraw }: {
           <h4 className="font-medium text-sm truncate">{campaign.title}</h4>
           <p className="text-xs text-text-secondary mt-0.5">{campaignStatusLabel[campaign.status]}</p>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <Badge variant={s.variant}>{s.label}</Badge>
-          {application.status === 'pending' && onWithdraw && (
-            <Button variant="danger" size="sm" onClick={() => setConfirm(true)}>
-              Retirar
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {confirm && (
-        <Modal isOpen onClose={() => setConfirm(false)} title="Retirar candidatura">
-          <div className="space-y-4">
-            <p className="text-text-secondary text-sm">
-              Tem certeza que deseja retirar sua candidatura de <strong>{campaign.title}</strong>? Você poderá se candidatar novamente enquanto a campanha estiver aberta.
-            </p>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setConfirm(false)}>Cancelar</Button>
-              <Button variant="danger" className="flex-1" disabled={loading} onClick={handleWithdraw}>
-                {loading ? 'Retirando...' : 'Retirar candidatura'}
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </>
+        <Badge variant={s.variant}>{s.label}</Badge>
+    </div>
   );
 }
 
@@ -162,7 +125,7 @@ export default function MyCampaigns({ userId }: MyCampaignsProps) {
             {inscribed.map(app => {
               const campaign = getCampaign(app.campaignId);
               if (!campaign) return null;
-              return <CampaignRow key={app.id} campaign={campaign} application={app} onWithdraw={load} />;
+              return <CampaignRow key={app.id} campaign={campaign} application={app} />;
             })}
           </div>
         </div>

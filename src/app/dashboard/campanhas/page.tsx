@@ -108,6 +108,7 @@ export default function CampanhasPage() {
                 campaign={campaign}
                 application={app}
                 userId={user.id}
+                onWithdraw={mutateApplications}
               />
             );
           })}

@@ -228,3 +228,12 @@ export async function updateApplicationStatus(
     .single();
   return data ? toApp(data as AppRow) : null;
 }
+
+export async function withdrawApplication(applicationId: string): Promise<void> {
+  const supabase = createClient();
+  await supabase
+    .from('applications')
+    .delete()
+    .eq('id', applicationId)
+    .eq('status', 'pending');
+}

@@ -6,6 +6,7 @@ import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts }
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as deliveryService from '@/services/deliveries';
 import * as walletService from '@/services/wallet';
+import * as campaignService from '@/services/campaigns';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -18,6 +19,7 @@ interface Props {
   userId: string;
   noticeCounts?: CampaignNoticeCounts;
   onNoticesRead?: () => void;
+  onWithdraw?: () => void;
 }
 
 const appStatusMap: Record<CampaignApplication['status'], { label: string; variant: 'warning' | 'success' | 'default' | 'pink' }> = {
@@ -26,12 +28,14 @@ const appStatusMap: Record<CampaignApplication['status'], { label: string; varia
   rejected: { label: 'Recusada', variant: 'default' },
 };
 
-export default function ParticipatingCard({ campaign, application, userId, noticeCounts, onNoticesRead }: Props) {
+export default function ParticipatingCard({ campaign, application, userId, noticeCounts, onNoticesRead, onWithdraw }: Props) {
   const [open, setOpen] = useState(false);
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [showBriefing, setShowBriefing] = useState(false);
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const [withdrawing, setWithdrawing] = useState(false);
 
   const load = useCallback(async () => {
     if (application.status !== 'approved') {
@@ -69,6 +73,13 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     a.download = `briefing-${safeTitle || 'campanha'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleWithdraw = async () => {
+    setWithdrawing(true);
+    await campaignService.withdrawApplication(application.id);
+    setConfirmWithdraw(false);
+    onWithdraw?.();
   };
 
   return (
@@ -141,6 +152,24 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         </svg>
       </button>
 
+      {confirmWithdraw && (
+        <Modal isOpen onClose={() => setConfirmWithdraw(false)} title="Retirar candidatura">
+          <div className="space-y-4">
+            <p className="text-text-secondary text-sm">
+              Tem certeza que deseja retirar sua candidatura de <strong>{campaign.title}</strong>? Você poderá se candidatar novamente enquanto a campanha estiver aberta.
+            </p>
+            <div className="flex gap-3">
+              <Button variant="secondary" className="flex-1" onClick={() => setConfirmWithdraw(false)}>
+                Cancelar
+              </Button>
+              <Button variant="danger" className="flex-1" disabled={withdrawing} onClick={handleWithdraw}>
+                {withdrawing ? 'Retirando...' : 'Retirar candidatura'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {showBriefing && hasBriefing && (
         <Modal isOpen onClose={() => setShowBriefing(false)} title={`Briefing · ${campaign.title}`}>
           <div className="space-y-4">
@@ -197,6 +226,17 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                 userId={userId}
                 onReadsChanged={onNoticesRead}
               />
+            )}
+
+            {application.status === 'pending' && onWithdraw && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-text-secondary hover:text-red-400 w-fit text-xs"
+                onClick={e => { e.stopPropagation(); setConfirmWithdraw(true); }}
+              >
+                Retirar candidatura
+              </Button>
             )}
 
             {canShowDeliveries ? (

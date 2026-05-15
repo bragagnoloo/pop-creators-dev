@@ -13,6 +13,12 @@ import CampaignNoticeEmail from '@/emails/campaign-notice';
 import PlanSubscribedEmail from '@/emails/plan-subscribed';
 import SubscriptionCancelledEmail from '@/emails/subscription-cancelled';
 import RefundConfirmedEmail from '@/emails/refund-confirmed';
+import BriefingPublishedEmail from '@/emails/briefing-published';
+import DeliveryRevisionNeededEmail from '@/emails/delivery-revision-needed';
+import DeliveryApprovedEmail from '@/emails/delivery-approved';
+import PublicationScheduledEmail from '@/emails/publication-scheduled';
+import PublicationResubmitEmail from '@/emails/publication-resubmit';
+import PublicationConfirmedEmail from '@/emails/publication-confirmed';
 import type { PixKeyType } from '@/types';
 
 const supabaseAdmin = createClient(
@@ -185,6 +191,102 @@ export async function POST(req: NextRequest) {
             planName: data.planName as string,
             accessUntil: data.accessUntil as string,
           }),
+        );
+        break;
+      }
+
+      case 'briefing-published': {
+        const recipients = await getCampaignApprovedEmails(data.campaignId as string);
+        if (recipients.length === 0) break;
+        await sendBatchEmails(
+          recipients.map(r => ({
+            to: r.email,
+            subject: `Briefing publicado — ${data.campaignTitle}`,
+            template: React.createElement(BriefingPublishedEmail, {
+              fullName: r.fullName,
+              campaignTitle: data.campaignTitle as string,
+              briefingText: (data.briefingText as string | null) ?? null,
+              briefingFileUrl: (data.briefingFileUrl as string | null) ?? null,
+            }),
+          }))
+        );
+        break;
+      }
+
+      case 'delivery-revision-needed': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Correção solicitada — ${data.campaignTitle}`,
+          React.createElement(DeliveryRevisionNeededEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+            deliveryIndex: data.deliveryIndex as number,
+            revisionNote: data.revisionNote as string,
+            revisionDueDate: data.revisionDueDate as string,
+          })
+        );
+        break;
+      }
+
+      case 'delivery-approved': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Entrega aprovada — ${data.campaignTitle}`,
+          React.createElement(DeliveryApprovedEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+            deliveryIndex: data.deliveryIndex as number,
+          })
+        );
+        break;
+      }
+
+      case 'publication-scheduled': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Publicação agendada — ${data.campaignTitle}`,
+          React.createElement(PublicationScheduledEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+            deliveryIndex: data.deliveryIndex as number,
+            publicationDate: data.publicationDate as string,
+            publicationPlatform: data.publicationPlatform as string,
+          })
+        );
+        break;
+      }
+
+      case 'publication-resubmit': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Reenviar publicação — ${data.campaignTitle}`,
+          React.createElement(PublicationResubmitEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+            publicationDueDate: data.publicationDueDate as string,
+          })
+        );
+        break;
+      }
+
+      case 'publication-confirmed': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Publicação confirmada — ${data.campaignTitle}`,
+          React.createElement(PublicationConfirmedEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+          })
         );
         break;
       }

@@ -1,4 +1,4 @@
-import { CampaignDelivery } from '@/types';
+import { CampaignDelivery, DeliverableStatus, PublicationStatus } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
 type Row = {
@@ -8,6 +8,17 @@ type Row = {
   index: number;
   scheduled_date: string | null;
   content_url: string | null;
+  deliverable_status: DeliverableStatus;
+  revision_note: string | null;
+  revision_due_date: string | null;
+  publication_url: string | null;
+  publication_status: PublicationStatus;
+  publication_date: string | null;
+  publication_platform: string | null;
+  publication_due_date: string | null;
+  publication_confirmed_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
 };
 
 function toDelivery(r: Row): CampaignDelivery {
@@ -18,10 +29,21 @@ function toDelivery(r: Row): CampaignDelivery {
     index: r.index,
     scheduledDate: r.scheduled_date,
     contentUrl: r.content_url,
+    deliverableStatus: r.deliverable_status ?? 'pending',
+    revisionNote: r.revision_note,
+    revisionDueDate: r.revision_due_date,
+    publicationUrl: r.publication_url,
+    publicationStatus: r.publication_status ?? 'pending',
+    publicationDate: r.publication_date,
+    publicationPlatform: r.publication_platform,
+    publicationDueDate: r.publication_due_date,
+    publicationConfirmedAt: r.publication_confirmed_at,
+    reviewedAt: r.reviewed_at,
+    reviewedBy: r.reviewed_by,
   };
 }
 
-const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url';
+const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url, deliverable_status, revision_note, revision_due_date, publication_url, publication_status, publication_date, publication_platform, publication_due_date, publication_confirmed_at, reviewed_at, reviewed_by';
 
 export async function getDeliveriesForUser(campaignId: string, userId: string): Promise<CampaignDelivery[]> {
   const supabase = createClient();
@@ -63,19 +85,25 @@ export async function ensureDeliveries(
   }
   if (toCreate.length > 0) {
     const supabase = createClient();
-    await supabase.from('campaign_deliveries').insert(toCreate);
+    // upsert race-safe: dois callers (admin + criador) podem chamar simultaneamente
+    // após aprovação. O unique (campaign_id, user_id, index) protege; ignoreDuplicates
+    // evita exception.
+    await supabase
+      .from('campaign_deliveries')
+      .upsert(toCreate, { onConflict: 'campaign_id,user_id,index', ignoreDuplicates: true });
   }
   return await getDeliveriesForUser(campaignId, userId);
 }
 
 export async function updateDelivery(
   id: string,
-  data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl'>>
+  data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl' | 'publicationUrl'>>
 ): Promise<CampaignDelivery | null> {
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
   if (data.scheduledDate !== undefined) patch.scheduled_date = data.scheduledDate;
   if (data.contentUrl !== undefined) patch.content_url = data.contentUrl;
+  if (data.publicationUrl !== undefined) patch.publication_url = data.publicationUrl;
 
   const { data: updated } = await supabase
     .from('campaign_deliveries')

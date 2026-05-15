@@ -1,17 +1,19 @@
 'use client';
 
-import { useState, useEffect, useCallback, use, useMemo } from 'react';
+import { useState, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { createClient } from '@/lib/supabase/client';
-import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery } from '@/types';
+import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery, StageReadiness, CampaignStage } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as walletService from '@/services/wallet';
 import * as deliveryService from '@/services/deliveries';
 import * as analyticsService from '@/services/analytics';
 import * as subService from '@/services/subscriptions';
+import * as stagesService from '@/services/campaign-stages';
 import type { PlanId } from '@/types';
 import BarChart from '@/components/ui/BarChart';
 import PieChart from '@/components/ui/PieChart';
@@ -20,6 +22,18 @@ import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import CampaignNoticesSection from '@/components/admin/CampaignNoticesSection';
+import CampaignSchedule from '@/components/admin/campaign-stages/CampaignSchedule';
+import CampaignTimeline from '@/components/admin/campaign-stages/CampaignTimeline';
+import Stage00Opening from '@/components/admin/campaign-stages/Stage00Opening';
+import Stage01Selection from '@/components/admin/campaign-stages/Stage01Selection';
+import Stage02Briefing from '@/components/admin/campaign-stages/Stage02Briefing';
+import Stage03DeliveryDates from '@/components/admin/campaign-stages/Stage03DeliveryDates';
+import Stage04ReviewDeliverables from '@/components/admin/campaign-stages/Stage04ReviewDeliverables';
+import Stage05PublicationSchedule from '@/components/admin/campaign-stages/Stage05PublicationSchedule';
+import Stage06ReviewPublications from '@/components/admin/campaign-stages/Stage06ReviewPublications';
+import Stage07ExportCSV from '@/components/admin/campaign-stages/Stage07ExportCSV';
+import Stage08Report from '@/components/admin/campaign-stages/Stage08Report';
+import CampaignAuditLog from '@/components/admin/campaign-stages/CampaignAuditLog';
 import { ROUTES } from '@/lib/constants';
 
 interface Row {
@@ -36,6 +50,8 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [readiness, setReadiness] = useState<StageReadiness | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
     if (user?.role === 'campaign_admin') {
@@ -58,6 +74,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
       c.deliveryCount = c.deliveryCount ?? 1;
     }
     setCampaign(c);
+    setLoaded(true);
     if (!c) return;
     const apps = await campaignService.getCampaignApplications(id);
     const rows = await Promise.all(
@@ -76,11 +93,14 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
       })
     );
     setRows(rows);
+
+    const rdy = await stagesService.getStageReadiness(id);
+    if (rdy.success) setReadiness(rdy.data);
   }, [id, user, router]);
 
-  useEffect(() => {
+  useLoadOnMount(() => {
     if (!user) return;
-    load();
+    void load();
   }, [user?.id, load]);
 
   if (!campaign) {
@@ -90,7 +110,9 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           ← Campanhas
         </Link>
         <Card className="mt-4">
-          <p className="text-center text-text-secondary">Campanha não encontrada.</p>
+          <p className="text-center text-text-secondary">
+            {loaded ? 'Campanha não encontrada.' : 'Carregando campanha...'}
+          </p>
         </Card>
       </div>
     );
@@ -130,8 +152,13 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   };
 
   const handleDeliveryDate = async (deliveryId: string, date: string) => {
-    await deliveryService.updateDelivery(deliveryId, { scheduledDate: date ? new Date(date).toISOString() : null });
-    if (date) {
+    // date é "YYYY-MM-DD" (local). Parsea como meia-noite local para evitar
+    // off-by-one quando a TZ é negativa.
+    const localDate = date ? new Date(date + 'T00:00:00') : null;
+    await deliveryService.updateDelivery(deliveryId, {
+      scheduledDate: localDate ? localDate.toISOString() : null,
+    });
+    if (localDate) {
       const matchRow = rows.find(r => r.deliveries.some(d => d.id === deliveryId));
       if (matchRow) {
         const delivery = matchRow.deliveries.find(d => d.id === deliveryId);
@@ -143,7 +170,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
             data: {
               userId: matchRow.application.userId,
               campaignTitle: campaign.title,
-              deliveryDate: new Date(date).toLocaleDateString('pt-BR'),
+              deliveryDate: localDate.toLocaleDateString('pt-BR'),
               deliveryIndex: delivery?.index ?? 1,
             },
           }),
@@ -153,9 +180,60 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     load();
   };
 
+  const handleCompleteStage = async (note: string | null) => {
+    const stage = (campaign?.currentStage ?? 0) as CampaignStage;
+    const result = await stagesService.completeStage(campaign!.id, stage, note ?? undefined);
+    if (result.success) await load();
+    return result.success
+      ? { success: true as const }
+      : { success: false as const, error: result.error };
+  };
+
+  const handleDecide = async (applicationId: string, status: 'approved' | 'rejected') => {
+    const updated = await campaignService.updateApplicationStatus(applicationId, status);
+    if (!updated) {
+      alert('Não foi possível atualizar a candidatura. Verifique sua permissão e tente novamente.');
+      return;
+    }
+    if (status === 'approved') {
+      const matchRow = rows.find(r => r.application.id === applicationId);
+      if (matchRow) {
+        fetch('/api/email/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            event: 'application-approved',
+            data: { userId: matchRow.application.userId, campaignTitle: campaign!.title },
+          }),
+        }).catch(() => {});
+      }
+    }
+    await load();
+  };
+
+  const handleSaveDeadline = async (
+    stage: CampaignStage,
+    newDate: string,
+    reason: string | null
+  ) => {
+    const result = await stagesService.setStageDeadline(
+      campaign!.id,
+      stage,
+      newDate,
+      reason ?? undefined
+    );
+    if (result.success) await load();
+    return result.success
+      ? { success: true as const }
+      : { success: false as const, error: result.error };
+  };
+
   const byPlanDesc = (a: Row, b: Row) => subService.getPlanRank(b.plan) - subService.getPlanRank(a.plan);
   const approved = rows.filter(r => r.application.status === 'approved').sort(byPlanDesc);
-  const others = rows.filter(r => r.application.status !== 'approved').sort(byPlanDesc);
+  // Pendentes ficam só dentro do Stage01Selection; aqui mostramos apenas rejeitados (histórico).
+  const others = rows.filter(r => r.application.status === 'rejected').sort(byPlanDesc);
+  const canManage = true; // página já é protegida pelo redirect inicial
+  const currentStage = (campaign.currentStage ?? 0) as CampaignStage;
 
   return (
     <div className="space-y-6">
@@ -185,6 +263,98 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           {campaign.deliveryCount ?? 1} entrega{(campaign.deliveryCount ?? 1) > 1 ? 's' : ''} por criador
         </p>
       </div>
+
+      <CampaignSchedule
+        schedule={readiness?.schedule ?? []}
+        currentStage={currentStage}
+        canEdit={canManage}
+        onSaveDeadline={handleSaveDeadline}
+      />
+
+      <CampaignTimeline
+        currentStage={currentStage}
+        readiness={readiness}
+        canComplete={canManage}
+        onComplete={handleCompleteStage}
+      />
+
+      <Stage00Opening campaign={campaign} />
+
+      <Stage01Selection
+        campaignId={campaign.id}
+        whatsappLink={campaign.whatsappGroupLink ?? null}
+        approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+        pending={rows
+          .filter(r => r.application.status === 'pending')
+          .map(r => ({ application: r.application, profile: r.profile }))}
+        onChanged={load}
+        onDecide={handleDecide}
+      />
+
+      <Stage02Briefing
+        campaignId={campaign.id}
+        campaignTitle={campaign.title}
+        initialBriefing={campaign.briefing}
+        initialBriefingFileUrl={campaign.briefingFileUrl ?? null}
+        onSaved={load}
+      />
+
+      <Stage03DeliveryDates
+        rows={approved.map(r => ({
+          application: r.application,
+          profile: r.profile,
+          deliveries: r.deliveries,
+        }))}
+        onSetDate={handleDeliveryDate}
+      />
+
+      <Stage04ReviewDeliverables
+        rows={approved.map(r => ({
+          application: r.application,
+          profile: r.profile,
+          deliveries: r.deliveries,
+        }))}
+        campaignTitle={campaign.title}
+        onChanged={load}
+      />
+
+      <Stage05PublicationSchedule
+        rows={approved.map(r => ({
+          application: r.application,
+          profile: r.profile,
+          deliveries: r.deliveries,
+        }))}
+        campaignTitle={campaign.title}
+        onChanged={load}
+      />
+
+      <Stage06ReviewPublications
+        rows={approved.map(r => ({
+          application: r.application,
+          profile: r.profile,
+          deliveries: r.deliveries,
+        }))}
+        campaignTitle={campaign.title}
+        onChanged={load}
+      />
+
+      <Stage07ExportCSV
+        campaignId={campaign.id}
+        rows={approved.map(r => ({
+          application: r.application,
+          profile: r.profile,
+          deliveries: r.deliveries,
+        }))}
+      />
+
+      <Stage08Report campaignId={campaign.id} />
+
+      <CampaignAuditLog
+        campaign={campaign}
+        schedule={readiness?.schedule ?? []}
+        isMasterAdmin={user?.role === 'admin'}
+        onReverted={load}
+      />
 
       {/* Metrics */}
       <div className="grid lg:grid-cols-2 gap-4">
@@ -233,7 +403,6 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
                 hasCache={campaign.hasCache && campaign.cache > 0}
                 onCreate={() => handleCreate(row.application.userId)}
                 onRelease={row.credit ? () => handleRelease(row.credit!.id) : undefined}
-                onDeliveryDate={handleDeliveryDate}
               />
             ))}
           </div>
@@ -243,7 +412,9 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
       <CampaignNoticesSection
         campaignId={campaign.id}
         campaignTitle={campaign.title}
-        approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+        approved={approved
+          .filter(r => !r.application.disqualifiedAt)
+          .map(r => ({ application: r.application, profile: r.profile }))}
       />
 
       {others.length > 0 && (
@@ -265,9 +436,18 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
                     <p className="text-xs text-text-secondary truncate">{row.profile?.email}</p>
                   </div>
                 </div>
-                <Badge variant={row.application.status === 'pending' ? 'warning' : 'default'}>
-                  {row.application.status === 'pending' ? 'Pendente' : 'Rejeitado'}
-                </Badge>
+                {row.application.status === 'pending' ? (
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="secondary" onClick={() => handleDecide(row.application.id, 'rejected')}>
+                      Rejeitar
+                    </Button>
+                    <Button size="sm" onClick={() => handleDecide(row.application.id, 'approved')}>
+                      Aprovar
+                    </Button>
+                  </div>
+                ) : (
+                  <Badge variant="default">Rejeitado</Badge>
+                )}
               </div>
             ))}
           </div>
@@ -283,16 +463,14 @@ function ParticipantRow({
   hasCache,
   onCreate,
   onRelease,
-  onDeliveryDate,
 }: {
   row: Row;
   campaignCache: number;
   hasCache: boolean;
   onCreate: () => void;
   onRelease?: () => void;
-  onDeliveryDate: (deliveryId: string, date: string) => void;
 }) {
-  const { profile, credit, deliveries } = row;
+  const { profile, credit } = row;
 
   return (
     <div className="p-4 rounded-xl bg-background border border-border space-y-4">
@@ -303,6 +481,7 @@ function ParticipantRow({
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-medium text-sm truncate">{profile?.fullName || 'Sem nome'}</p>
               <PlanMiniBadge plan={row.plan} />
+              {row.application.disqualifiedAt && <Badge variant="default">Desclassificado</Badge>}
             </div>
             <p className="text-xs text-text-secondary truncate">{profile?.email}</p>
             {credit && (
@@ -338,16 +517,7 @@ function ParticipantRow({
         </div>
       </div>
 
-      {deliveries.length > 0 && (
-        <div className="border-t border-border pt-3">
-          <p className="text-xs font-medium text-text-secondary mb-2">Entregas</p>
-          <div className="space-y-2">
-            {deliveries.map(d => (
-              <DeliveryAdminRow key={d.id} delivery={d} onSave={onDeliveryDate} />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Entregas movidas para Stage03DeliveryDates / Stage04ReviewDeliverables / Stage05PublicationSchedule */}
     </div>
   );
 }
@@ -367,58 +537,3 @@ function PlanMiniBadge({ plan }: { plan: PlanId }) {
   );
 }
 
-function DeliveryAdminRow({
-  delivery,
-  onSave,
-}: {
-  delivery: CampaignDelivery;
-  onSave: (deliveryId: string, date: string) => void;
-}) {
-  const initial = useMemo(
-    () => (delivery.scheduledDate ? delivery.scheduledDate.split('T')[0] : ''),
-    [delivery.scheduledDate]
-  );
-  const [draft, setDraft] = useState(initial);
-  const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    setDraft(initial);
-  }, [initial]);
-
-  const dirty = draft !== initial;
-
-  const handleSave = () => {
-    onSave(delivery.id, draft);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  };
-
-  return (
-    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-      <span className="text-xs text-text-secondary w-20 shrink-0">Entrega {delivery.index}</span>
-      <input
-        type="date"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        className="bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink w-full sm:w-auto"
-      />
-      <Button size="sm" variant="secondary" disabled={!dirty && !saved} onClick={handleSave}>
-        {saved ? 'Salvo ✓' : 'Salvar'}
-      </Button>
-      <div className="flex-1 min-w-0 text-xs">
-        {delivery.contentUrl ? (
-          <a
-            href={delivery.contentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-popline-pink hover:underline truncate inline-block max-w-full"
-          >
-            {delivery.contentUrl}
-          </a>
-        ) : (
-          <span className="text-text-secondary italic">aguardando URL do criador</span>
-        )}
-      </div>
-    </div>
-  );
-}

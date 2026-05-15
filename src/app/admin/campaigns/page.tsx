@@ -8,6 +8,7 @@ import { uploadImage, campaignLogoPath } from '@/lib/supabase/storage';
 import { createClient } from '@/lib/supabase/client';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
+import * as stagesService from '@/services/campaign-stages';
 import { useAuth } from '@/providers/AuthProvider';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -16,6 +17,20 @@ import Modal from '@/components/ui/Modal';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Avatar from '@/components/ui/Avatar';
+
+function generateDefaultSchedule(spanDays: number): string[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return Array.from({ length: 9 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() + Math.round((spanDays * i) / 8));
+    // YYYY-MM-DD local (sem TZ)
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dd}`;
+  });
+}
 
 const statusVariant: Record<Campaign['status'], 'success' | 'warning' | 'default'> = {
   open: 'success',
@@ -195,7 +210,13 @@ export default function AdminCampaignsPage() {
     if (editing) {
       await campaignService.updateCampaign(editing.id, data);
     } else {
-      await campaignService.createCampaign(data);
+      const created = await campaignService.createCampaign(data);
+      if (created?.id) {
+        // Init schedule é best-effort. Se falhar (ex: migration não aplicada),
+        // o admin ainda pode definir prazos manualmente no painel da campanha.
+        const r = await stagesService.initCampaignSchedule(created.id, generateDefaultSchedule(30));
+        if (!r.success) console.warn('[campaigns] init schedule failed:', r.error);
+      }
     }
 
     setSaving(false);

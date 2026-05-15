@@ -54,6 +54,57 @@ export interface Campaign {
   hasCommission: boolean;
   commissionPercentage: number | null;
   commissionDescription: string | null;
+  // Stages (migration 0015)
+  currentStage?: CampaignStage;
+  whatsappGroupLink?: string | null;
+  briefingFileUrl?: string | null;
+  stageHistory?: StageHistoryEntry[];
+  stageUpdatedAt?: string;
+}
+
+export type CampaignStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+
+export type StageHistoryEntry =
+  | {
+      action: 'completed';
+      stage: number;
+      at: string;
+      by: string;
+      note: string | null;
+    }
+  | {
+      action: 'reverted';
+      from_stage: number;
+      to_stage: number;
+      at: string;
+      by: string;
+      reason: string;
+    };
+
+export type StageTemporalStatus = 'on_track' | 'overdue' | 'extended' | 'done';
+
+export interface CampaignStageScheduleEntry {
+  stage: CampaignStage;
+  dueDate: string;
+  originalDueDate: string;
+  extendedAt: string | null;
+  extendedReason: string | null;
+  completedAt: string | null;
+  status: StageTemporalStatus;
+}
+
+export interface StageBlocker {
+  code: string;
+  message: string;
+  count?: number;
+}
+
+export interface StageReadiness {
+  currentStage: CampaignStage;
+  nextStage: CampaignStage | null;
+  ready: boolean;
+  blockers: StageBlocker[];
+  schedule: CampaignStageScheduleEntry[];
 }
 
 export interface CampaignNotice {
@@ -82,6 +133,9 @@ export interface CampaignTermAcceptance {
   acceptedAt: string;
 }
 
+export type DeliverableStatus = 'pending' | 'approved' | 'needs_revision';
+export type PublicationStatus = 'pending' | 'confirmed' | 'not_confirmed' | 'needs_resubmit';
+
 export interface CampaignDelivery {
   id: string;
   campaignId: string;
@@ -89,6 +143,18 @@ export interface CampaignDelivery {
   index: number;
   scheduledDate: string | null;
   contentUrl: string | null;
+  // Stages (migration 0015)
+  deliverableStatus?: DeliverableStatus;
+  revisionNote?: string | null;
+  revisionDueDate?: string | null;
+  publicationUrl?: string | null;
+  publicationStatus?: PublicationStatus;
+  publicationDate?: string | null;
+  publicationPlatform?: string | null;
+  publicationDueDate?: string | null;
+  publicationConfirmedAt?: string | null;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
 }
 
 export interface BalanceCredit {
@@ -120,6 +186,11 @@ export interface CampaignApplication {
   userId: string;
   appliedAt: string;
   status: 'pending' | 'approved' | 'rejected';
+  // Stages (migration 0015)
+  joinedWhatsappGroup?: boolean;
+  joinedAt?: string | null;
+  disqualifiedAt?: string | null;
+  disqualificationReason?: string | null;
 }
 
 export interface SavedScript {

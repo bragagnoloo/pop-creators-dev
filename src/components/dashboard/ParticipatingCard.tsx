@@ -12,6 +12,7 @@ import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import CampaignNotices from './CampaignNotices';
+import CreatorProgressBar from './CreatorProgressBar';
 
 interface Props {
   campaign: Campaign;
@@ -32,7 +33,9 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [open, setOpen] = useState(false);
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
+  const [pubUrlDrafts, setPubUrlDrafts] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
+  const [savedPubId, setSavedPubId] = useState<string | null>(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -46,12 +49,16 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     const list = await deliveryService.ensureDeliveries(campaign.id, userId, count);
     setDeliveries(list);
     setUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.contentUrl || ''])));
+    setPubUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.publicationUrl || ''])));
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
   useLoadOnMount(load, [load]);
 
-  const status = appStatusMap[application.status];
+  const status = application.disqualifiedAt
+    ? { label: 'Desclassificado', variant: 'default' as const }
+    : appStatusMap[application.status];
   const canShowDeliveries = application.status === 'approved';
+  const isActive = canShowDeliveries && !application.disqualifiedAt;
 
   const handleSaveUrl = async (deliveryId: string) => {
     const url = urlDrafts[deliveryId]?.trim() || null;
@@ -61,10 +68,20 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     load();
   };
 
-  const hasBriefing = !!campaign.briefing?.trim();
+  const handleSavePubUrl = async (deliveryId: string) => {
+    const url = pubUrlDrafts[deliveryId]?.trim() || null;
+    await deliveryService.updateDelivery(deliveryId, { publicationUrl: url });
+    setSavedPubId(deliveryId);
+    setTimeout(() => setSavedPubId(null), 1500);
+    load();
+  };
+
+  const hasBriefingText = !!campaign.briefing?.trim();
+  const hasBriefingFile = !!campaign.briefingFileUrl;
+  const hasBriefing = hasBriefingText || hasBriefingFile;
 
   const handleDownloadBriefing = () => {
-    if (!hasBriefing) return;
+    if (!hasBriefingText) return;
     const safeTitle = campaign.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').slice(0, 50);
     const blob = new Blob([campaign.briefing!], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -73,6 +90,19 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     a.download = `briefing-${safeTitle || 'campanha'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleOpenBriefingFile = async () => {
+    if (!campaign.briefingFileUrl) return;
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    const { data, error: sErr } = await supabase.storage
+      .from('campaign-briefings')
+      .createSignedUrl(campaign.briefingFileUrl, 3600);
+    if (sErr || !data?.signedUrl) {
+      alert('Não foi possível abrir o briefing. Tente novamente.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleWithdraw = async () => {
@@ -173,16 +203,36 @@ export default function ParticipatingCard({ campaign, application, userId, notic
       {showBriefing && hasBriefing && (
         <Modal isOpen onClose={() => setShowBriefing(false)} title={`Briefing · ${campaign.title}`}>
           <div className="space-y-4">
-            <div className="max-h-96 overflow-y-auto p-4 rounded-xl bg-background border border-border">
-              <p className="text-sm whitespace-pre-line">{campaign.briefing}</p>
-            </div>
+            {hasBriefingText && (
+              <div className="max-h-96 overflow-y-auto p-4 rounded-xl bg-background border border-border">
+                <p className="text-sm whitespace-pre-line">{campaign.briefing}</p>
+              </div>
+            )}
+            {hasBriefingFile && (
+              <div className="p-3 rounded-xl bg-popline-pink/10 border border-popline-pink/30 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Arquivo do briefing</p>
+                  <p className="text-xs text-text-secondary truncate">
+                    {campaign.briefingFileUrl?.split('/').pop()}
+                  </p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={handleOpenBriefingFile}>
+                  Abrir arquivo
+                </Button>
+              </div>
+            )}
+            {!hasBriefingText && !hasBriefingFile && (
+              <p className="text-sm text-text-secondary italic">Briefing ainda não disponível.</p>
+            )}
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setShowBriefing(false)}>
                 Fechar
               </Button>
-              <Button className="flex-1" onClick={handleDownloadBriefing}>
-                Baixar briefing
-              </Button>
+              {hasBriefingText && (
+                <Button className="flex-1" onClick={handleDownloadBriefing}>
+                  Baixar texto
+                </Button>
+              )}
             </div>
           </div>
         </Modal>
@@ -191,6 +241,44 @@ export default function ParticipatingCard({ campaign, application, userId, notic
       <div className={`grid transition-all duration-300 ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
         <div className="overflow-hidden">
           <div className="px-4 pb-4 pt-2 space-y-4 border-t border-border">
+            {application.disqualifiedAt && (
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/40">
+                <p className="text-sm font-semibold text-red-300">Você foi desclassificado(a) desta campanha</p>
+                {application.disqualificationReason && (
+                  <p className="text-xs text-red-200/90 mt-1 whitespace-pre-line">
+                    Motivo: {application.disqualificationReason}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {canShowDeliveries && !application.disqualifiedAt && (
+              <CreatorProgressBar application={application} deliveries={deliveries} className="pt-2" />
+            )}
+
+            {isActive && !application.joinedWhatsappGroup && (
+              campaign.whatsappGroupLink ? (
+                <a
+                  href={campaign.whatsappGroupLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/15 transition-colors"
+                >
+                  <p className="text-sm font-semibold text-emerald-300">Entre no grupo do WhatsApp →</p>
+                  <p className="text-xs text-emerald-200/80 mt-0.5">
+                    Toque aqui para acessar o grupo da campanha
+                  </p>
+                </a>
+              ) : (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-sm font-semibold text-amber-300">Aguarde o link do grupo do WhatsApp</p>
+                  <p className="text-xs text-amber-200/80 mt-0.5">
+                    A equipe ainda vai disponibilizar o link. Volte em instantes.
+                  </p>
+                </div>
+              )
+            )}
+
             <p className="text-sm text-text-secondary whitespace-pre-line">{campaign.description}</p>
 
             {/* Detalhes de compensação */}
@@ -220,7 +308,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
             )}
 
             {/* Avisos: só carrega quando card aberto para economizar requests */}
-            {open && canShowDeliveries && (
+            {open && isActive && (
               <CampaignNotices
                 campaignId={campaign.id}
                 userId={userId}
@@ -239,7 +327,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
               </Button>
             )}
 
-            {canShowDeliveries ? (
+            {isActive ? (
               <>
                 {/* Briefing */}
                 <div>
@@ -259,40 +347,84 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                 ) : (
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-text-secondary uppercase tracking-wide">Suas entregas</p>
-                    {deliveries.map(d => (
-                      <div key={d.id} className="p-3 rounded-xl bg-background border border-border space-y-2">
-                        <div className="flex items-center justify-between gap-2 flex-wrap">
-                          <p className="text-sm font-medium">Entrega {d.index}</p>
-                          <p className="text-xs text-text-secondary">
-                            {d.scheduledDate
-                              ? `Data: ${new Date(d.scheduledDate).toLocaleDateString('pt-BR')}`
-                              : 'Data a definir'}
-                          </p>
-                        </div>
-                        {d.scheduledDate ? (
-                          <div className="flex gap-2 flex-col sm:flex-row">
-                            <input
-                              type="url"
-                              value={urlDrafts[d.id] ?? ''}
-                              onChange={e => setUrlDrafts(prev => ({ ...prev, [d.id]: e.target.value }))}
-                              placeholder="https://instagram.com/p/..."
-                              className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
-                            />
-                            <Button size="sm" onClick={() => handleSaveUrl(d.id)}>
-                              {savedId === d.id ? 'Salvo ✓' : 'Salvar URL'}
-                            </Button>
+                    {deliveries.map(d => {
+                      const status = d.deliverableStatus ?? 'pending';
+                      const statusBadge =
+                        status === 'approved'
+                          ? { label: 'Aprovado ✓', variant: 'success' as const }
+                          : status === 'needs_revision'
+                            ? { label: 'Precisa de correção', variant: 'pink' as const }
+                            : { label: 'Aguardando análise', variant: 'warning' as const };
+                      return (
+                        <div key={d.id} className="p-3 rounded-xl bg-background border border-border space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <p className="text-sm font-medium">Entrega {d.index}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {d.contentUrl && <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>}
+                              <p className="text-xs text-text-secondary">
+                                {d.scheduledDate
+                                  ? `Data: ${new Date(d.scheduledDate).toLocaleDateString('pt-BR')}`
+                                  : 'Data a definir'}
+                              </p>
+                            </div>
                           </div>
-                        ) : (
-                          <p className="text-sm text-text-secondary italic">
-                            Aguarde pelas datas das suas entregas
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                          {status === 'needs_revision' && d.revisionNote && (
+                            <div className="p-2 rounded-lg bg-popline-pink/10 border border-popline-pink/30 text-xs">
+                              <p className="font-medium text-popline-light mb-0.5">Pedido de correção:</p>
+                              <p className="text-text-primary whitespace-pre-line">{d.revisionNote}</p>
+                              {d.revisionDueDate && (
+                                <p className="text-text-secondary mt-1">
+                                  Nova data limite:{' '}
+                                  <strong className="text-text-primary">
+                                    {new Date(d.revisionDueDate).toLocaleDateString('pt-BR')}
+                                  </strong>
+                                </p>
+                              )}
+                            </div>
+                          )}
+                          {d.scheduledDate ? (
+                            <>
+                              <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
+                                URL do vídeo (Drive)
+                              </p>
+                              <div className="flex gap-2 flex-col sm:flex-row">
+                                <input
+                                  type="url"
+                                  value={urlDrafts[d.id] ?? ''}
+                                  onChange={e => setUrlDrafts(prev => ({ ...prev, [d.id]: e.target.value }))}
+                                  placeholder="https://drive.google.com/..."
+                                  disabled={status === 'approved'}
+                                  maxLength={500}
+                                  inputMode="url"
+                                  className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink disabled:opacity-60"
+                                />
+                                <Button size="sm" onClick={() => handleSaveUrl(d.id)} disabled={status === 'approved'}>
+                                  {savedId === d.id ? 'Salvo ✓' : 'Salvar URL'}
+                                </Button>
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-sm text-text-secondary italic">
+                              Aguarde pelas datas das suas entregas
+                            </p>
+                          )}
+
+                          {status === 'approved' && d.publicationDate && (
+                            <PublicationBlock
+                              delivery={d}
+                              draft={pubUrlDrafts[d.id] ?? ''}
+                              onDraft={v => setPubUrlDrafts(prev => ({ ...prev, [d.id]: v }))}
+                              onSave={() => handleSavePubUrl(d.id)}
+                              savedFlash={savedPubId === d.id}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </>
-            ) : (
+            ) : application.disqualifiedAt ? null : (
               <p className="text-sm text-text-secondary italic">
                 {application.status === 'pending'
                   ? 'Sua candidatura está aguardando aprovação. Assim que aprovada, as entregas aparecem aqui.'
@@ -303,5 +435,72 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         </div>
       </div>
     </Card>
+  );
+}
+
+function PublicationBlock({
+  delivery,
+  draft,
+  onDraft,
+  onSave,
+  savedFlash,
+}: {
+  delivery: CampaignDelivery;
+  draft: string;
+  onDraft: (v: string) => void;
+  onSave: () => void;
+  savedFlash: boolean;
+}) {
+  const status = delivery.publicationStatus ?? 'pending';
+  const statusBadge =
+    status === 'confirmed'
+      ? { label: 'Publicação confirmada ✓', variant: 'success' as const }
+      : status === 'needs_resubmit'
+        ? { label: 'Pedir reenvio', variant: 'pink' as const }
+        : status === 'not_confirmed'
+          ? { label: 'Não confirmada', variant: 'default' as const }
+          : { label: 'Aguardando confirmação', variant: 'warning' as const };
+
+  return (
+    <div className="mt-2 pt-2 border-t border-border/60 space-y-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
+          Publicação
+        </p>
+        {delivery.publicationUrl && <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>}
+      </div>
+      <p className="text-xs text-text-secondary">
+        Publicar em{' '}
+        <strong className="text-text-primary">
+          {new Date(delivery.publicationDate!).toLocaleString('pt-BR', {
+            day: '2-digit',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </strong>
+        {delivery.publicationPlatform && ` no ${delivery.publicationPlatform}`}
+      </p>
+      {status === 'needs_resubmit' && delivery.publicationDueDate && (
+        <p className="text-xs text-popline-light">
+          Reenvie até <strong>{new Date(delivery.publicationDueDate).toLocaleDateString('pt-BR')}</strong>
+        </p>
+      )}
+      <div className="flex gap-2 flex-col sm:flex-row">
+        <input
+          type="url"
+          value={draft}
+          onChange={e => onDraft(e.target.value)}
+          placeholder="https://instagram.com/p/..."
+          disabled={status === 'confirmed'}
+          maxLength={500}
+          inputMode="url"
+          className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink disabled:opacity-60"
+        />
+        <Button size="sm" variant="secondary" onClick={onSave} disabled={status === 'confirmed'}>
+          {savedFlash ? 'Salvo ✓' : 'Salvar URL'}
+        </Button>
+      </div>
+    </div>
   );
 }

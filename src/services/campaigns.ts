@@ -1,4 +1,4 @@
-import { Campaign, CampaignApplication } from '@/types';
+import { Campaign, CampaignApplication, CampaignStage, StageHistoryEntry } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
 type CampaignRow = {
@@ -18,6 +18,11 @@ type CampaignRow = {
   has_commission: boolean;
   commission_percentage: number | null;
   commission_description: string | null;
+  current_stage: number;
+  whatsapp_group_link: string | null;
+  briefing_file_url: string | null;
+  stage_history: StageHistoryEntry[];
+  stage_updated_at: string;
 };
 
 type AppRow = {
@@ -26,6 +31,10 @@ type AppRow = {
   user_id: string;
   status: CampaignApplication['status'];
   applied_at: string;
+  joined_whatsapp_group: boolean;
+  joined_at: string | null;
+  disqualified_at: string | null;
+  disqualification_reason: string | null;
 };
 
 function toCampaign(r: CampaignRow): Campaign {
@@ -46,6 +55,11 @@ function toCampaign(r: CampaignRow): Campaign {
     hasCommission: r.has_commission,
     commissionPercentage: r.commission_percentage === null ? null : Number(r.commission_percentage),
     commissionDescription: r.commission_description,
+    currentStage: (r.current_stage ?? 0) as CampaignStage,
+    whatsappGroupLink: r.whatsapp_group_link,
+    briefingFileUrl: r.briefing_file_url,
+    stageHistory: r.stage_history ?? [],
+    stageUpdatedAt: r.stage_updated_at,
   };
 }
 
@@ -56,11 +70,15 @@ function toApp(r: AppRow): CampaignApplication {
     userId: r.user_id,
     status: r.status,
     appliedAt: r.applied_at,
+    joinedWhatsappGroup: r.joined_whatsapp_group ?? false,
+    joinedAt: r.joined_at,
+    disqualifiedAt: r.disqualified_at,
+    disqualificationReason: r.disqualification_reason,
   };
 }
 
-const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description';
-const A_SELECT = 'id, campaign_id, user_id, status, applied_at';
+const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
+const A_SELECT = 'id, campaign_id, user_id, status, applied_at, joined_whatsapp_group, joined_at, disqualified_at, disqualification_reason';
 
 // Limite pragmático para evitar full-table scans acidentais em admin views.
 const DEFAULT_LIST_LIMIT = 500;
@@ -125,6 +143,8 @@ export async function updateCampaign(id: string, data: Partial<Campaign>): Promi
   if (data.hasCommission !== undefined) patch.has_commission = data.hasCommission;
   if (data.commissionPercentage !== undefined) patch.commission_percentage = data.commissionPercentage;
   if (data.commissionDescription !== undefined) patch.commission_description = data.commissionDescription;
+  if (data.whatsappGroupLink !== undefined) patch.whatsapp_group_link = data.whatsappGroupLink;
+  if (data.briefingFileUrl !== undefined) patch.briefing_file_url = data.briefingFileUrl;
   // cache numérico: se hasCache for explicitamente false, zera; senão usa valor passado.
   if (data.cache !== undefined) {
     patch.cache = data.hasCache === false ? 0 : data.cache;
@@ -220,9 +240,18 @@ export async function updateApplicationStatus(
   status: CampaignApplication['status']
 ): Promise<CampaignApplication | null> {
   const supabase = createClient();
+  const patch: Record<string, unknown> = { status };
+  // Ao tirar de 'approved' (voltar pra 'pending' ou 'rejected'), limpa estado
+  // específico de aprovação (campos da migration 0015) para não vazar entre ciclos.
+  if (status !== 'approved') {
+    patch.joined_whatsapp_group = false;
+    patch.joined_at = null;
+    patch.disqualified_at = null;
+    patch.disqualification_reason = null;
+  }
   const { data } = await supabase
     .from('applications')
-    .update({ status })
+    .update(patch)
     .eq('id', applicationId)
     .select(A_SELECT)
     .single();

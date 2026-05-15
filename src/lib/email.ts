@@ -73,7 +73,8 @@ export async function getCampaignApprovedEmails(
     .from('applications')
     .select('user_id')
     .eq('campaign_id', campaignId)
-    .eq('status', 'approved');
+    .eq('status', 'approved')
+    .is('disqualified_at', null);
   if (!apps || apps.length === 0) return [];
 
   const userIds = apps.map((a: { user_id: string }) => a.user_id);

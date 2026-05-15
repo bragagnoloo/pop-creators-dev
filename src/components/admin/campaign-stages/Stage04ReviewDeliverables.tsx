@@ -148,17 +148,6 @@ export default function Stage04ReviewDeliverables({ rows, campaignTitle, revisio
                             Aguardando URL do criador
                           </p>
                         )}
-                        {status === 'needs_revision' && d.revisionNote && (
-                          <p className="text-xs text-text-secondary mt-1">
-                            <span className="text-popline-light">Nota:</span> {d.revisionNote}
-                            {d.revisionDueDate && (
-                              <span>
-                                {' '}
-                                · prazo {new Date(d.revisionDueDate).toLocaleDateString('pt-BR')}
-                              </span>
-                            )}
-                          </p>
-                        )}
                         {(revisionsByDelivery.get(d.id) ?? []).length > 0 && (
                           <ul className="mt-2 space-y-1.5">
                             {(revisionsByDelivery.get(d.id) ?? []).map(rev => (

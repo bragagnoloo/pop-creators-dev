@@ -17,10 +17,14 @@ create table if not exists campaign_delivery_revisions (
   due_date      timestamptz not null,
   revised_url   text,
   revised_at    timestamptz,
+  approved_at   timestamptz,
   requested_at  timestamptz not null default now(),
   requested_by  uuid references profiles(id) on delete set null,
   unique (delivery_id, round)
 );
+
+-- Caso a migration seja re-aplicada num banco que já tem a tabela mas sem approved_at
+alter table campaign_delivery_revisions add column if not exists approved_at timestamptz;
 
 create index if not exists cdr_delivery_idx on campaign_delivery_revisions(delivery_id);
 

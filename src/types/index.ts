@@ -144,6 +144,7 @@ export interface DeliveryRevision {
   dueDate: string;
   revisedUrl: string | null;
   revisedAt: string | null;
+  approvedAt: string | null;
   requestedAt: string;
   requestedBy: string | null;
 }

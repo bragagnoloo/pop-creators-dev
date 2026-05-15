@@ -394,10 +394,15 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                           </div>
 
                           {d.scheduledDate ? (
-                            <>
-                              <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
-                                URL do vídeo (Drive)
-                              </p>
+                            <div className="p-2 rounded-lg bg-background border border-border space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
+                                  Entrega original
+                                </p>
+                                {status === 'approved' && !revs.some(r => r.approvedAt != null) && (
+                                  <Badge variant="success">✓ Aprovada</Badge>
+                                )}
+                              </div>
                               {originalEditable ? (
                                 <div className="flex gap-2 flex-col sm:flex-row">
                                   <input
@@ -425,7 +430,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                               ) : (
                                 <p className="text-sm text-text-secondary italic">Não enviada</p>
                               )}
-                            </>
+                            </div>
                           ) : (
                             <p className="text-sm text-text-secondary italic">
                               Aguarde pelas datas das suas entregas
@@ -443,9 +448,12 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                                     className="p-2 rounded-lg bg-popline-pink/10 border border-popline-pink/30 text-xs"
                                   >
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                      <p className="font-medium text-popline-light">
-                                        Correção {String(rev.round).padStart(2, '0')}
-                                      </p>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <p className="font-medium text-popline-light">
+                                          Correção {String(rev.round).padStart(2, '0')}
+                                        </p>
+                                        {rev.approvedAt && <Badge variant="success">✓ Aprovada</Badge>}
+                                      </div>
                                       <span className="text-text-secondary">
                                         Prazo: <strong className="text-text-primary">{new Date(rev.dueDate).toLocaleDateString('pt-BR')}</strong>
                                       </span>

@@ -825,6 +825,19 @@ begin
          reviewed_by = v_user
    where id = p_delivery_id;
 
+  -- Quando aprova e há revisões, marca a última (com URL enviada) como aprovada.
+  -- Quando aprova sem revisões, a aprovação refere-se à entrega original (content_url).
+  if p_status = 'approved' then
+    update campaign_delivery_revisions
+       set approved_at = now()
+     where id = (
+       select id from campaign_delivery_revisions
+        where delivery_id = p_delivery_id and revised_url is not null
+        order by round desc
+        limit 1
+     );
+  end if;
+
   return jsonb_build_object('delivery_id', p_delivery_id, 'status', p_status);
 end;
 $$;

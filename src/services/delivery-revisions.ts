@@ -9,6 +9,7 @@ type Row = {
   due_date: string;
   revised_url: string | null;
   revised_at: string | null;
+  approved_at: string | null;
   requested_at: string;
   requested_by: string | null;
 };
@@ -22,12 +23,13 @@ function toRevision(r: Row): DeliveryRevision {
     dueDate: r.due_date,
     revisedUrl: r.revised_url,
     revisedAt: r.revised_at,
+    approvedAt: r.approved_at,
     requestedAt: r.requested_at,
     requestedBy: r.requested_by,
   };
 }
 
-const SELECT = 'id, delivery_id, round, note, due_date, revised_url, revised_at, requested_at, requested_by';
+const SELECT = 'id, delivery_id, round, note, due_date, revised_url, revised_at, approved_at, requested_at, requested_by';
 
 export async function getRevisionsForDelivery(deliveryId: string): Promise<DeliveryRevision[]> {
   const supabase = createClient();

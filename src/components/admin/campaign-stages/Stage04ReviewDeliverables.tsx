@@ -124,48 +124,97 @@ export default function Stage04ReviewDeliverables({ rows, campaignTitle, revisio
                   const badge = STATUS_BADGE[status];
                   const hasUrl = !!d.contentUrl;
                   const busy = busyId === d.id;
+                  const revs = revisionsByDelivery.get(d.id) ?? [];
+                  const lastRev = revs.length > 0 ? revs[revs.length - 1] : null;
+                  // Versão ativa para ações: se há revisões, é a última; senão é a original.
+                  // Ações só aparecem se há URL pra avaliar.
+                  const showActionsOnOriginal = revs.length === 0 && hasUrl && status !== 'approved';
+                  const showActionsOnLastRev =
+                    lastRev != null && !!lastRev.revisedUrl && status !== 'approved';
+                  // Badge "Aprovada" em qual versão? Se há revisões aprovadas, em uma delas.
+                  // Se status=approved e nenhuma revisão tem approved_at, é a original.
+                  const originalApproved =
+                    status === 'approved' && !revs.some(r => r.approvedAt != null);
                   return (
                     <div
                       key={d.id}
-                      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-2 rounded-lg border border-border/60 bg-surface/40"
+                      className="flex flex-col gap-2 p-2 rounded-lg border border-border/60 bg-surface/40"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs text-text-secondary">Entrega {d.index}</span>
-                          <Badge variant={badge.variant}>{badge.label}</Badge>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-text-secondary">Entrega {d.index}</span>
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      </div>
+
+                      {/* Bloco da entrega original (URL inicial) */}
+                      <div className="p-2 rounded-md border border-border/60 bg-background/40 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">
+                            Entrega original
+                          </span>
+                          {originalApproved && (
+                            <Badge variant="success">✓ Aprovada</Badge>
+                          )}
                         </div>
                         {hasUrl ? (
                           <a
                             href={d.contentUrl!}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-popline-pink hover:underline truncate inline-block max-w-full mt-1"
+                            className="text-xs text-popline-pink hover:underline truncate inline-block max-w-full"
                           >
                             {d.contentUrl}
                           </a>
                         ) : (
-                          <p className="text-xs text-text-secondary italic mt-1">
+                          <p className="text-xs text-text-secondary italic">
                             Aguardando URL do criador
                           </p>
                         )}
-                        {(revisionsByDelivery.get(d.id) ?? []).length > 0 && (
-                          <ul className="mt-2 space-y-1.5">
-                            {(revisionsByDelivery.get(d.id) ?? []).map(rev => (
+                        {showActionsOnOriginal && (
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={busy}
+                              onClick={() => setRevisionFor({ delivery: d, userId: row.application.userId })}
+                            >
+                              Pedir correção
+                            </Button>
+                            <Button
+                              size="sm"
+                              disabled={busy}
+                              onClick={() => handleApprove(d, row.application.userId)}
+                            >
+                              {busy ? '...' : 'Aprovar'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Lista de revisões */}
+                      {revs.length > 0 && (
+                        <ul className="space-y-1.5">
+                          {revs.map(rev => {
+                            const isLast = lastRev != null && rev.id === lastRev.id;
+                            const isApproved = rev.approvedAt != null;
+                            return (
                               <li
                                 key={rev.id}
-                                className="p-2 rounded-md border border-popline-pink/30 bg-popline-pink/5"
+                                className="p-2 rounded-md border border-popline-pink/30 bg-popline-pink/5 space-y-1.5"
                               >
                                 <div className="flex items-center justify-between gap-2 flex-wrap">
                                   <span className="text-[11px] font-semibold text-popline-light uppercase tracking-wide">
                                     Correção {String(rev.round).padStart(2, '0')}
                                   </span>
-                                  <span className="text-[10px] text-text-secondary">
-                                    Prazo: {new Date(rev.dueDate).toLocaleDateString('pt-BR')}
-                                  </span>
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {isApproved && <Badge variant="success">✓ Aprovada</Badge>}
+                                    <span className="text-[10px] text-text-secondary">
+                                      Prazo: {new Date(rev.dueDate).toLocaleDateString('pt-BR')}
+                                    </span>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-text-primary mt-1 whitespace-pre-line">{rev.note}</p>
+                                <p className="text-xs text-text-primary whitespace-pre-line">{rev.note}</p>
                                 {rev.revisedUrl ? (
-                                  <div className="mt-1">
+                                  <div>
                                     <a
                                       href={rev.revisedUrl}
                                       target="_blank"
@@ -181,29 +230,33 @@ export default function Stage04ReviewDeliverables({ rows, campaignTitle, revisio
                                     )}
                                   </div>
                                 ) : (
-                                  <p className="text-[11px] text-text-secondary italic mt-1">
+                                  <p className="text-[11px] text-text-secondary italic">
                                     Aguardando URL corrigida do criador
                                   </p>
                                 )}
+                                {isLast && showActionsOnLastRev && (
+                                  <div className="flex gap-2 pt-1">
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      disabled={busy}
+                                      onClick={() => setRevisionFor({ delivery: d, userId: row.application.userId })}
+                                    >
+                                      Pedir correção
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      disabled={busy}
+                                      onClick={() => handleApprove(d, row.application.userId)}
+                                    >
+                                      {busy ? '...' : 'Aprovar'}
+                                    </Button>
+                                  </div>
+                                )}
                               </li>
-                            ))}
-                          </ul>
-                        )}
-                      </div>
-                      {hasUrl && status !== 'approved' && (
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() => setRevisionFor({ delivery: d, userId: row.application.userId })}
-                          >
-                            Pedir correção
-                          </Button>
-                          <Button size="sm" disabled={busy} onClick={() => handleApprove(d, row.application.userId)}>
-                            {busy ? '...' : 'Aprovar'}
-                          </Button>
-                        </div>
+                            );
+                          })}
+                        </ul>
                       )}
                     </div>
                   );

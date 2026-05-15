@@ -813,7 +813,7 @@ begin
 
   if p_status = 'needs_revision' then
     if p_note is null or length(trim(p_note)) < 5 then raise exception 'note_required'; end if;
-    if length(p_note) > 500 then raise exception 'note_too_long'; end if;
+    if length(p_note) > 2000 then raise exception 'note_too_long'; end if;
     if p_due is null or p_due <= now() then raise exception 'due_date_invalid'; end if;
   end if;
 

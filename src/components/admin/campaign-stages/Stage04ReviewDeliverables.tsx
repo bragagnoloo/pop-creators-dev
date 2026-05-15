@@ -255,7 +255,7 @@ function RevisionModal({
           value={note}
           onChange={e => setNote(e.target.value)}
           rows={4}
-          maxLength={500}
+          maxLength={2000}
           placeholder="Ex: refazer a virada do refrão e cortar os 2s iniciais."
         />
         <div>

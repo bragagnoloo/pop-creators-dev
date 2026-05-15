@@ -8,8 +8,15 @@ import Avatar from '@/components/ui/Avatar';
 import Modal from '@/components/ui/Modal';
 import Textarea from '@/components/ui/Textarea';
 import * as stagesService from '@/services/campaign-stages';
+import * as revisionsService from '@/services/delivery-revisions';
 import DisqualifyModal from './DisqualifyModal';
-import type { CampaignApplication, CampaignDelivery, UserProfile, DeliverableStatus } from '@/types';
+import type {
+  CampaignApplication,
+  CampaignDelivery,
+  UserProfile,
+  DeliverableStatus,
+  DeliveryRevision,
+} from '@/types';
 
 interface RowItem {
   application: CampaignApplication;
@@ -20,6 +27,7 @@ interface RowItem {
 interface Props {
   rows: RowItem[];
   campaignTitle: string;
+  revisionsByDelivery: Map<string, DeliveryRevision[]>;
   onChanged: () => void;
 }
 
@@ -63,7 +71,7 @@ const STATUS_BADGE: Record<DeliverableStatus, { label: string; variant: 'success
   needs_revision: { label: 'Precisa de correção', variant: 'pink' },
 };
 
-export default function Stage04ReviewDeliverables({ rows, campaignTitle, onChanged }: Props) {
+export default function Stage04ReviewDeliverables({ rows, campaignTitle, revisionsByDelivery, onChanged }: Props) {
   const [revisionFor, setRevisionFor] = useState<{ delivery: CampaignDelivery; userId: string } | null>(null);
   const [disqualifyFor, setDisqualifyFor] = useState<RowItem | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -151,6 +159,47 @@ export default function Stage04ReviewDeliverables({ rows, campaignTitle, onChang
                             )}
                           </p>
                         )}
+                        {(revisionsByDelivery.get(d.id) ?? []).length > 0 && (
+                          <ul className="mt-2 space-y-1.5">
+                            {(revisionsByDelivery.get(d.id) ?? []).map(rev => (
+                              <li
+                                key={rev.id}
+                                className="p-2 rounded-md border border-popline-pink/30 bg-popline-pink/5"
+                              >
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-[11px] font-semibold text-popline-light uppercase tracking-wide">
+                                    Correção {String(rev.round).padStart(2, '0')}
+                                  </span>
+                                  <span className="text-[10px] text-text-secondary">
+                                    Prazo: {new Date(rev.dueDate).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-text-primary mt-1 whitespace-pre-line">{rev.note}</p>
+                                {rev.revisedUrl ? (
+                                  <div className="mt-1">
+                                    <a
+                                      href={rev.revisedUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs text-popline-pink hover:underline truncate inline-block max-w-full"
+                                    >
+                                      {rev.revisedUrl}
+                                    </a>
+                                    {rev.revisedAt && (
+                                      <span className="text-[10px] text-text-secondary ml-1">
+                                        · enviado {new Date(rev.revisedAt).toLocaleDateString('pt-BR')}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <p className="text-[11px] text-text-secondary italic mt-1">
+                                    Aguardando URL corrigida do criador
+                                  </p>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
                       </div>
                       {hasUrl && status !== 'approved' && (
                         <div className="flex gap-2 shrink-0">
@@ -235,10 +284,7 @@ function RevisionModal({
       return;
     }
     setSaving(true);
-    const result = await stagesService.setDeliverableStatus(delivery.id, 'needs_revision', {
-      note: note.trim(),
-      due: dueIso,
-    });
+    const result = await revisionsService.requestDeliveryRevision(delivery.id, note.trim(), dueIso);
     setSaving(false);
     if (!result.success) {
       setError(result.error);

@@ -136,6 +136,18 @@ export interface CampaignTermAcceptance {
 export type DeliverableStatus = 'pending' | 'approved' | 'needs_revision';
 export type PublicationStatus = 'pending' | 'confirmed' | 'not_confirmed' | 'needs_resubmit';
 
+export interface DeliveryRevision {
+  id: string;
+  deliveryId: string;
+  round: number;
+  note: string;
+  dueDate: string;
+  revisedUrl: string | null;
+  revisedAt: string | null;
+  requestedAt: string;
+  requestedBy: string | null;
+}
+
 export interface CampaignDelivery {
   id: string;
   campaignId: string;

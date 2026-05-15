@@ -2,11 +2,12 @@
 
 import Image from 'next/image';
 import { useState, useCallback } from 'react';
-import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts } from '@/types';
+import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts, DeliveryRevision } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as deliveryService from '@/services/deliveries';
 import * as walletService from '@/services/wallet';
 import * as campaignService from '@/services/campaigns';
+import * as revisionsService from '@/services/delivery-revisions';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -32,10 +33,13 @@ const appStatusMap: Record<CampaignApplication['status'], { label: string; varia
 export default function ParticipatingCard({ campaign, application, userId, noticeCounts, onNoticesRead, onWithdraw }: Props) {
   const [open, setOpen] = useState(false);
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
+  const [revisionsByDelivery, setRevisionsByDelivery] = useState<Map<string, DeliveryRevision[]>>(new Map());
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
   const [pubUrlDrafts, setPubUrlDrafts] = useState<Record<string, string>>({});
+  const [revisionUrlDrafts, setRevisionUrlDrafts] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedPubId, setSavedPubId] = useState<string | null>(null);
+  const [savedRevisionId, setSavedRevisionId] = useState<string | null>(null);
   const [showBriefing, setShowBriefing] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -50,6 +54,19 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     setDeliveries(list);
     setUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.contentUrl || ''])));
     setPubUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.publicationUrl || ''])));
+
+    // Busca revisões de cada delivery e agrupa
+    const allRevisions = await revisionsService.getRevisionsForCampaign(campaign.id);
+    const revMap = new Map<string, DeliveryRevision[]>();
+    const draftMap: Record<string, string> = {};
+    for (const rev of allRevisions) {
+      const arr = revMap.get(rev.deliveryId) ?? [];
+      arr.push(rev);
+      revMap.set(rev.deliveryId, arr);
+      draftMap[rev.id] = rev.revisedUrl ?? '';
+    }
+    setRevisionsByDelivery(revMap);
+    setRevisionUrlDrafts(draftMap);
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
   useLoadOnMount(load, [load]);
@@ -73,6 +90,15 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     await deliveryService.updateDelivery(deliveryId, { publicationUrl: url });
     setSavedPubId(deliveryId);
     setTimeout(() => setSavedPubId(null), 1500);
+    load();
+  };
+
+  const handleSaveRevisionUrl = async (revisionId: string) => {
+    const url = revisionUrlDrafts[revisionId]?.trim() || null;
+    if (!url) return;
+    await revisionsService.setRevisedUrl(revisionId, url);
+    setSavedRevisionId(revisionId);
+    setTimeout(() => setSavedRevisionId(null), 1500);
     load();
   };
 
@@ -368,20 +394,70 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                               </p>
                             </div>
                           </div>
-                          {status === 'needs_revision' && d.revisionNote && (
-                            <div className="p-2 rounded-lg bg-popline-pink/10 border border-popline-pink/30 text-xs">
-                              <p className="font-medium text-popline-light mb-0.5">Pedido de correção:</p>
-                              <p className="text-text-primary whitespace-pre-line">{d.revisionNote}</p>
-                              {d.revisionDueDate && (
-                                <p className="text-text-secondary mt-1">
-                                  Nova data limite:{' '}
-                                  <strong className="text-text-primary">
-                                    {new Date(d.revisionDueDate).toLocaleDateString('pt-BR')}
-                                  </strong>
-                                </p>
-                              )}
-                            </div>
-                          )}
+                          {(() => {
+                            const revs = revisionsByDelivery.get(d.id) ?? [];
+                            if (revs.length === 0) return null;
+                            const lastRev = revs[revs.length - 1];
+                            const isPending = status === 'needs_revision';
+                            return (
+                              <div className="space-y-2">
+                                {revs.map(rev => {
+                                  const isLast = rev.id === lastRev.id;
+                                  const showInput = isLast && isPending;
+                                  return (
+                                    <div
+                                      key={rev.id}
+                                      className="p-2 rounded-lg bg-popline-pink/10 border border-popline-pink/30 text-xs"
+                                    >
+                                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                                        <p className="font-medium text-popline-light">
+                                          Correção {String(rev.round).padStart(2, '0')}
+                                        </p>
+                                        <span className="text-text-secondary">
+                                          Prazo: <strong className="text-text-primary">{new Date(rev.dueDate).toLocaleDateString('pt-BR')}</strong>
+                                        </span>
+                                      </div>
+                                      <p className="text-text-primary whitespace-pre-line mt-1">{rev.note}</p>
+                                      {rev.revisedUrl && !showInput && (
+                                        <div className="mt-1.5">
+                                          <span className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">URL enviada</span>
+                                          <a
+                                            href={rev.revisedUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block text-popline-pink hover:underline truncate"
+                                          >
+                                            {rev.revisedUrl}
+                                          </a>
+                                        </div>
+                                      )}
+                                      {showInput && (
+                                        <div className="mt-2">
+                                          <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+                                            URL da versão corrigida
+                                          </p>
+                                          <div className="flex gap-2 flex-col sm:flex-row">
+                                            <input
+                                              type="url"
+                                              value={revisionUrlDrafts[rev.id] ?? ''}
+                                              onChange={e => setRevisionUrlDrafts(prev => ({ ...prev, [rev.id]: e.target.value }))}
+                                              placeholder="https://drive.google.com/..."
+                                              maxLength={500}
+                                              inputMode="url"
+                                              className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
+                                            />
+                                            <Button size="sm" onClick={() => handleSaveRevisionUrl(rev.id)}>
+                                              {savedRevisionId === rev.id ? 'Salvo ✓' : 'Salvar URL'}
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                           {d.scheduledDate ? (
                             <>
                               <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">

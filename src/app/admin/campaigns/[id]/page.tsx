@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { createClient } from '@/lib/supabase/client';
-import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery, StageReadiness, CampaignStage } from '@/types';
+import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery, StageReadiness, CampaignStage, DeliveryRevision } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as walletService from '@/services/wallet';
@@ -14,6 +14,7 @@ import * as deliveryService from '@/services/deliveries';
 import * as analyticsService from '@/services/analytics';
 import * as subService from '@/services/subscriptions';
 import * as stagesService from '@/services/campaign-stages';
+import * as revisionsService from '@/services/delivery-revisions';
 import type { PlanId } from '@/types';
 import BarChart from '@/components/ui/BarChart';
 import PieChart from '@/components/ui/PieChart';
@@ -52,6 +53,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [readiness, setReadiness] = useState<StageReadiness | null>(null);
+  const [revisionsByDelivery, setRevisionsByDelivery] = useState<Map<string, DeliveryRevision[]>>(new Map());
   const [loaded, setLoaded] = useState(false);
 
   const load = useCallback(async () => {
@@ -97,6 +99,16 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 
     const rdy = await stagesService.getStageReadiness(id);
     if (rdy.success) setReadiness(rdy.data);
+
+    // Busca todas as revisões da campanha e agrupa por delivery_id
+    const allRevisions = await revisionsService.getRevisionsForCampaign(id);
+    const map = new Map<string, DeliveryRevision[]>();
+    for (const rev of allRevisions) {
+      const list = map.get(rev.deliveryId) ?? [];
+      list.push(rev);
+      map.set(rev.deliveryId, list);
+    }
+    setRevisionsByDelivery(map);
   }, [id, user, router]);
 
   useLoadOnMount(() => {
@@ -390,6 +402,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
             deliveries: r.deliveries,
           }))}
           campaignTitle={campaign.title}
+          revisionsByDelivery={revisionsByDelivery}
           onChanged={load}
         />
       </CollapsibleSection>

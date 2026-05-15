@@ -977,12 +977,10 @@ update campaigns
    end
  where current_stage = 0;
 
--- deliverable_status inferido pelo content_url existente
-update campaign_deliveries
-   set deliverable_status = 'approved'
- where content_url is not null
-   and content_url <> ''
-   and deliverable_status = 'pending';
+-- Deliverable status NÃO é inferido pelo content_url. Mesmo deliveries antigos
+-- (de campanhas em andamento) começam como 'pending' para forçar revisão manual
+-- do admin. Sem isso, admin não consegue solicitar correção de entregáveis
+-- pré-existentes (UI só mostra "Pedir correção" quando status != 'approved').
 
 -- Cria schedule default para campanhas legadas
 insert into campaign_stage_schedule

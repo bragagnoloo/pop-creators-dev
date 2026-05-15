@@ -78,7 +78,7 @@ export default function CampaignSchedule({
           </span>
           {canEdit && (
             <Button size="sm" variant="secondary" onClick={() => setBulkOpen(true)}>
-              Distribuir datas
+              Definir datas das etapas
             </Button>
           )}
         </div>
@@ -160,6 +160,7 @@ export default function CampaignSchedule({
       {bulkOpen && (
         <BulkScheduleModal
           campaignId={campaignId}
+          schedule={schedule}
           onClose={() => setBulkOpen(false)}
           onDone={() => {
             setBulkOpen(false);

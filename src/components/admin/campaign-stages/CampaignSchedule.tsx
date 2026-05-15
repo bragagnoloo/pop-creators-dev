@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
 import StageBadge from '@/components/ui/StageBadge';
 import { STAGE_LABELS } from '@/services/campaign-stages';
 import ExtendDeadlineModal from './ExtendDeadlineModal';
+import BulkScheduleModal from './BulkScheduleModal';
 import type {
   CampaignStage,
   CampaignStageScheduleEntry,
@@ -12,6 +14,7 @@ import type {
 } from '@/types';
 
 interface Props {
+  campaignId: string;
   schedule: CampaignStageScheduleEntry[];
   currentStage: CampaignStage;
   canEdit: boolean;
@@ -20,6 +23,7 @@ interface Props {
     newDate: string,
     reason: string | null
   ) => Promise<{ success: boolean; error?: string }>;
+  onBulkSaved: () => void;
 }
 
 function formatDate(iso: string): string {
@@ -34,12 +38,15 @@ function statusFromEntry(entry: CampaignStageScheduleEntry): StageTemporalStatus
 }
 
 export default function CampaignSchedule({
+  campaignId,
   schedule,
   currentStage,
   canEdit,
   onSaveDeadline,
+  onBulkSaved,
 }: Props) {
   const [editing, setEditing] = useState<CampaignStageScheduleEntry | null>(null);
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Ordenar e garantir 9 entradas (0..8). Se faltar alguma, preenche com placeholder.
   const byStage = new Map<number, CampaignStageScheduleEntry>();
@@ -61,13 +68,20 @@ export default function CampaignSchedule({
 
   return (
     <Card className="!p-4 sm:!p-5">
-      <div className="flex items-center justify-between mb-4 gap-3">
+      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
         <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
           Cronograma da campanha
         </h2>
-        <span className="text-xs text-text-secondary">
-          Etapa atual: <span className="text-text-primary font-medium">{currentStage}</span> · {STAGE_LABELS[currentStage]}
-        </span>
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="text-xs text-text-secondary">
+            Etapa atual: <span className="text-text-primary font-medium">{currentStage}</span> · {STAGE_LABELS[currentStage]}
+          </span>
+          {canEdit && (
+            <Button size="sm" variant="secondary" onClick={() => setBulkOpen(true)}>
+              Distribuir datas
+            </Button>
+          )}
+        </div>
       </div>
 
       <ol className="flex flex-col gap-2 sm:flex-row sm:overflow-x-auto sm:gap-3 sm:pb-1 -mx-1 px-1">
@@ -140,6 +154,17 @@ export default function CampaignSchedule({
           isExtension={!!editing.dueDate}
           onClose={() => setEditing(null)}
           onSave={async (newDate, reason) => onSaveDeadline(editing.stage, newDate, reason)}
+        />
+      )}
+
+      {bulkOpen && (
+        <BulkScheduleModal
+          campaignId={campaignId}
+          onClose={() => setBulkOpen(false)}
+          onDone={() => {
+            setBulkOpen(false);
+            onBulkSaved();
+          }}
         />
       )}
     </Card>

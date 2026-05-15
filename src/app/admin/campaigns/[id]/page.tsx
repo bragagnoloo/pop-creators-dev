@@ -21,6 +21,7 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
+import CollapsibleSection from '@/components/ui/CollapsibleSection';
 import CampaignNoticesSection from '@/components/admin/CampaignNoticesSection';
 import CampaignSchedule from '@/components/admin/campaign-stages/CampaignSchedule';
 import CampaignTimeline from '@/components/admin/campaign-stages/CampaignTimeline';
@@ -264,99 +265,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
         </p>
       </div>
 
-      <CampaignSchedule
-        schedule={readiness?.schedule ?? []}
-        currentStage={currentStage}
-        canEdit={canManage}
-        onSaveDeadline={handleSaveDeadline}
-      />
-
-      <CampaignTimeline
-        currentStage={currentStage}
-        readiness={readiness}
-        canComplete={canManage}
-        onComplete={handleCompleteStage}
-      />
-
-      <Stage00Opening campaign={campaign} />
-
-      <Stage01Selection
-        campaignId={campaign.id}
-        whatsappLink={campaign.whatsappGroupLink ?? null}
-        approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
-        pending={rows
-          .filter(r => r.application.status === 'pending')
-          .map(r => ({ application: r.application, profile: r.profile }))}
-        onChanged={load}
-        onDecide={handleDecide}
-      />
-
-      <Stage02Briefing
-        campaignId={campaign.id}
-        campaignTitle={campaign.title}
-        initialBriefing={campaign.briefing}
-        initialBriefingFileUrl={campaign.briefingFileUrl ?? null}
-        onSaved={load}
-      />
-
-      <Stage03DeliveryDates
-        rows={approved.map(r => ({
-          application: r.application,
-          profile: r.profile,
-          deliveries: r.deliveries,
-        }))}
-        onSetDate={handleDeliveryDate}
-      />
-
-      <Stage04ReviewDeliverables
-        rows={approved.map(r => ({
-          application: r.application,
-          profile: r.profile,
-          deliveries: r.deliveries,
-        }))}
-        campaignTitle={campaign.title}
-        onChanged={load}
-      />
-
-      <Stage05PublicationSchedule
-        rows={approved.map(r => ({
-          application: r.application,
-          profile: r.profile,
-          deliveries: r.deliveries,
-        }))}
-        campaignTitle={campaign.title}
-        onChanged={load}
-      />
-
-      <Stage06ReviewPublications
-        rows={approved.map(r => ({
-          application: r.application,
-          profile: r.profile,
-          deliveries: r.deliveries,
-        }))}
-        campaignTitle={campaign.title}
-        onChanged={load}
-      />
-
-      <Stage07ExportCSV
-        campaignId={campaign.id}
-        rows={approved.map(r => ({
-          application: r.application,
-          profile: r.profile,
-          deliveries: r.deliveries,
-        }))}
-      />
-
-      <Stage08Report campaignId={campaign.id} />
-
-      <CampaignAuditLog
-        campaign={campaign}
-        schedule={readiness?.schedule ?? []}
-        isMasterAdmin={user?.role === 'admin'}
-        onReverted={load}
-      />
-
-      {/* Metrics */}
+      {/* 1. Métricas no topo */}
       <div className="grid lg:grid-cols-2 gap-4">
         <Card>
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-4">
@@ -387,8 +296,160 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
         </Card>
       </div>
 
-      <Card>
-        <h2 className="text-lg font-semibold mb-4">Participantes aprovados</h2>
+      {/* 2. Cronograma da campanha */}
+      <CampaignSchedule
+        campaignId={campaign.id}
+        schedule={readiness?.schedule ?? []}
+        currentStage={currentStage}
+        canEdit={canManage}
+        onSaveDeadline={handleSaveDeadline}
+        onBulkSaved={load}
+      />
+
+      {/* 3. Progresso da campanha */}
+      <CampaignTimeline
+        currentStage={currentStage}
+        readiness={readiness}
+        canComplete={canManage}
+        onComplete={handleCompleteStage}
+      />
+
+      {/* 4. Avisos da campanha (colapsável) */}
+      <CollapsibleSection
+        title="Avisos da campanha"
+        description="Mensagens enviadas aos participantes aprovados"
+      >
+        <CampaignNoticesSection
+          campaignId={campaign.id}
+          campaignTitle={campaign.title}
+          approved={approved
+            .filter(r => !r.application.disqualifiedAt)
+            .map(r => ({ application: r.application, profile: r.profile }))}
+        />
+      </CollapsibleSection>
+
+      {/* 5. Etapas (cada uma colapsável, fechadas por padrão) */}
+      <CollapsibleSection
+        title="Etapa 00 — Abertura"
+        description="Dados gerais da campanha (criação)"
+      >
+        <Stage00Opening campaign={campaign} />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 01 — Seleção"
+        description="Aprovar candidatos, link do grupo e presença no WhatsApp"
+      >
+        <Stage01Selection
+          campaignId={campaign.id}
+          whatsappLink={campaign.whatsappGroupLink ?? null}
+          approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+          pending={rows
+            .filter(r => r.application.status === 'pending')
+            .map(r => ({ application: r.application, profile: r.profile }))}
+          onChanged={load}
+          onDecide={handleDecide}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 02 — Briefing"
+        description="Texto e/ou arquivo, notificação aos aprovados"
+      >
+        <Stage02Briefing
+          campaignId={campaign.id}
+          campaignTitle={campaign.title}
+          initialBriefing={campaign.briefing}
+          initialBriefingFileUrl={campaign.briefingFileUrl ?? null}
+          onSaved={load}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 03 — Datas de entrega"
+        description="Atribuir prazo de entrega do vídeo a cada criador"
+      >
+        <Stage03DeliveryDates
+          rows={approved.map(r => ({
+            application: r.application,
+            profile: r.profile,
+            deliveries: r.deliveries,
+          }))}
+          onSetDate={handleDeliveryDate}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 04 — Análise de entregáveis"
+        description="Aprovar vídeos ou pedir correção"
+      >
+        <Stage04ReviewDeliverables
+          rows={approved.map(r => ({
+            application: r.application,
+            profile: r.profile,
+            deliveries: r.deliveries,
+          }))}
+          campaignTitle={campaign.title}
+          onChanged={load}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 05 — Agenda de publicação"
+        description="Data e plataforma de cada publicação aprovada"
+      >
+        <Stage05PublicationSchedule
+          rows={approved.map(r => ({
+            application: r.application,
+            profile: r.profile,
+            deliveries: r.deliveries,
+          }))}
+          campaignTitle={campaign.title}
+          onChanged={load}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 06 — Análise de publicações"
+        description="Confirmar publicação, pedir reenvio ou desclassificar"
+      >
+        <Stage06ReviewPublications
+          rows={approved.map(r => ({
+            application: r.application,
+            profile: r.profile,
+            deliveries: r.deliveries,
+          }))}
+          campaignTitle={campaign.title}
+          onChanged={load}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 07 — CSV para a marca"
+        description="Exportar planilha de participantes e publicações confirmadas"
+      >
+        <Stage07ExportCSV
+          campaignId={campaign.id}
+          rows={approved.map(r => ({
+            application: r.application,
+            profile: r.profile,
+            deliveries: r.deliveries,
+          }))}
+        />
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Etapa 08 — Relatório final"
+        description="Abrir relatório imprimível com bignumbers e gráficos"
+      >
+        <Stage08Report campaignId={campaign.id} />
+      </CollapsibleSection>
+
+      {/* Participantes aprovados (saldo) */}
+      <CollapsibleSection
+        title="Participantes aprovados — saldos"
+        description="Gerar e liberar cachê dos criadores aprovados"
+      >
         {approved.length === 0 ? (
           <p className="text-sm text-text-secondary text-center py-6">
             Nenhum participante aprovado. Aprove candidaturas para liberar saldos.
@@ -407,14 +468,14 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
             ))}
           </div>
         )}
-      </Card>
+      </CollapsibleSection>
 
-      <CampaignNoticesSection
-        campaignId={campaign.id}
-        campaignTitle={campaign.title}
-        approved={approved
-          .filter(r => !r.application.disqualifiedAt)
-          .map(r => ({ application: r.application, profile: r.profile }))}
+      {/* Histórico e auditoria */}
+      <CampaignAuditLog
+        campaign={campaign}
+        schedule={readiness?.schedule ?? []}
+        isMasterAdmin={user?.role === 'admin'}
+        onReverted={load}
       />
 
       {others.length > 0 && (

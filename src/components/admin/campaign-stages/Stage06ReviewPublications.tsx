@@ -116,45 +116,66 @@ export default function Stage06ReviewPublications({ rows, campaignTitle, onChang
                 {row.deliveries.map(d => {
                   const status = d.publicationStatus ?? 'pending';
                   const badge = STATUS_BADGE[status];
-                  const hasUrl = !!d.publicationUrl;
+                  const platforms = d.publicationPlatforms ?? [];
+                  const urls = d.publicationUrls ?? {};
+                  const filledCount = platforms.filter(p => (urls[p] ?? '').length > 0).length;
+                  const allFilled = platforms.length > 0 && filledCount === platforms.length;
                   const busy = busyId === d.id;
                   return (
                     <div
                       key={d.id}
-                      className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-2 rounded-lg border border-border/60 bg-surface/40"
+                      className="flex flex-col gap-2 p-2 rounded-lg border border-border/60 bg-surface/40"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs text-text-secondary">Entrega {d.index}</span>
                           <Badge variant={badge.variant}>{badge.label}</Badge>
-                          {d.publicationPlatform && (
-                            <span className="text-xs text-text-secondary">· {d.publicationPlatform}</span>
-                          )}
+                          <span className="text-[10px] text-text-secondary">
+                            {filledCount}/{platforms.length} URLs
+                          </span>
                         </div>
-                        {hasUrl ? (
-                          <a
-                            href={d.publicationUrl!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-popline-pink hover:underline truncate inline-block max-w-full mt-1"
-                          >
-                            {d.publicationUrl}
-                          </a>
-                        ) : (
-                          <p className="text-xs text-text-secondary italic mt-1">
-                            Aguardando URL da publicação
-                          </p>
-                        )}
-                        {status === 'needs_resubmit' && d.publicationDueDate && (
-                          <p className="text-xs text-text-secondary mt-1">
-                            Novo prazo:{' '}
-                            <strong className="text-text-primary">
-                              {new Date(d.publicationDueDate).toLocaleDateString('pt-BR')}
-                            </strong>
-                          </p>
-                        )}
                       </div>
-                      {hasUrl && status !== 'confirmed' && (
+                      {platforms.length === 0 ? (
+                        <p className="text-xs text-text-secondary italic">
+                          Plataformas ainda não definidas
+                        </p>
+                      ) : (
+                        <ul className="space-y-1.5">
+                          {platforms.map(p => {
+                            const url = urls[p] ?? '';
+                            return (
+                              <li key={p} className="flex items-center justify-between gap-2 flex-wrap">
+                                <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wide w-24 shrink-0">
+                                  {p}
+                                </span>
+                                {url ? (
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-1 text-xs text-popline-pink hover:underline truncate"
+                                  >
+                                    {url}
+                                  </a>
+                                ) : (
+                                  <span className="flex-1 text-xs text-text-secondary italic">
+                                    aguardando URL do criador
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                      {status === 'needs_resubmit' && d.publicationDueDate && (
+                        <p className="text-xs text-text-secondary">
+                          Novo prazo:{' '}
+                          <strong className="text-text-primary">
+                            {new Date(d.publicationDueDate).toLocaleDateString('pt-BR')}
+                          </strong>
+                        </p>
+                      )}
+                      {allFilled && status !== 'confirmed' && (
                         <div className="flex gap-2 shrink-0">
                           <Button
                             size="sm"

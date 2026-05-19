@@ -12,6 +12,7 @@ type Row = {
   revision_note: string | null;
   revision_due_date: string | null;
   publication_url: string | null;
+  publication_urls: Record<string, string> | null;
   publication_status: PublicationStatus;
   publication_date: string | null;
   publication_platform: string | null;
@@ -35,6 +36,7 @@ function toDelivery(r: Row): CampaignDelivery {
     revisionNote: r.revision_note,
     revisionDueDate: r.revision_due_date,
     publicationUrl: r.publication_url,
+    publicationUrls: r.publication_urls ?? {},
     publicationStatus: r.publication_status ?? 'pending',
     publicationDate: r.publication_date,
     publicationPlatform: r.publication_platform,
@@ -47,7 +49,7 @@ function toDelivery(r: Row): CampaignDelivery {
   };
 }
 
-const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url, deliverable_status, revision_note, revision_due_date, publication_url, publication_status, publication_date, publication_platform, publication_platforms, publication_caption, publication_due_date, publication_confirmed_at, reviewed_at, reviewed_by';
+const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url, deliverable_status, revision_note, revision_due_date, publication_url, publication_urls, publication_status, publication_date, publication_platform, publication_platforms, publication_caption, publication_due_date, publication_confirmed_at, reviewed_at, reviewed_by';
 
 export async function getDeliveriesForUser(campaignId: string, userId: string): Promise<CampaignDelivery[]> {
   const supabase = createClient();
@@ -101,13 +103,14 @@ export async function ensureDeliveries(
 
 export async function updateDelivery(
   id: string,
-  data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl' | 'publicationUrl'>>
+  data: Partial<Pick<CampaignDelivery, 'scheduledDate' | 'contentUrl' | 'publicationUrl' | 'publicationUrls'>>
 ): Promise<CampaignDelivery | null> {
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
   if (data.scheduledDate !== undefined) patch.scheduled_date = data.scheduledDate;
   if (data.contentUrl !== undefined) patch.content_url = data.contentUrl;
   if (data.publicationUrl !== undefined) patch.publication_url = data.publicationUrl;
+  if (data.publicationUrls !== undefined) patch.publication_urls = data.publicationUrls;
 
   const { data: updated } = await supabase
     .from('campaign_deliveries')

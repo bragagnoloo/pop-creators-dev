@@ -161,6 +161,7 @@ export interface CampaignDelivery {
   revisionNote?: string | null;
   revisionDueDate?: string | null;
   publicationUrl?: string | null;
+  publicationUrls?: Record<string, string>;
   publicationStatus?: PublicationStatus;
   publicationDate?: string | null;
   publicationPlatform?: string | null;

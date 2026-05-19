@@ -8,8 +8,10 @@ type DeliveryRow = {
   index: number;
   content_url: string | null;
   publication_url: string | null;
+  publication_urls: Record<string, string> | null;
   publication_status: string;
   publication_platform: string | null;
+  publication_platforms: string[] | null;
   publication_date: string | null;
   publication_confirmed_at: string | null;
 };
@@ -79,7 +81,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
           supabase
             .from('campaign_deliveries')
             .select(
-              'id, user_id, index, content_url, publication_url, publication_status, publication_platform, publication_date, publication_confirmed_at'
+              'id, user_id, index, content_url, publication_url, publication_urls, publication_status, publication_platform, publication_platforms, publication_date, publication_confirmed_at'
             )
             .eq('campaign_id', id)
             .in('user_id', approvedUserIds)
@@ -100,33 +102,43 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     'Email',
     'WhatsApp',
     'Entrega',
+    'Plataforma',
     'URL Video',
     'URL Publicacao',
-    'Plataforma',
     'Data Publicacao',
     'Confirmada em',
   ];
 
+  // Cada plataforma agendada vira uma linha — admin enxerga uma publicação por linha.
   const lines: string[] = [headers.map(escapeCSV).join(',')];
   for (const d of deliveries ?? []) {
     const p = profileMap.get(d.user_id);
-    lines.push(
-      [
-        p?.full_name ?? '',
-        p?.email ?? '',
-        p?.whatsapp ?? '',
-        String(d.index),
-        d.content_url ?? '',
-        d.publication_url ?? '',
-        d.publication_platform ?? '',
-        d.publication_date ? new Date(d.publication_date).toLocaleString('pt-BR') : '',
-        d.publication_confirmed_at
-          ? new Date(d.publication_confirmed_at).toLocaleString('pt-BR')
-          : '',
-      ]
-        .map(escapeCSV)
-        .join(',')
-    );
+    const platforms = d.publication_platforms && d.publication_platforms.length > 0
+      ? d.publication_platforms
+      : d.publication_platform
+        ? [d.publication_platform]
+        : [''];
+    const urls = d.publication_urls ?? {};
+    for (const platform of platforms) {
+      const url = (platform && urls[platform]) || d.publication_url || '';
+      lines.push(
+        [
+          p?.full_name ?? '',
+          p?.email ?? '',
+          p?.whatsapp ?? '',
+          String(d.index),
+          platform,
+          d.content_url ?? '',
+          url,
+          d.publication_date ? new Date(d.publication_date).toLocaleString('pt-BR') : '',
+          d.publication_confirmed_at
+            ? new Date(d.publication_confirmed_at).toLocaleString('pt-BR')
+            : '',
+        ]
+          .map(escapeCSV)
+          .join(',')
+      );
+    }
   }
 
   const BOM = '﻿';

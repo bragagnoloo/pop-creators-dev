@@ -35,7 +35,6 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
   const [revisionsByDelivery, setRevisionsByDelivery] = useState<Map<string, DeliveryRevision[]>>(new Map());
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
-  const [pubUrlDrafts, setPubUrlDrafts] = useState<Record<string, string>>({});
   const [revisionUrlDrafts, setRevisionUrlDrafts] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedPubId, setSavedPubId] = useState<string | null>(null);
@@ -53,7 +52,6 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     const list = await deliveryService.ensureDeliveries(campaign.id, userId, count);
     setDeliveries(list);
     setUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.contentUrl || ''])));
-    setPubUrlDrafts(Object.fromEntries(list.map(d => [d.id, d.publicationUrl || ''])));
 
     // Busca revisões de cada delivery e agrupa
     const allRevisions = await revisionsService.getRevisionsForCampaign(campaign.id);
@@ -82,14 +80,6 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     await deliveryService.updateDelivery(deliveryId, { contentUrl: url });
     setSavedId(deliveryId);
     setTimeout(() => setSavedId(null), 1500);
-    load();
-  };
-
-  const handleSavePubUrl = async (deliveryId: string) => {
-    const url = pubUrlDrafts[deliveryId]?.trim() || null;
-    await deliveryService.updateDelivery(deliveryId, { publicationUrl: url });
-    setSavedPubId(deliveryId);
-    setTimeout(() => setSavedPubId(null), 1500);
     load();
   };
 
@@ -502,9 +492,11 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                           {status === 'approved' && d.publicationDate && (
                             <PublicationBlock
                               delivery={d}
-                              draft={pubUrlDrafts[d.id] ?? ''}
-                              onDraft={v => setPubUrlDrafts(prev => ({ ...prev, [d.id]: v }))}
-                              onSave={() => handleSavePubUrl(d.id)}
+                              onSaved={() => {
+                                setSavedPubId(d.id);
+                                setTimeout(() => setSavedPubId(null), 1500);
+                                load();
+                              }}
                               savedFlash={savedPubId === d.id}
                             />
                           )}
@@ -530,18 +522,23 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
 function PublicationBlock({
   delivery,
-  draft,
-  onDraft,
-  onSave,
+  onSaved,
   savedFlash,
 }: {
   delivery: CampaignDelivery;
-  draft: string;
-  onDraft: (v: string) => void;
-  onSave: () => void;
+  onSaved: () => void;
   savedFlash: boolean;
 }) {
   const status = delivery.publicationStatus ?? 'pending';
+  const platforms = delivery.publicationPlatforms ?? [];
+  const initialUrls = delivery.publicationUrls ?? {};
+  const [urls, setUrls] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const p of platforms) init[p] = initialUrls[p] ?? '';
+    return init;
+  });
+  const [saving, setSaving] = useState(false);
+
   const statusBadge =
     status === 'confirmed'
       ? { label: 'Publicação confirmada ✓', variant: 'success' as const }
@@ -551,13 +548,35 @@ function PublicationBlock({
           ? { label: 'Não confirmada', variant: 'default' as const }
           : { label: 'Aguardando confirmação', variant: 'warning' as const };
 
+  const hasAnyUrl = platforms.some(p => (urls[p] ?? '').trim().length > 0);
+  const dirty = platforms.some(p => (urls[p] ?? '') !== (initialUrls[p] ?? ''));
+  const inputsDisabled = status === 'confirmed';
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    // Limpa entradas vazias e mantém só strings com conteúdo
+    const cleaned: Record<string, string> = {};
+    for (const p of platforms) {
+      const v = (urls[p] ?? '').trim();
+      if (v) cleaned[p] = v;
+    }
+    // Espelha a primeira URL no campo legado publication_url
+    const firstUrl = platforms.map(p => cleaned[p]).find(Boolean) ?? null;
+    await deliveryService.updateDelivery(delivery.id, {
+      publicationUrls: cleaned,
+      publicationUrl: firstUrl,
+    });
+    setSaving(false);
+    onSaved();
+  };
+
   return (
     <div className="mt-2 pt-2 border-t border-border/60 space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
           Publicação
         </p>
-        {delivery.publicationUrl && <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>}
+        {hasAnyUrl && <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>}
       </div>
       <p className="text-xs text-text-secondary">
         Publicar em{' '}
@@ -570,23 +589,6 @@ function PublicationBlock({
           })}
         </strong>
       </p>
-      {(delivery.publicationPlatforms?.length ?? 0) > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
-            Plataformas
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {delivery.publicationPlatforms!.map(p => (
-              <span
-                key={p}
-                className="text-[11px] px-2 py-0.5 rounded-full border border-popline-pink/40 bg-popline-pink/10 text-popline-light"
-              >
-                {p}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
       {delivery.publicationCaption && (
         <div>
           <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
@@ -602,21 +604,39 @@ function PublicationBlock({
           Reenvie até <strong>{new Date(delivery.publicationDueDate).toLocaleDateString('pt-BR')}</strong>
         </p>
       )}
-      <div className="flex gap-2 flex-col sm:flex-row">
-        <input
-          type="url"
-          value={draft}
-          onChange={e => onDraft(e.target.value)}
-          placeholder="https://instagram.com/p/..."
-          disabled={status === 'confirmed'}
-          maxLength={500}
-          inputMode="url"
-          className="flex-1 bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink disabled:opacity-60"
-        />
-        <Button size="sm" variant="secondary" onClick={onSave} disabled={status === 'confirmed'}>
-          {savedFlash ? 'Salvo ✓' : 'Salvar URL'}
-        </Button>
-      </div>
+      {platforms.length > 0 ? (
+        <div className="space-y-2">
+          {platforms.map(p => (
+            <div key={p}>
+              <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+                URL no {p}
+              </p>
+              <input
+                type="url"
+                value={urls[p] ?? ''}
+                onChange={e => setUrls(prev => ({ ...prev, [p]: e.target.value }))}
+                placeholder={`https://${p.toLowerCase()}.com/...`}
+                disabled={inputsDisabled}
+                maxLength={500}
+                inputMode="url"
+                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink disabled:opacity-60"
+              />
+            </div>
+          ))}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={handleSaveAll}
+            disabled={inputsDisabled || !dirty || saving}
+          >
+            {saving ? 'Salvando...' : savedFlash ? 'Salvo ✓' : 'Salvar URLs'}
+          </Button>
+        </div>
+      ) : (
+        <p className="text-xs text-text-secondary italic">
+          Plataformas ainda não definidas pelo admin
+        </p>
+      )}
     </div>
   );
 }

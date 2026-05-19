@@ -164,6 +164,8 @@ export interface CampaignDelivery {
   publicationStatus?: PublicationStatus;
   publicationDate?: string | null;
   publicationPlatform?: string | null;
+  publicationPlatforms?: string[];
+  publicationCaption?: string | null;
   publicationDueDate?: string | null;
   publicationConfirmedAt?: string | null;
   reviewedAt?: string | null;

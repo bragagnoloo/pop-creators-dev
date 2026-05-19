@@ -141,15 +141,27 @@ function PublicationRow({
   campaignTitle: string;
   onSaved: () => void;
 }) {
-  const [date, setDate] = useState(toLocalDateTimeInput(delivery.publicationDate));
-  const [platform, setPlatform] = useState(delivery.publicationPlatform ?? '');
+  const initialDate = toLocalDateTimeInput(delivery.publicationDate);
+  const initialPlatforms = delivery.publicationPlatforms ?? [];
+  const initialCaption = delivery.publicationCaption ?? '';
+
+  const [date, setDate] = useState(initialDate);
+  const [platforms, setPlatforms] = useState<string[]>(initialPlatforms);
+  const [caption, setCaption] = useState(initialCaption);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  const initialDate = toLocalDateTimeInput(delivery.publicationDate);
-  const initialPlatform = delivery.publicationPlatform ?? '';
-  const dirty = date !== initialDate || platform !== initialPlatform;
+  const sameArr = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((v, i) => v === b[i]);
+  const dirty =
+    date !== initialDate ||
+    !sameArr(platforms, initialPlatforms) ||
+    caption !== initialCaption;
+
+  const togglePlatform = (p: string) => {
+    setPlatforms(prev => (prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]));
+  };
 
   const handleSave = async () => {
     setError(null);
@@ -157,13 +169,13 @@ function PublicationRow({
       setError('Defina a data.');
       return;
     }
-    if (!platform) {
-      setError('Escolha a plataforma.');
+    if (platforms.length === 0) {
+      setError('Selecione pelo menos uma plataforma.');
       return;
     }
     setSaving(true);
     const iso = new Date(date).toISOString();
-    const result = await stagesService.setPublicationSchedule(delivery.id, iso, platform);
+    const result = await stagesService.setPublicationSchedule(delivery.id, iso, platforms, caption || null);
     setSaving(false);
     if (!result.success) {
       setError(result.error);
@@ -171,34 +183,71 @@ function PublicationRow({
     }
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1500);
-    notifyPublicationScheduled(userId, campaignTitle, delivery.index, iso, platform);
+    notifyPublicationScheduled(userId, campaignTitle, delivery.index, iso, platforms.join(', '));
     onSaved();
   };
 
   return (
     <div className="flex flex-col gap-2 p-2 rounded-lg border border-border/60 bg-surface/40">
       <p className="text-xs text-text-secondary">Entrega {delivery.index}</p>
-      <div className="flex gap-2 flex-col sm:flex-row sm:items-center">
+
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+          Data e hora da publicação
+        </p>
         <input
           type="datetime-local"
           value={date}
           onChange={e => setDate(e.target.value)}
           className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
         />
-        <select
-          value={platform}
-          onChange={e => setPlatform(e.target.value)}
-          className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
-        >
-          <option value="">Plataforma...</option>
-          {PLATFORMS.map(p => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
+      </div>
+
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+          Plataformas (selecione uma ou mais)
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {PLATFORMS.map(p => {
+            const selected = platforms.includes(p);
+            return (
+              <button
+                key={p}
+                type="button"
+                onClick={() => togglePlatform(p)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  selected
+                    ? 'border-popline-pink bg-popline-pink text-white'
+                    : 'border-border bg-background text-text-secondary hover:border-popline-pink/50'
+                }`}
+              >
+                {selected ? '✓ ' : ''}{p}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+          Sugestão de legenda (opcional)
+        </p>
+        <textarea
+          value={caption}
+          onChange={e => setCaption(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Cole aqui uma sugestão de legenda para o criador..."
+          className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink resize-none"
+        />
+      </div>
+
+      <div>
         <Button size="sm" variant="secondary" disabled={!dirty || saving} onClick={handleSave}>
-          {saving ? '...' : savedFlash ? 'Salvo ✓' : 'Salvar'}
+          {saving ? '...' : savedFlash ? 'Salvo ✓' : 'Salvar agenda'}
         </Button>
       </div>
+
       {error && <p className="text-xs text-red-400">{error}</p>}
     </div>
   );

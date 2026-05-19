@@ -569,8 +569,34 @@ function PublicationBlock({
             minute: '2-digit',
           })}
         </strong>
-        {delivery.publicationPlatform && ` no ${delivery.publicationPlatform}`}
       </p>
+      {(delivery.publicationPlatforms?.length ?? 0) > 0 && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+            Plataformas
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {delivery.publicationPlatforms!.map(p => (
+              <span
+                key={p}
+                className="text-[11px] px-2 py-0.5 rounded-full border border-popline-pink/40 bg-popline-pink/10 text-popline-light"
+              >
+                {p}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {delivery.publicationCaption && (
+        <div>
+          <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+            Sugestão de legenda
+          </p>
+          <p className="text-xs text-text-primary whitespace-pre-line p-2 rounded-md bg-background border border-border">
+            {delivery.publicationCaption}
+          </p>
+        </div>
+      )}
       {status === 'needs_resubmit' && delivery.publicationDueDate && (
         <p className="text-xs text-popline-light">
           Reenvie até <strong>{new Date(delivery.publicationDueDate).toLocaleDateString('pt-BR')}</strong>

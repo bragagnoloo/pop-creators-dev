@@ -184,19 +184,29 @@ export async function setDeliverableStatus(
 export async function setPublicationSchedule(
   deliveryId: string,
   date: string,
-  platform: string
-): Promise<RpcResult<{ publicationDate: string; publicationPlatform: string }>> {
+  platforms: string[],
+  caption?: string | null
+): Promise<RpcResult<{ publicationDate: string; publicationPlatforms: string[]; publicationCaption: string | null }>> {
   const supabase = createClient();
   const { data, error } = await supabase.rpc('set_publication_schedule', {
     p_delivery_id: deliveryId,
     p_date: date,
-    p_platform: platform,
+    p_platforms: platforms,
+    p_caption: caption ?? null,
   });
   if (error) return rpcFail(error.message, 'Erro ao agendar publicação');
-  const r = data as { publication_date: string; publication_platform: string };
+  const r = data as {
+    publication_date: string;
+    publication_platforms: string[];
+    publication_caption: string | null;
+  };
   return {
     success: true,
-    data: { publicationDate: r.publication_date, publicationPlatform: r.publication_platform },
+    data: {
+      publicationDate: r.publication_date,
+      publicationPlatforms: r.publication_platforms ?? [],
+      publicationCaption: r.publication_caption,
+    },
   };
 }
 

@@ -15,6 +15,8 @@ type Row = {
   publication_status: PublicationStatus;
   publication_date: string | null;
   publication_platform: string | null;
+  publication_platforms: string[] | null;
+  publication_caption: string | null;
   publication_due_date: string | null;
   publication_confirmed_at: string | null;
   reviewed_at: string | null;
@@ -36,6 +38,8 @@ function toDelivery(r: Row): CampaignDelivery {
     publicationStatus: r.publication_status ?? 'pending',
     publicationDate: r.publication_date,
     publicationPlatform: r.publication_platform,
+    publicationPlatforms: r.publication_platforms ?? [],
+    publicationCaption: r.publication_caption,
     publicationDueDate: r.publication_due_date,
     publicationConfirmedAt: r.publication_confirmed_at,
     reviewedAt: r.reviewed_at,
@@ -43,7 +47,7 @@ function toDelivery(r: Row): CampaignDelivery {
   };
 }
 
-const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url, deliverable_status, revision_note, revision_due_date, publication_url, publication_status, publication_date, publication_platform, publication_due_date, publication_confirmed_at, reviewed_at, reviewed_by';
+const SELECT = 'id, campaign_id, user_id, index, scheduled_date, content_url, deliverable_status, revision_note, revision_due_date, publication_url, publication_status, publication_date, publication_platform, publication_platforms, publication_caption, publication_due_date, publication_confirmed_at, reviewed_at, reviewed_by';
 
 export async function getDeliveriesForUser(campaignId: string, userId: string): Promise<CampaignDelivery[]> {
   const supabase = createClient();

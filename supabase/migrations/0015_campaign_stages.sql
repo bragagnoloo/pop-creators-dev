@@ -541,9 +541,12 @@ begin
    where campaign_id = p_campaign_id and stage = p_stage;
 
   -- Avança current_stage e espelha status legado
+  -- Status legado: 'open' até concluir Etapa 04 (análise de entregáveis),
+  -- 'in_progress' depois (não aceita mais candidaturas), 'completed' ao
+  -- concluir Etapa 08.
   v_new_status := case
     when p_stage + 1 = 8 then 'completed'::campaign_status
-    when p_stage + 1 >= 1 then 'in_progress'::campaign_status
+    when p_stage + 1 >= 5 then 'in_progress'::campaign_status
     else 'open'::campaign_status
   end;
 
@@ -612,7 +615,7 @@ begin
    where campaign_id = p_campaign_id and stage = v_target;
 
   v_new_status := case
-    when v_target >= 1 then 'in_progress'::campaign_status
+    when v_target >= 5 then 'in_progress'::campaign_status
     else 'open'::campaign_status
   end;
 
@@ -981,11 +984,13 @@ grant execute on function disqualify_participant(uuid, text) to authenticated;
 -- 19. Backfill — campanhas existentes
 -- -----------------------------------------------------------------------------
 
--- current_stage derivado de status
+-- current_stage derivado de status (idempotente — só seta se ainda está em 0).
+-- Nota: campanhas 'in_progress' do schema legado passam a corresponder ao stage 5
+-- (após Etapa 04), pois agora o status só vira 'in_progress' nessa transição.
 update campaigns
    set current_stage = case status
      when 'completed'   then 8
-     when 'in_progress' then 3
+     when 'in_progress' then 5
      else 0
    end
  where current_stage = 0;

@@ -40,6 +40,13 @@ const nextConfig: NextConfig = {
       : [],
   },
 
+  async redirects() {
+    return [
+      { source: '/pre-venda', destination: '/', permanent: true },
+      { source: '/pre-venda/obrigado', destination: '/', permanent: true },
+    ];
+  },
+
   async headers() {
     return [
       {

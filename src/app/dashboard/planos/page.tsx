@@ -44,13 +44,17 @@ export default function PlanosPage() {
   useEffect(() => {
     if (!paymentSuccess) return;
     if (currentPlan !== 'free') {
-      pixelPurchase({
-        value: subService.PLANS[currentPlan].priceTotal,
-        currency: 'BRL',
-        content_name: subService.PLANS[currentPlan].name,
-      });
-      // Remove o parâmetro da URL após confirmar
-      router.replace('/dashboard/planos');
+      fetch('/api/tracking/latest-order')
+        .then(r => r.json())
+        .then(({ orderId }: { orderId: string | null }) => {
+          pixelPurchase({
+            value: subService.PLANS[currentPlan].priceTotal,
+            currency: 'BRL',
+            content_name: subService.PLANS[currentPlan].name,
+          }, orderId ?? undefined);
+        })
+        .catch(() => {})
+        .finally(() => router.replace('/dashboard/planos'));
     }
   }, [paymentSuccess, currentPlan, router]);
 
@@ -67,23 +71,37 @@ export default function PlanosPage() {
       return;
     }
 
+    // UUID compartilhado entre pixel e CAPI → Meta deduplica como 1 evento
+    const eventId = crypto.randomUUID();
+
     pixelInitiateCheckout({
       value: subService.PLANS[plan].priceTotal,
       currency: 'BRL',
       content_name: subService.PLANS[plan].name,
-    });
+    }, eventId);
 
-    // Captura fbp/fbc antes de sair do domínio (fire-and-forget)
+    // Captura fbp/fbc/user-agent antes de sair do domínio (fire-and-forget)
+    // Salvar user-agent é crítico pro Event Match Quality no CAPI server-side.
     const fbp = getCookie('_fbp');
     const fbclid = new URLSearchParams(window.location.search).get('fbclid');
     const fbc = getCookie('_fbc') || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : '');
-    if (fbp || fbc) {
-      fetch('/api/tracking/meta-params', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fbp: fbp || undefined, fbc: fbc || undefined }),
-      }).catch(() => {});
-    }
+    const userAgent = navigator.userAgent;
+    fetch('/api/tracking/meta-params', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fbp: fbp || undefined,
+        fbc: fbc || undefined,
+        userAgent,
+      }),
+    }).catch(() => {});
+
+    // CAPI InitiateCheckout server-side com mesmo eventId para deduplicação
+    fetch('/api/tracking/initiate-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan, eventId }),
+    }).catch(() => {});
 
     const params = new URLSearchParams({ email: user.email });
 

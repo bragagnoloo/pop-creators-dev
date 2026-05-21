@@ -9,6 +9,12 @@ import Input from '@/components/ui/Input';
 import { ROUTES } from '@/lib/constants';
 import { pixelCompleteRegistration } from '@/lib/pixel';
 
+function getCookie(name: string): string {
+  if (typeof document === 'undefined') return '';
+  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
+  return match ? decodeURIComponent(match[2]) : '';
+}
+
 function formatPhone(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
   if (digits.length <= 2) return digits.length ? `(${digits}` : '';
@@ -60,13 +66,40 @@ export default function RegisterPage() {
       return;
     }
 
-    pixelCompleteRegistration({ content_name: 'Cadastro POPline Creators' });
-
     const userId = result.needsConfirmation ? result.userId : (result as { success: true; user: { id: string } }).user.id;
+
+    // Advanced Matching: inicializa pixel com dados do form ANTES do evento
+    // para o Meta conseguir matching no client-side também.
+    const pixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+    if (typeof window !== 'undefined' && window.fbq && pixelId) {
+      const names = fullName.trim().split(' ').filter(Boolean);
+      const userData: Record<string, string> = { em: email.toLowerCase() };
+      if (phoneDigits) userData.ph = phoneDigits;
+      if (names[0]) userData.fn = names[0].toLowerCase();
+      if (names.length > 1) userData.ln = names[names.length - 1].toLowerCase();
+      window.fbq('init', pixelId, userData);
+    }
+
+    // Captura fbp/fbc/user-agent para CAPI server-side com mesmo eventID (userId)
+    const fbp = getCookie('_fbp');
+    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
+    const fbc = getCookie('_fbc') || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : '');
+    const userAgent = navigator.userAgent;
+
+    pixelCompleteRegistration({ content_name: 'Cadastro POPline Creators' }, userId);
+
     fetch('/api/register/complete', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId, email, whatsapp, fullName }),
+      body: JSON.stringify({
+        userId,
+        email,
+        whatsapp,
+        fullName,
+        fbp: fbp || undefined,
+        fbc: fbc || undefined,
+        userAgent,
+      }),
     }).catch(() => {});
 
     if (result.needsConfirmation) {

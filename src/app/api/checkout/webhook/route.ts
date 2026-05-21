@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
   // Find user by email — busca dados completos para CAPI
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, email, whatsapp, full_name, meta_fbp, meta_fbc')
+    .select('id, email, whatsapp, full_name, meta_fbp, meta_fbc, meta_user_agent, city, state, cep')
     .eq('email', email)
     .single();
 
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
     const exp = expiresAt(plan);
     const amount = payload.Commissions?.charge_amount
       ? payload.Commissions.charge_amount / 100
-      : 0;
+      : PLANS[plan].priceTotal;
 
     await supabase.from('subscriptions').upsert({
       user_id:                userId,
@@ -171,34 +171,62 @@ export async function POST(req: NextRequest) {
       kiwify_sck:      tracking?.sck ?? null,
     });
 
-    // CAPI — Purchase server-side
+    // CAPI — Purchase + Subscribe server-side
     if (profile) {
       const names = (profile.full_name ?? '').trim().split(' ').filter(Boolean);
-      sendCAPIEvents([{
-        event_name:        'Purchase',
-        event_time:        Math.floor(Date.now() / 1000),
-        event_id:          order_id,
-        event_source_url:  'https://poplinecreators.com.br/obrigado',
-        action_source:     'website',
-        user_data: {
-          em:                  sha256(profile.email),
-          ph:                  profile.whatsapp ? sha256(digitsOnly(profile.whatsapp)) : undefined,
-          fn:                  names[0]            ? sha256(names[0].toLowerCase())                   : undefined,
-          ln:                  names.length > 1    ? sha256(names[names.length - 1].toLowerCase())    : undefined,
-          external_id:         sha256(userId),
-          fbp:                 profile.meta_fbp ?? undefined,
-          fbc:                 profile.meta_fbc ?? undefined,
-          client_ip_address:   payload.Customer?.ip ?? undefined,
+      const cepDigits = profile.cep ? digitsOnly(profile.cep) : '';
+      const userData = {
+        em:                  sha256(profile.email),
+        ph:                  profile.whatsapp ? sha256(digitsOnly(profile.whatsapp)) : undefined,
+        fn:                  names[0]            ? sha256(names[0].toLowerCase())                   : undefined,
+        ln:                  names.length > 1    ? sha256(names[names.length - 1].toLowerCase())    : undefined,
+        ct:                  profile.city  ? sha256(profile.city)  : undefined,
+        st:                  profile.state ? sha256(profile.state) : undefined,
+        zp:                  cepDigits     ? sha256(cepDigits)     : undefined,
+        country:             sha256('br'),
+        external_id:         sha256(userId),
+        fbp:                 profile.meta_fbp ?? undefined,
+        fbc:                 profile.meta_fbc ?? undefined,
+        client_ip_address:   payload.Customer?.ip ?? undefined,
+        client_user_agent:   profile.meta_user_agent ?? undefined,
+      };
+
+      const eventTime = Math.floor(Date.now() / 1000);
+      sendCAPIEvents([
+        {
+          event_name:        'Purchase',
+          event_time:        eventTime,
+          event_id:          order_id,
+          event_source_url:  'https://poplinecreators.com.br/obrigado',
+          action_source:     'website',
+          user_data:         userData,
+          custom_data: {
+            currency:      'BRL',
+            value:         amount,
+            content_name:  PLANS[plan].name,
+            content_ids:   [plan],
+            content_type:  'product',
+            order_id:      order_id,
+          },
         },
-        custom_data: {
-          currency:      'BRL',
-          value:         amount,
-          content_name:  PLANS[plan].name,
-          content_ids:   [plan],
-          content_type:  'product',
-          order_id:      order_id,
+        {
+          event_name:        'Subscribe',
+          event_time:        eventTime,
+          event_id:          `${order_id}_sub`,
+          event_source_url:  'https://poplinecreators.com.br/obrigado',
+          action_source:     'website',
+          user_data:         userData,
+          custom_data: {
+            currency:       'BRL',
+            value:          amount,
+            content_name:   PLANS[plan].name,
+            content_ids:    [plan],
+            content_type:   'product',
+            order_id:       order_id,
+            predicted_ltv:  amount * (PLANS[plan].durationMonths >= 12 ? 1 : 12 / PLANS[plan].durationMonths),
+          },
         },
-      }]).catch(err => console.error('[capi] Purchase error:', err));
+      ]).catch(err => console.error('[capi] Purchase/Subscribe error:', err));
     }
 
     await supabase

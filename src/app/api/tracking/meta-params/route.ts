@@ -7,14 +7,15 @@ export async function POST(req: NextRequest) {
   if (guard instanceof NextResponse) return guard;
 
   const body = await req.json().catch(() => ({}));
-  const { fbp, fbc } = body as { fbp?: string; fbc?: string };
+  const { fbp, fbc, userAgent } = body as { fbp?: string; fbc?: string; userAgent?: string };
 
-  if (!fbp && !fbc) return NextResponse.json({ ok: true });
+  if (!fbp && !fbc && !userAgent) return NextResponse.json({ ok: true });
 
   const supabase = createAdminClient();
   const update: Record<string, string> = {};
   if (fbp) update.meta_fbp = fbp;
   if (fbc) update.meta_fbc = fbc;
+  if (userAgent) update.meta_user_agent = userAgent;
 
   await supabase.from('profiles').update(update).eq('id', guard.userId);
 

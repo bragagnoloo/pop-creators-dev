@@ -23,19 +23,28 @@ function ObrigadoContent() {
       return;
     }
 
+    const isKiwifyRedirect = searchParams.get('ref') === 'kiwify';
+
     getUserSubscription(user.id).then(sub => {
       if (sub.plan === 'free') {
-        router.replace('/dashboard/planos');
+        // Webhook pode ainda não ter processado — se veio da Kiwify, vai para
+        // /planos com ?payment=success para ativar o polling e disparar o pixel
+        // quando o plano ativar.
+        router.replace(isKiwifyRedirect ? '/dashboard/planos?payment=success' : '/dashboard/planos');
         return;
       }
       setAllowed(true);
-      // Só dispara o pixel se vier do redirect da Kiwify (?ref=kiwify)
-      if (searchParams.get('ref') === 'kiwify') {
-        pixelPurchase({
-          value:        PLANS[sub.plan].priceTotal,
-          currency:     'BRL',
-          content_name: PLANS[sub.plan].name,
-        });
+      if (isKiwifyRedirect) {
+        fetch('/api/tracking/latest-order')
+          .then(r => r.json())
+          .then(({ orderId }: { orderId: string | null }) => {
+            pixelPurchase({
+              value:        PLANS[sub.plan].priceTotal,
+              currency:     'BRL',
+              content_name: PLANS[sub.plan].name,
+            }, orderId ?? undefined);
+          })
+          .catch(() => {});
       }
     });
   }, [user, isLoading, router, searchParams]);

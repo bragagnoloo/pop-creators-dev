@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { pixelCustom } from '@/lib/pixel';
+import { useState, useMemo, useEffect } from 'react';
+import { pixelCustom, pixelViewContent } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import * as campaignService from '@/services/campaigns';
@@ -22,6 +22,10 @@ export default function CampanhasPage() {
   const [showIncomplete, setShowIncomplete] = useState(false);
   const [missingFields, setMissingFields] = useState<string[]>([]);
   const [paywallOpen, setPaywallOpen] = useState(false);
+
+  useEffect(() => {
+    pixelViewContent({ content_name: 'Campanhas POPline Creators' });
+  }, []);
 
   const { data: campaigns = [] } = useSWR('campaigns', campaignService.getAllCampaigns);
   const { data: applications = [], mutate: mutateApplications } = useSWR(

@@ -47,26 +47,35 @@ export function pixelViewContent(data?: Record<string, unknown>) {
   fbq('track', 'ViewContent', data);
 }
 
-export function pixelLead(data?: Record<string, unknown>) {
-  fbq('track', 'Lead', data);
+// O `eventID` (4° argumento do fbq) é o que o Meta usa para deduplicar este
+// evento com o equivalente vindo do CAPI server-side. Quando os dois lados
+// passam o mesmo eventID, o Meta conta como UMA conversão.
+
+export function pixelLead(data?: Record<string, unknown>, eventID?: string) {
+  if (eventID) fbq('track', 'Lead', data, { eventID });
+  else fbq('track', 'Lead', data);
 }
 
-export function pixelCompleteRegistration(data?: Record<string, unknown>) {
-  fbq('track', 'CompleteRegistration', data);
+export function pixelCompleteRegistration(data?: Record<string, unknown>, eventID?: string) {
+  if (eventID) fbq('track', 'CompleteRegistration', data, { eventID });
+  else fbq('track', 'CompleteRegistration', data);
 }
 
-export function pixelInitiateCheckout(data?: Record<string, unknown>) {
-  fbq('track', 'InitiateCheckout', data);
+export function pixelInitiateCheckout(data?: Record<string, unknown>, eventID?: string) {
+  if (eventID) fbq('track', 'InitiateCheckout', data, { eventID });
+  else fbq('track', 'InitiateCheckout', data);
 }
 
-export function pixelPurchase(data: Record<string, unknown>) {
-  fbq('track', 'Purchase', data);
+export function pixelPurchase(data: Record<string, unknown>, eventID?: string) {
+  if (eventID) fbq('track', 'Purchase', data, { eventID });
+  else fbq('track', 'Purchase', data);
 }
 
-export function pixelAddPaymentInfo() {
-  fbq('track', 'AddPaymentInfo');
+export function pixelAddPaymentInfo(data?: Record<string, unknown>) {
+  fbq('track', 'AddPaymentInfo', data);
 }
 
-export function pixelCustom(event: string, data?: Record<string, unknown>) {
-  fbq('trackCustom', event, data);
+export function pixelCustom(event: string, data?: Record<string, unknown>, eventID?: string) {
+  if (eventID) fbq('trackCustom', event, data, { eventID });
+  else fbq('trackCustom', event, data);
 }

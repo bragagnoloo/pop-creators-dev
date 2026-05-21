@@ -155,7 +155,7 @@ Deno.serve(async (req: Request) => {
   // Lookup do usuário
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, full_name, meta_fbp, meta_fbc, first_subscribed_at, state, city, cep, whatsapp')
+    .select('id, full_name, meta_fbp, meta_fbc, meta_user_agent, first_subscribed_at, state, city, cep, whatsapp')
     .eq('email', email)
     .single();
 
@@ -247,7 +247,7 @@ Deno.serve(async (req: Request) => {
     const state = String(profile.state ?? '').trim().toLowerCase();
     const cep   = digitsOnly(String(profile.cep ?? ''));
 
-    const [em, ph, fn, ln, extId, ct, st, zp] = await Promise.all([
+    const [em, ph, fn, ln, extId, ct, st, zp, country] = await Promise.all([
       hashSHA256(email),
       phone ? hashSHA256(phone) : Promise.resolve(undefined),
       names[0] ? hashSHA256(names[0].toLowerCase()) : Promise.resolve(undefined),
@@ -256,36 +256,65 @@ Deno.serve(async (req: Request) => {
       city  ? hashSHA256(city)  : Promise.resolve(undefined),
       state ? hashSHA256(state) : Promise.resolve(undefined),
       cep   ? hashSHA256(cep)   : Promise.resolve(undefined),
+      hashSHA256('br'),
     ]);
 
-    void sendCAPIEvents([{
-      event_name: 'Purchase',
-      event_time: Math.floor(Date.now() / 1000),
-      event_id: orderId,
-      event_source_url: 'https://poplinecreators.com.br/dashboard/planos',
-      action_source: 'website',
-      user_data: {
-        em,
-        ...(ph && { ph }),
-        ...(fn && { fn }),
-        ...(ln && { ln }),
-        external_id: extId,
-        ...(ct && { ct }),
-        ...(st && { st }),
-        ...(zp && { zp }),
-        ...(profile.meta_fbp && { fbp: profile.meta_fbp }),
-        ...(profile.meta_fbc && { fbc: profile.meta_fbc }),
-        ...(customer.ip && { client_ip_address: String(customer.ip) }),
+    const userData = {
+      em,
+      ...(ph && { ph }),
+      ...(fn && { fn }),
+      ...(ln && { ln }),
+      external_id: extId,
+      ...(ct && { ct }),
+      ...(st && { st }),
+      ...(zp && { zp }),
+      country,
+      ...(profile.meta_fbp && { fbp: profile.meta_fbp }),
+      ...(profile.meta_fbc && { fbc: profile.meta_fbc }),
+      ...(customer.ip && { client_ip_address: String(customer.ip) }),
+      ...(profile.meta_user_agent && { client_user_agent: String(profile.meta_user_agent) }),
+    };
+
+    const planMonths: Record<string, number> = { monthly: 1, semester: 6, yearly: 12 };
+    const months = planMonths[plan] ?? 1;
+    const predictedLtv = months >= 12 ? amount : amount * (12 / months);
+    const eventTime = Math.floor(Date.now() / 1000);
+
+    void sendCAPIEvents([
+      {
+        event_name: 'Purchase',
+        event_time: eventTime,
+        event_id: orderId,
+        event_source_url: 'https://poplinecreators.com.br/obrigado',
+        action_source: 'website',
+        user_data: userData,
+        custom_data: {
+          currency: 'BRL',
+          value: amount,
+          content_name: PLANS[plan]?.name ?? plan,
+          content_ids: [plan],
+          content_type: 'product',
+          order_id: orderId,
+        },
       },
-      custom_data: {
-        currency: 'BRL',
-        value: amount,
-        content_name: PLANS[plan]?.name ?? plan,
-        content_ids: [plan],
-        content_type: 'product',
-        order_id: orderId,
+      {
+        event_name: 'Subscribe',
+        event_time: eventTime,
+        event_id: `${orderId}_sub`,
+        event_source_url: 'https://poplinecreators.com.br/obrigado',
+        action_source: 'website',
+        user_data: userData,
+        custom_data: {
+          currency: 'BRL',
+          value: amount,
+          content_name: PLANS[plan]?.name ?? plan,
+          content_ids: [plan],
+          content_type: 'product',
+          order_id: orderId,
+          predicted_ltv: predictedLtv,
+        },
       },
-    }]);
+    ]);
 
     // E-mail de confirmação
     void sendEmail(

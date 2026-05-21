@@ -15,6 +15,10 @@ export interface CAPIUserData {
   ph?: string;
   fn?: string;
   ln?: string;
+  ct?: string;
+  st?: string;
+  zp?: string;
+  country?: string;
   external_id?: string;
   fbp?: string;
   fbc?: string;
@@ -24,11 +28,12 @@ export interface CAPIUserData {
 
 export interface CAPICustomData {
   currency: 'BRL';
-  value: number;
-  content_name: string;
-  content_ids: string[];
-  content_type: 'product';
+  value?: number;
+  content_name?: string;
+  content_ids?: string[];
+  content_type?: 'product';
   order_id?: string;
+  predicted_ltv?: number;
 }
 
 export interface CAPIEvent {

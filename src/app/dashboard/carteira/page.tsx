@@ -81,7 +81,7 @@ export default function CarteiraPage() {
   const confirmPix = async () => {
     if (!user) return;
     await userService.updateProfile(user.id, { pixKey, pixKeyType });
-    pixelAddPaymentInfo();
+    pixelAddPaymentInfo({ currency: 'BRL' });
     setShowPixForm(false);
     setPixConfirm(false);
     mutateWallet();

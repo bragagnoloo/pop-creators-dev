@@ -7,8 +7,9 @@ import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import Modal from '@/components/ui/Modal';
 import * as stagesService from '@/services/campaign-stages';
+import * as pubRevisionsService from '@/services/publication-revisions';
 import DisqualifyModal from './DisqualifyModal';
-import type { CampaignApplication, CampaignDelivery, UserProfile, PublicationStatus } from '@/types';
+import type { CampaignApplication, CampaignDelivery, UserProfile, PublicationStatus, PublicationRevision } from '@/types';
 
 interface RowItem {
   application: CampaignApplication;
@@ -19,6 +20,7 @@ interface RowItem {
 interface Props {
   rows: RowItem[];
   campaignTitle: string;
+  publicationRevisionsByDelivery: Map<string, PublicationRevision[]>;
   onChanged: () => void;
 }
 
@@ -55,7 +57,7 @@ const STATUS_BADGE: Record<PublicationStatus, { label: string; variant: 'success
   needs_resubmit: { label: 'Pedir reenvio', variant: 'pink' },
 };
 
-export default function Stage06ReviewPublications({ rows, campaignTitle, onChanged }: Props) {
+export default function Stage06ReviewPublications({ rows, campaignTitle, publicationRevisionsByDelivery, onChanged }: Props) {
   const [resubmitFor, setResubmitFor] = useState<{ delivery: CampaignDelivery; userId: string } | null>(null);
   const [disqualifyFor, setDisqualifyFor] = useState<RowItem | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -121,6 +123,12 @@ export default function Stage06ReviewPublications({ rows, campaignTitle, onChang
                   const filledCount = platforms.filter(p => (urls[p] ?? '').length > 0).length;
                   const allFilled = platforms.length > 0 && filledCount === platforms.length;
                   const busy = busyId === d.id;
+                  const revs = publicationRevisionsByDelivery.get(d.id) ?? [];
+                  const lastRev = revs.length > 0 ? revs[revs.length - 1] : null;
+                  const lastRevHasUrls = lastRev != null && Object.values(lastRev.revisedUrls).some(u => (u ?? '').length > 0);
+                  const showActionsOnOriginal = revs.length === 0 && allFilled && status !== 'confirmed';
+                  const showActionsOnLastRev = lastRevHasUrls && status !== 'confirmed';
+                  const originalApproved = status === 'confirmed' && !revs.some(r => r.approvedAt != null);
                   return (
                     <div
                       key={d.id}
@@ -135,60 +143,131 @@ export default function Stage06ReviewPublications({ rows, campaignTitle, onChang
                           </span>
                         </div>
                       </div>
-                      {platforms.length === 0 ? (
-                        <p className="text-xs text-text-secondary italic">
-                          Plataformas ainda não definidas
-                        </p>
-                      ) : (
-                        <ul className="space-y-1.5">
-                          {platforms.map(p => {
-                            const url = urls[p] ?? '';
-                            return (
-                              <li key={p} className="flex items-center justify-between gap-2 flex-wrap">
-                                <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wide w-24 shrink-0">
-                                  {p}
-                                </span>
-                                {url ? (
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="flex-1 text-xs text-popline-pink hover:underline truncate"
-                                  >
-                                    {url}
-                                  </a>
-                                ) : (
-                                  <span className="flex-1 text-xs text-text-secondary italic">
-                                    aguardando URL do criador
+
+                      {/* Publicações originais */}
+                      <div className="p-2 rounded-md border border-border/60 bg-background/40 space-y-1.5">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="text-[11px] font-semibold text-text-secondary uppercase tracking-wide">
+                            Publicações originais
+                          </span>
+                          {originalApproved && <Badge variant="success">✓ Aprovada</Badge>}
+                        </div>
+                        {platforms.length === 0 ? (
+                          <p className="text-xs text-text-secondary italic">
+                            Plataformas ainda não definidas
+                          </p>
+                        ) : (
+                          <ul className="space-y-1">
+                            {platforms.map(p => {
+                              const url = urls[p] ?? '';
+                              return (
+                                <li key={p} className="flex items-center justify-between gap-2 flex-wrap">
+                                  <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wide w-24 shrink-0">
+                                    {p}
                                   </span>
+                                  {url ? (
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="flex-1 text-xs text-popline-pink hover:underline truncate"
+                                    >
+                                      {url}
+                                    </a>
+                                  ) : (
+                                    <span className="flex-1 text-xs text-text-secondary italic">
+                                      aguardando URL do criador
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                        {showActionsOnOriginal && (
+                          <div className="flex gap-2 pt-1">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={busy}
+                              onClick={() => setResubmitFor({ delivery: d, userId: row.application.userId })}
+                            >
+                              Pedir reenvio
+                            </Button>
+                            <Button size="sm" disabled={busy} onClick={() => handleConfirm(d, row.application.userId)}>
+                              {busy ? '...' : 'Confirmar'}
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Lista de reenvios */}
+                      {revs.length > 0 && (
+                        <ul className="space-y-1.5">
+                          {revs.map(rev => {
+                            const isLast = lastRev != null && rev.id === lastRev.id;
+                            return (
+                              <li
+                                key={rev.id}
+                                className="p-2 rounded-md border border-popline-pink/30 bg-popline-pink/5 space-y-1.5"
+                              >
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] font-semibold text-popline-light uppercase tracking-wide">
+                                      Reenvio {String(rev.round).padStart(2, '0')}
+                                    </span>
+                                    {rev.approvedAt && <Badge variant="success">✓ Aprovada</Badge>}
+                                  </div>
+                                  <span className="text-[10px] text-text-secondary">
+                                    Prazo: {new Date(rev.dueDate).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </div>
+                                {rev.note && <p className="text-xs text-text-primary whitespace-pre-line">{rev.note}</p>}
+                                <ul className="space-y-1">
+                                  {platforms.map(p => {
+                                    const url = rev.revisedUrls[p] ?? '';
+                                    return (
+                                      <li key={p} className="flex items-center justify-between gap-2 flex-wrap">
+                                        <span className="text-[11px] font-medium text-text-secondary uppercase tracking-wide w-24 shrink-0">
+                                          {p}
+                                        </span>
+                                        {url ? (
+                                          <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex-1 text-xs text-popline-pink hover:underline truncate"
+                                          >
+                                            {url}
+                                          </a>
+                                        ) : (
+                                          <span className="flex-1 text-xs text-text-secondary italic">
+                                            aguardando URL corrigida
+                                          </span>
+                                        )}
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                                {isLast && showActionsOnLastRev && (
+                                  <div className="flex gap-2 pt-1">
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      disabled={busy}
+                                      onClick={() => setResubmitFor({ delivery: d, userId: row.application.userId })}
+                                    >
+                                      Pedir reenvio
+                                    </Button>
+                                    <Button size="sm" disabled={busy} onClick={() => handleConfirm(d, row.application.userId)}>
+                                      {busy ? '...' : 'Confirmar'}
+                                    </Button>
+                                  </div>
                                 )}
                               </li>
                             );
                           })}
                         </ul>
-                      )}
-                      {status === 'needs_resubmit' && d.publicationDueDate && (
-                        <p className="text-xs text-text-secondary">
-                          Novo prazo:{' '}
-                          <strong className="text-text-primary">
-                            {new Date(d.publicationDueDate).toLocaleDateString('pt-BR')}
-                          </strong>
-                        </p>
-                      )}
-                      {allFilled && status !== 'confirmed' && (
-                        <div className="flex gap-2 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            disabled={busy}
-                            onClick={() => setResubmitFor({ delivery: d, userId: row.application.userId })}
-                          >
-                            Pedir reenvio
-                          </Button>
-                          <Button size="sm" disabled={busy} onClick={() => handleConfirm(d, row.application.userId)}>
-                            {busy ? '...' : 'Confirmar'}
-                          </Button>
-                        </div>
                       )}
                     </div>
                   );
@@ -251,7 +330,7 @@ function ResubmitModal({
       return;
     }
     setSaving(true);
-    const result = await stagesService.setPublicationStatus(delivery.id, 'needs_resubmit', dueIso);
+    const result = await pubRevisionsService.requestPublicationRevision(delivery.id, dueIso);
     setSaving(false);
     if (!result.success) {
       setError(result.error);

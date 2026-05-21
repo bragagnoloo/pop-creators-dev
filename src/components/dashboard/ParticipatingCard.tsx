@@ -2,12 +2,13 @@
 
 import Image from 'next/image';
 import { useState, useCallback } from 'react';
-import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts, DeliveryRevision } from '@/types';
+import { Campaign, CampaignApplication, CampaignDelivery, CampaignNoticeCounts, DeliveryRevision, PublicationRevision } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as deliveryService from '@/services/deliveries';
 import * as walletService from '@/services/wallet';
 import * as campaignService from '@/services/campaigns';
 import * as revisionsService from '@/services/delivery-revisions';
+import * as pubRevisionsService from '@/services/publication-revisions';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -34,6 +35,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [open, setOpen] = useState(false);
   const [deliveries, setDeliveries] = useState<CampaignDelivery[]>([]);
   const [revisionsByDelivery, setRevisionsByDelivery] = useState<Map<string, DeliveryRevision[]>>(new Map());
+  const [pubRevisionsByDelivery, setPubRevisionsByDelivery] = useState<Map<string, PublicationRevision[]>>(new Map());
   const [urlDrafts, setUrlDrafts] = useState<Record<string, string>>({});
   const [revisionUrlDrafts, setRevisionUrlDrafts] = useState<Record<string, string>>({});
   const [savedId, setSavedId] = useState<string | null>(null);
@@ -65,6 +67,16 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     }
     setRevisionsByDelivery(revMap);
     setRevisionUrlDrafts(draftMap);
+
+    // Busca revisões de publicação e agrupa por delivery
+    const allPubRevisions = await pubRevisionsService.getPublicationRevisionsForCampaign(campaign.id);
+    const pubMap = new Map<string, PublicationRevision[]>();
+    for (const rev of allPubRevisions) {
+      const arr = pubMap.get(rev.deliveryId) ?? [];
+      arr.push(rev);
+      pubMap.set(rev.deliveryId, arr);
+    }
+    setPubRevisionsByDelivery(pubMap);
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
   useLoadOnMount(load, [load]);
@@ -492,6 +504,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                           {status === 'approved' && d.publicationDate && (
                             <PublicationBlock
                               delivery={d}
+                              revisions={pubRevisionsByDelivery.get(d.id) ?? []}
                               onSaved={() => {
                                 setSavedPubId(d.id);
                                 setTimeout(() => setSavedPubId(null), 1500);
@@ -522,10 +535,12 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
 function PublicationBlock({
   delivery,
+  revisions,
   onSaved,
   savedFlash,
 }: {
   delivery: CampaignDelivery;
+  revisions: PublicationRevision[];
   onSaved: () => void;
   savedFlash: boolean;
 }) {
@@ -537,7 +552,14 @@ function PublicationBlock({
     for (const p of platforms) init[p] = initialUrls[p] ?? '';
     return init;
   });
+  const lastRev = revisions.length > 0 ? revisions[revisions.length - 1] : null;
+  const [revUrls, setRevUrls] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    if (lastRev) for (const p of platforms) init[p] = lastRev.revisedUrls[p] ?? '';
+    return init;
+  });
   const [saving, setSaving] = useState(false);
+  const [savedRevFlash, setSavedRevFlash] = useState(false);
 
   const statusBadge =
     status === 'confirmed'
@@ -550,23 +572,41 @@ function PublicationBlock({
 
   const hasAnyUrl = platforms.some(p => (urls[p] ?? '').trim().length > 0);
   const dirty = platforms.some(p => (urls[p] ?? '') !== (initialUrls[p] ?? ''));
-  const inputsDisabled = status === 'confirmed';
+
+  // URLs originais só editáveis quando ainda não há revisões e status != confirmed
+  const originalEditable = status !== 'confirmed' && revisions.length === 0;
+  // Se há revisões, a aprovação implícita pode estar na última (com approved_at) ou na original
+  const originalApproved = status === 'confirmed' && !revisions.some(r => r.approvedAt != null);
 
   const handleSaveAll = async () => {
     setSaving(true);
-    // Limpa entradas vazias e mantém só strings com conteúdo
     const cleaned: Record<string, string> = {};
     for (const p of platforms) {
       const v = (urls[p] ?? '').trim();
       if (v) cleaned[p] = v;
     }
-    // Espelha a primeira URL no campo legado publication_url
     const firstUrl = platforms.map(p => cleaned[p]).find(Boolean) ?? null;
     await deliveryService.updateDelivery(delivery.id, {
       publicationUrls: cleaned,
       publicationUrl: firstUrl,
     });
     setSaving(false);
+    onSaved();
+  };
+
+  const handleSaveRevisionUrls = async () => {
+    if (!lastRev) return;
+    const cleaned: Record<string, string> = {};
+    for (const p of platforms) {
+      const v = (revUrls[p] ?? '').trim();
+      if (v) cleaned[p] = v;
+    }
+    if (Object.keys(cleaned).length === 0) return;
+    setSaving(true);
+    await pubRevisionsService.setPublicationRevisionUrls(lastRev.id, cleaned);
+    setSaving(false);
+    setSavedRevFlash(true);
+    setTimeout(() => setSavedRevFlash(false), 1500);
     onSaved();
   };
 
@@ -599,43 +639,122 @@ function PublicationBlock({
           </p>
         </div>
       )}
-      {status === 'needs_resubmit' && delivery.publicationDueDate && (
-        <p className="text-xs text-popline-light">
-          Reenvie até <strong>{new Date(delivery.publicationDueDate).toLocaleDateString('pt-BR')}</strong>
-        </p>
-      )}
-      {platforms.length > 0 ? (
-        <div className="space-y-2">
-          {platforms.map(p => (
-            <div key={p}>
-              <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
-                URL no {p}
-              </p>
-              <input
-                type="url"
-                value={urls[p] ?? ''}
-                onChange={e => setUrls(prev => ({ ...prev, [p]: e.target.value }))}
-                placeholder={`https://${p.toLowerCase()}.com/...`}
-                disabled={inputsDisabled}
-                maxLength={500}
-                inputMode="url"
-                className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink disabled:opacity-60"
-              />
-            </div>
-          ))}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={handleSaveAll}
-            disabled={inputsDisabled || !dirty || saving}
-          >
-            {saving ? 'Salvando...' : savedFlash ? 'Salvo ✓' : 'Salvar URLs'}
-          </Button>
-        </div>
-      ) : (
+
+      {platforms.length === 0 ? (
         <p className="text-xs text-text-secondary italic">
           Plataformas ainda não definidas pelo admin
         </p>
+      ) : (
+        <>
+          {/* URLs originais (editáveis só se nenhuma revisão e não confirmado) */}
+          <div className="p-2 rounded-lg bg-background border border-border space-y-2">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium">
+                Publicações originais
+              </p>
+              {originalApproved && <Badge variant="success">✓ Aprovada</Badge>}
+            </div>
+            {platforms.map(p => (
+              <div key={p}>
+                <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+                  URL no {p}
+                </p>
+                {originalEditable ? (
+                  <input
+                    type="url"
+                    value={urls[p] ?? ''}
+                    onChange={e => setUrls(prev => ({ ...prev, [p]: e.target.value }))}
+                    placeholder={`https://${p.toLowerCase()}.com/...`}
+                    maxLength={500}
+                    inputMode="url"
+                    className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
+                  />
+                ) : initialUrls[p] ? (
+                  <a
+                    href={initialUrls[p]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-xs text-popline-pink hover:underline truncate"
+                  >
+                    {initialUrls[p]}
+                  </a>
+                ) : (
+                  <p className="text-xs text-text-secondary italic">Não enviada</p>
+                )}
+              </div>
+            ))}
+            {originalEditable && (
+              <Button size="sm" variant="secondary" onClick={handleSaveAll} disabled={!dirty || saving}>
+                {saving ? 'Salvando...' : savedFlash ? 'Salvo ✓' : 'Salvar URLs'}
+              </Button>
+            )}
+          </div>
+
+          {/* Lista de reenvios */}
+          {revisions.length > 0 && (
+            <div className="space-y-2">
+              {revisions.map(rev => {
+                const isLast = lastRev != null && rev.id === lastRev.id;
+                const showInputs = isLast && status === 'needs_resubmit';
+                return (
+                  <div
+                    key={rev.id}
+                    className="p-2 rounded-lg bg-popline-pink/10 border border-popline-pink/30 text-xs space-y-1.5"
+                  >
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-popline-light">
+                          Reenvio {String(rev.round).padStart(2, '0')}
+                        </p>
+                        {rev.approvedAt && <Badge variant="success">✓ Aprovada</Badge>}
+                      </div>
+                      <span className="text-text-secondary">
+                        Prazo: <strong className="text-text-primary">{new Date(rev.dueDate).toLocaleDateString('pt-BR')}</strong>
+                      </span>
+                    </div>
+                    {rev.note && <p className="text-text-primary whitespace-pre-line">{rev.note}</p>}
+
+                    {platforms.map(p => (
+                      <div key={p}>
+                        <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+                          URL no {p}
+                        </p>
+                        {showInputs ? (
+                          <input
+                            type="url"
+                            value={revUrls[p] ?? ''}
+                            onChange={e => setRevUrls(prev => ({ ...prev, [p]: e.target.value }))}
+                            placeholder={`https://${p.toLowerCase()}.com/...`}
+                            maxLength={500}
+                            inputMode="url"
+                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
+                          />
+                        ) : rev.revisedUrls[p] ? (
+                          <a
+                            href={rev.revisedUrls[p]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-popline-pink hover:underline truncate"
+                          >
+                            {rev.revisedUrls[p]}
+                          </a>
+                        ) : (
+                          <p className="text-text-secondary italic">Não enviada</p>
+                        )}
+                      </div>
+                    ))}
+
+                    {showInputs && (
+                      <Button size="sm" onClick={handleSaveRevisionUrls} disabled={saving}>
+                        {saving ? 'Salvando...' : savedRevFlash ? 'Salvo ✓' : 'Salvar URLs do reenvio'}
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

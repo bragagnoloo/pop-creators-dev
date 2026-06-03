@@ -123,6 +123,26 @@ export async function getUserPlan(userId: string): Promise<PlanId> {
   return (await getUserSubscription(userId)).plan;
 }
 
+/**
+ * Batch — busca planos vigentes pra múltiplos users em uma query.
+ * Considera expiração (retorna 'free' se a sub expirou).
+ */
+export async function getPlansForUsers(userIds: string[]): Promise<Map<string, PlanId>> {
+  if (userIds.length === 0) return new Map();
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('subscriptions')
+    .select('user_id, plan, expires_at')
+    .in('user_id', userIds);
+  const map = new Map<string, PlanId>();
+  const now = Date.now();
+  for (const r of (data ?? []) as { user_id: string; plan: PlanId; expires_at: string | null }[]) {
+    const expired = r.expires_at && new Date(r.expires_at).getTime() < now;
+    map.set(r.user_id, expired ? 'free' : r.plan);
+  }
+  return map;
+}
+
 export async function isPaid(userId: string): Promise<boolean> {
   return (await getUserPlan(userId)) !== 'free';
 }

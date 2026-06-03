@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import { AuthProvider } from "@/providers/AuthProvider";
+import { SWRProvider } from "@/providers/SWRProvider";
 import MetaPixelPageView from "@/components/analytics/MetaPixelPageView";
 import "./globals.css";
 
@@ -92,7 +93,9 @@ export default function RootLayout({
           />
         </noscript>
         <MetaPixelPageView />
-        <AuthProvider>{children}</AuthProvider>
+        <SWRProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </SWRProvider>
       </body>
     </html>
   );

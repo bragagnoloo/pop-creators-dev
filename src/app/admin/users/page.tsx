@@ -24,31 +24,23 @@ export default function AdminUsersPage() {
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
 
-  const refreshPlans = async (list: UserProfile[]) => {
-    const map: Record<string, PlanId> = {};
-    await Promise.all(
-      list.map(async p => {
-        map[p.userId] = await subService.getUserPlan(p.userId);
-      })
-    );
-    setPlansMap(map);
-  };
-
   useEffect(() => {
     (async () => {
       const [list, ranks] = await Promise.all([
-        userService.getAllProfiles(),
+        userService.getAllProfilesWithPlans(),
         getAdminUserRanks(),
       ]);
+      const map: Record<string, PlanId> = {};
+      for (const p of list) map[p.userId] = p.plan;
       setProfiles(list);
+      setPlansMap(map);
       setRanksMap(ranks);
-      refreshPlans(list);
     })();
   }, []);
 
-  const openPlanEditor = async (profile: UserProfile) => {
+  const openPlanEditor = (profile: UserProfile) => {
     setPlanFor(profile);
-    setPlanChoice(await subService.getUserPlan(profile.userId));
+    setPlanChoice(plansMap[profile.userId] ?? 'free');
   };
 
   const savePlan = async () => {
@@ -68,7 +60,8 @@ export default function AdminUsersPage() {
         }),
       }).catch(() => {});
     }
-    refreshPlans(profiles);
+    // Atualiza apenas o plano desse user no map — não precisa refazer toda a lista
+    setPlansMap(prev => ({ ...prev, [planFor.userId]: planChoice }));
     setPlanFor(null);
   };
 

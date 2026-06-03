@@ -1,4 +1,4 @@
-import { UserProfile, PixKeyType } from '@/types';
+import { UserProfile, PixKeyType, PlanId } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
 type Row = {
@@ -53,6 +53,18 @@ export async function getProfile(userId: string): Promise<UserProfile | null> {
   return data ? toProfile(data as Row) : null;
 }
 
+/**
+ * Batch — busca múltiplos profiles em uma query. Retorna Map por userId.
+ */
+export async function getProfilesByIds(userIds: string[]): Promise<Map<string, UserProfile>> {
+  if (userIds.length === 0) return new Map();
+  const supabase = createClient();
+  const { data } = await supabase.from('profiles').select(SELECT).in('id', userIds);
+  const map = new Map<string, UserProfile>();
+  for (const r of (data ?? []) as Row[]) map.set(r.id, toProfile(r));
+  return map;
+}
+
 // Limite pragmático para evitar full-table scans acidentais em admin views.
 // Para listas maiores, paginar no UI (range/limit/offset).
 const DEFAULT_LIST_LIMIT = 500;
@@ -66,6 +78,33 @@ export async function getAllProfiles(): Promise<UserProfile[]> {
     .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as Row[]).map(toProfile);
+}
+
+export type UserProfileWithPlan = UserProfile & { plan: PlanId };
+
+/**
+ * Como getAllProfiles + plano vigente em UMA query.
+ * Substitui o padrão N+1 de chamar getUserPlan() por linha.
+ */
+export async function getAllProfilesWithPlans(): Promise<UserProfileWithPlan[]> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('profiles')
+    .select(`${SELECT}, subscriptions(plan, expires_at)`)
+    .order('email')
+    .limit(DEFAULT_LIST_LIMIT);
+  if (!data) return [];
+  const now = Date.now();
+  type RowWithSub = Row & { subscriptions: Array<{ plan: PlanId; expires_at: string | null }> | null };
+  return (data as unknown as RowWithSub[]).map(r => {
+    const sub = Array.isArray(r.subscriptions) ? r.subscriptions[0] : null;
+    let plan: PlanId = 'free';
+    if (sub) {
+      const expired = sub.expires_at && new Date(sub.expires_at).getTime() < now;
+      plan = expired ? 'free' : sub.plan;
+    }
+    return { ...toProfile(r), plan };
+  });
 }
 
 export async function updateProfile(userId: string, data: Partial<UserProfile>): Promise<UserProfile | null> {

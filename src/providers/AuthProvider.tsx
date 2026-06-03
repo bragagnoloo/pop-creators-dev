@@ -5,6 +5,30 @@ import { AuthUser } from '@/types';
 import * as authService from '@/services/auth';
 import { createClient } from '@/lib/supabase/client';
 
+const CACHE_KEY = 'popline_authuser_cache';
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 min
+
+function readCachedUser(): AuthUser | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { user: AuthUser; ts: number };
+    if (Date.now() - parsed.ts > CACHE_TTL_MS) return null;
+    return parsed.user;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedUser(user: AuthUser | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!user) sessionStorage.removeItem(CACHE_KEY);
+    else sessionStorage.setItem(CACHE_KEY, JSON.stringify({ user, ts: Date.now() }));
+  } catch {}
+}
+
 interface AuthContextValue {
   user: AuthUser | null;
   isLoading: boolean;
@@ -16,8 +40,10 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Inicializa do sessionStorage pra UI ficar pronta antes do round-trip
+  const cached = readCachedUser();
+  const [user, setUser] = useState<AuthUser | null>(cached);
+  const [isLoading, setIsLoading] = useState(!cached);
 
   useEffect(() => {
     let mounted = true;
@@ -31,12 +57,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (event === 'TOKEN_REFRESHED') return;
       if (!session) {
         setUser(null);
+        writeCachedUser(null);
+        setIsLoading(false);
+        return;
+      }
+      // Se já temos cache válido pro mesmo user.id, evita o round-trip de getCurrentUser
+      const cached = readCachedUser();
+      if (cached && cached.id === session.user.id) {
+        setUser(cached);
         setIsLoading(false);
         return;
       }
       authService.getCurrentUser().then(u => {
         if (!mounted) return;
         setUser(u);
+        writeCachedUser(u);
         setIsLoading(false);
       });
     });
@@ -51,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await authService.login(email, password);
     if (result.success) {
       setUser(result.user);
+      writeCachedUser(result.user);
       return { success: true };
     }
     return { success: false, error: result.error };
@@ -66,6 +102,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     if ('user' in result) {
       setUser(result.user);
+      writeCachedUser(result.user);
     }
     return { success: true };
   }, []);
@@ -73,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await authService.logout();
     setUser(null);
+    writeCachedUser(null);
   }, []);
 
   return (

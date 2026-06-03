@@ -82,18 +82,40 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     setLoaded(true);
     if (!c) return;
     const apps = await campaignService.getCampaignApplications(id);
+    const userIds = apps.map(a => a.userId);
+
+    // Carrega tudo em batch (4 queries em vez de 4 * N)
+    const [profilesMap, plansMap, allCredits, allDeliveries] = await Promise.all([
+      userService.getProfilesByIds(userIds),
+      subService.getPlansForUsers(userIds),
+      walletService.getCampaignCredits(id),
+      deliveryService.getCampaignDeliveries(id),
+    ]);
+
+    // Indexa por userId
+    const creditByUser = new Map(allCredits.map(cr => [cr.userId, cr]));
+    const deliveriesByUser = new Map<string, CampaignDelivery[]>();
+    for (const d of allDeliveries) {
+      const list = deliveriesByUser.get(d.userId) ?? [];
+      list.push(d);
+      deliveriesByUser.set(d.userId, list);
+    }
+
+    // Pra approveds sem delivery suficiente, ensureDeliveries cria (raro, só em primeira approve)
     const rows = await Promise.all(
       apps.map(async app => {
-        const deliveries =
-          app.status === 'approved'
-            ? await deliveryService.ensureDeliveries(id, app.userId, c.deliveryCount)
-            : await deliveryService.getDeliveriesForUser(id, app.userId);
+        let deliveries = deliveriesByUser.get(app.userId) ?? [];
+        if (app.status === 'approved' && deliveries.length < c.deliveryCount) {
+          deliveries = await deliveryService.ensureDeliveries(id, app.userId, c.deliveryCount);
+        } else {
+          deliveries = deliveries.sort((a, b) => a.index - b.index);
+        }
         return {
           application: app,
-          profile: await userService.getProfile(app.userId),
-          credit: await walletService.getCreditForUserCampaign(app.userId, id),
+          profile: profilesMap.get(app.userId) ?? null,
+          credit: creditByUser.get(app.userId) ?? null,
           deliveries,
-          plan: await subService.getUserPlan(app.userId),
+          plan: plansMap.get(app.userId) ?? 'free' as PlanId,
         };
       })
     );

@@ -85,6 +85,9 @@ export type UserProfileWithPlan = UserProfile & { plan: PlanId };
 /**
  * Como getAllProfiles + plano vigente em UMA query.
  * Substitui o padrão N+1 de chamar getUserPlan() por linha.
+ *
+ * Nota: subscriptions.user_id é PRIMARY KEY (1:1 com profiles), então o
+ * PostgREST retorna `subscriptions` como objeto único — não como array.
  */
 export async function getAllProfilesWithPlans(): Promise<UserProfileWithPlan[]> {
   const supabase = createClient();
@@ -95,9 +98,12 @@ export async function getAllProfilesWithPlans(): Promise<UserProfileWithPlan[]> 
     .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   const now = Date.now();
-  type RowWithSub = Row & { subscriptions: Array<{ plan: PlanId; expires_at: string | null }> | null };
+  type SubShape = { plan: PlanId; expires_at: string | null };
+  type RowWithSub = Row & { subscriptions: SubShape | SubShape[] | null };
   return (data as unknown as RowWithSub[]).map(r => {
-    const sub = Array.isArray(r.subscriptions) ? r.subscriptions[0] : null;
+    const sub: SubShape | null = Array.isArray(r.subscriptions)
+      ? r.subscriptions[0] ?? null
+      : r.subscriptions;
     let plan: PlanId = 'free';
     if (sub) {
       const expired = sub.expires_at && new Date(sub.expires_at).getTime() < now;

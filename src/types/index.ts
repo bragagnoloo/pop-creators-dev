@@ -1,10 +1,13 @@
 export type UserRole = 'creator' | 'admin' | 'campaign_admin';
 
+export type AdminTab = 'assinaturas' | 'users' | 'ranking';
+
 export interface AuthUser {
   id: string;
   email: string;
   role: UserRole;
   createdAt: string;
+  extraTabs: AdminTab[];
 }
 
 export interface AdminCampaignAssignment {

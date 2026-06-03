@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Campaign } from '@/types';
+import { Campaign, AdminTab } from '@/types';
 import { useAuth } from '@/providers/AuthProvider';
 import * as campaignService from '@/services/campaigns';
 import Card from '@/components/ui/Card';
@@ -18,7 +18,14 @@ interface CampaignAdminEntry {
   fullName: string;
   photoUrl: string | null;
   campaigns: Pick<Campaign, 'id' | 'title'>[];
+  extraTabs: AdminTab[];
 }
+
+const EXTRA_TAB_OPTIONS: { value: AdminTab; label: string }[] = [
+  { value: 'assinaturas', label: 'Assinaturas' },
+  { value: 'users',       label: 'Usuários' },
+  { value: 'ranking',     label: 'Ranking' },
+];
 
 export default function AdminAdminsPage() {
   const { user } = useAuth();
@@ -33,12 +40,14 @@ export default function AdminAdminsPage() {
   const [createEmail, setCreateEmail] = useState('');
   const [createPassword, setCreatePassword] = useState('');
   const [createCampaignIds, setCreateCampaignIds] = useState<string[]>([]);
+  const [createExtraTabs, setCreateExtraTabs] = useState<AdminTab[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSaving, setCreateSaving] = useState(false);
 
   // Edit form
   const [editAdmin, setEditAdmin] = useState<CampaignAdminEntry | null>(null);
   const [editCampaignIds, setEditCampaignIds] = useState<string[]>([]);
+  const [editExtraTabs, setEditExtraTabs] = useState<AdminTab[]>([]);
   const [editSaving, setEditSaving] = useState(false);
 
   // Revoke confirmation
@@ -68,6 +77,11 @@ export default function AdminAdminsPage() {
   const openEdit = (admin: CampaignAdminEntry) => {
     setEditAdmin(admin);
     setEditCampaignIds(admin.campaigns.map(c => c.id));
+    setEditExtraTabs(admin.extraTabs ?? []);
+  };
+
+  const toggleTab = (tabs: AdminTab[], setTabs: (v: AdminTab[]) => void, tab: AdminTab) => {
+    setTabs(tabs.includes(tab) ? tabs.filter(t => t !== tab) : [...tabs, tab]);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -81,7 +95,12 @@ export default function AdminAdminsPage() {
     const res = await fetch('/api/admin/admins', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: createEmail, password: createPassword, campaignIds: createCampaignIds }),
+      body: JSON.stringify({
+        email: createEmail,
+        password: createPassword,
+        campaignIds: createCampaignIds,
+        extraTabs: createExtraTabs,
+      }),
     });
     const data = await res.json();
     setCreateSaving(false);
@@ -93,6 +112,7 @@ export default function AdminAdminsPage() {
     setCreateEmail('');
     setCreatePassword('');
     setCreateCampaignIds([]);
+    setCreateExtraTabs([]);
     loadData();
   };
 
@@ -102,7 +122,7 @@ export default function AdminAdminsPage() {
     await fetch(`/api/admin/admins/${editAdmin.adminId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ campaignIds: editCampaignIds }),
+      body: JSON.stringify({ campaignIds: editCampaignIds, extraTabs: editExtraTabs }),
     });
     setEditSaving(false);
     setEditAdmin(null);
@@ -156,6 +176,16 @@ export default function AdminAdminsPage() {
                         ))
                       )}
                     </div>
+                    {admin.extraTabs.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {admin.extraTabs.map(tab => {
+                          const opt = EXTRA_TAB_OPTIONS.find(o => o.value === tab);
+                          return opt ? (
+                            <Badge key={tab} variant="pink">{opt.label}</Badge>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
@@ -210,6 +240,23 @@ export default function AdminAdminsPage() {
                 )}
               </div>
             </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-text-secondary font-medium">Permissões extras</p>
+              <p className="text-xs text-text-secondary">Abas adicionais que esse admin pode acessar além de Campanhas e Candidaturas.</p>
+              <div className="space-y-2">
+                {EXTRA_TAB_OPTIONS.map(opt => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={createExtraTabs.includes(opt.value)}
+                      onChange={() => toggleTab(createExtraTabs, setCreateExtraTabs, opt.value)}
+                      className="accent-popline-pink"
+                    />
+                    <span className="text-sm">{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
             {createError && <p className="text-sm text-red-400">{createError}</p>}
             <div className="flex gap-3">
               <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowCreate(false)}>
@@ -244,6 +291,23 @@ export default function AdminAdminsPage() {
                 {allCampaigns.length === 0 && (
                   <p className="text-sm text-text-secondary">Nenhuma campanha disponível.</p>
                 )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-text-secondary font-medium">Permissões extras</p>
+              <p className="text-xs text-text-secondary">Abas adicionais que esse admin pode acessar além de Campanhas e Candidaturas.</p>
+              <div className="space-y-2">
+                {EXTRA_TAB_OPTIONS.map(opt => (
+                  <label key={opt.value} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editExtraTabs.includes(opt.value)}
+                      onChange={() => toggleTab(editExtraTabs, setEditExtraTabs, opt.value)}
+                      className="accent-popline-pink"
+                    />
+                    <span className="text-sm">{opt.label}</span>
+                  </label>
+                ))}
               </div>
             </div>
             <div className="flex gap-3">

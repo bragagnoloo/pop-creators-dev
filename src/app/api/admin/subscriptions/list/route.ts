@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth-guard';
+import { requireTabAccess } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase/server';
 
 // Derive display status from subscription fields
@@ -26,7 +26,7 @@ function deriveStatus(sub: {
 }
 
 export async function GET(req: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireTabAccess('assinaturas');
   if (guard instanceof NextResponse) return guard;
 
   const { searchParams } = req.nextUrl;
@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       user_id, plan, started_at, expires_at,
       kiwify_subscription_id, payment_method, subscription_status, assigned_by,
       profiles!inner(
-        full_name, email, created_at,
+        full_name, email, whatsapp, created_at,
         first_subscribed_at, first_utm_source, first_utm_campaign
       )
     `, { count: 'exact' })
@@ -94,6 +94,7 @@ export async function GET(req: NextRequest) {
   type ProfileJoin = {
     full_name: string;
     email: string;
+    whatsapp: string;
     created_at: string;
     first_subscribed_at: string | null;
     first_utm_source: string | null;
@@ -116,6 +117,7 @@ export async function GET(req: NextRequest) {
       userId:               r.user_id,
       fullName:             p.full_name,
       email:                p.email,
+      whatsapp:             p.whatsapp,
       createdAt:            p.created_at,
       firstSubscribedAt:    p.first_subscribed_at,
       plan:                 r.plan,

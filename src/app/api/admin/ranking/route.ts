@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireMasterAdmin } from '@/lib/auth-guard';
+import { requireTabAccess } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export async function GET(req: NextRequest) {
-  const guard = await requireMasterAdmin();
+  const guard = await requireTabAccess('ranking');
   if (guard instanceof NextResponse) return guard;
 
   const { searchParams } = req.nextUrl;

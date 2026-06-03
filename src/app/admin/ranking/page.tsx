@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import { getAdminRanking, type AdminRankingEntry } from '@/services/ranking';
+import { useRequireTab } from '@/lib/hooks/useRequireTab';
 import { PlanId } from '@/types';
 
 type Scope = 'monthly' | 'alltime';
@@ -67,6 +68,7 @@ function downloadCsv(entries: AdminRankingEntry[], filename: string) {
 }
 
 export default function AdminRankingPage() {
+  useRequireTab('ranking');
   const [scope, setScope] = useState<Scope>('alltime');
   const { year: currentYear, month: currentMonth } = currentYearMonth();
   const [yearMonth, setYearMonth] = useState<string>(yyyymm(currentYear, currentMonth));

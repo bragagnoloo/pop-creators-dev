@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireMasterAdmin } from '@/lib/auth-guard';
 import { getAllCampaignAdmins, createCampaignAdmin } from '@/services/admin-permissions';
+import type { AdminTab } from '@/types';
+
+const VALID_TABS: AdminTab[] = ['assinaturas', 'users', 'ranking'];
+
+function sanitizeExtraTabs(input: unknown): AdminTab[] {
+  if (!Array.isArray(input)) return [];
+  return input.filter((t): t is AdminTab => VALID_TABS.includes(t as AdminTab));
+}
 
 export async function GET() {
   const guard = await requireMasterAdmin();
@@ -15,10 +23,11 @@ export async function POST(req: NextRequest) {
   if (guard instanceof NextResponse) return guard;
 
   const body = await req.json();
-  const { email, password, campaignIds } = body as {
+  const { email, password, campaignIds, extraTabs } = body as {
     email: string;
     password: string;
     campaignIds: string[];
+    extraTabs?: string[];
   };
 
   if (!email || !password) {
@@ -28,7 +37,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Selecione ao menos uma campanha.' }, { status: 400 });
   }
 
-  const result = await createCampaignAdmin(email, password, campaignIds, guard.userId);
+  const cleanTabs = sanitizeExtraTabs(extraTabs);
+  const result = await createCampaignAdmin(email, password, campaignIds, guard.userId, cleanTabs);
   if (!result.success) {
     return NextResponse.json({ error: result.error }, { status: 400 });
   }

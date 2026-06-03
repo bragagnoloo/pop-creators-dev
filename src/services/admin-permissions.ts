@@ -1,5 +1,5 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import type { AdminCampaignAssignment, Campaign, UserRole } from '@/types';
+import type { AdminCampaignAssignment, AdminTab, Campaign, UserRole } from '@/types';
 
 export interface CampaignAdminEntry {
   adminId: string;
@@ -7,6 +7,7 @@ export interface CampaignAdminEntry {
   fullName: string;
   photoUrl: string | null;
   campaigns: Pick<Campaign, 'id' | 'title'>[];
+  extraTabs: AdminTab[];
 }
 
 function mapAssignment(row: {
@@ -41,7 +42,7 @@ export async function getAllCampaignAdmins(): Promise<CampaignAdminEntry[]> {
   const supabase = await createAdminClient();
   const { data: profiles } = await supabase
     .from('profiles')
-    .select('id, email, full_name, photo_url')
+    .select('id, email, full_name, photo_url, extra_admin_tabs')
     .eq('role', 'campaign_admin');
 
   if (!profiles || profiles.length === 0) return [];
@@ -63,8 +64,17 @@ export async function getAllCampaignAdmins(): Promise<CampaignAdminEntry[]> {
       fullName: profile.full_name ?? '',
       photoUrl: profile.photo_url ?? null,
       campaigns,
+      extraTabs: (profile.extra_admin_tabs ?? []) as AdminTab[],
     };
   });
+}
+
+export async function updateAdminExtraTabs(adminId: string, tabs: AdminTab[]): Promise<void> {
+  const supabase = await createAdminClient();
+  await supabase
+    .from('profiles')
+    .update({ extra_admin_tabs: tabs })
+    .eq('id', adminId);
 }
 
 export async function assignCampaignToAdmin(
@@ -118,7 +128,8 @@ export async function createCampaignAdmin(
   email: string,
   password: string,
   campaignIds: string[],
-  assignedBy: string
+  assignedBy: string,
+  extraTabs: AdminTab[] = []
 ): Promise<{ success: true; adminId: string } | { success: false; error: string }> {
   const supabase = await createAdminClient();
 
@@ -148,6 +159,7 @@ export async function createCampaignAdmin(
   }
 
   await updateAdminAssignments(adminId, campaignIds, assignedBy);
+  await updateAdminExtraTabs(adminId, extraTabs);
   return { success: true, adminId };
 }
 
@@ -159,7 +171,7 @@ export async function revokeCampaignAdmin(adminId: string): Promise<void> {
     .eq('admin_id', adminId);
   await supabase
     .from('profiles')
-    .update({ role: 'creator' })
+    .update({ role: 'creator', extra_admin_tabs: [] })
     .eq('id', adminId);
 }
 

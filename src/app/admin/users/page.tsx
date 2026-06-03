@@ -5,6 +5,7 @@ import { UserProfile, PlanId } from '@/types';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
 import { getAdminUserRanks, type AdminUserRank } from '@/services/ranking';
+import { useRequireTab } from '@/lib/hooks/useRequireTab';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -12,6 +13,7 @@ import Avatar from '@/components/ui/Avatar';
 import { InstagramIcon, TikTokIcon } from '@/components/ui/SocialIcons';
 
 export default function AdminUsersPage() {
+  useRequireTab('users');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [selected, setSelected] = useState<UserProfile | null>(null);
   const [planFor, setPlanFor] = useState<UserProfile | null>(null);

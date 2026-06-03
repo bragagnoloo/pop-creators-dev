@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import Button from '@/components/ui/Button';
 import { ROUTES } from '@/lib/constants';
+import type { AdminTab } from '@/types';
 
 const masterNavItems = [
   { label: 'Dashboard', href: ROUTES.ADMIN },
@@ -19,10 +20,16 @@ const masterNavItems = [
   { label: 'Admins', href: ROUTES.ADMIN_ADMINS },
 ];
 
-const campaignAdminNavItems = [
+const campaignAdminBaseNavItems = [
   { label: 'Campanhas', href: ROUTES.ADMIN_CAMPAIGNS },
   { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },
 ];
+
+const EXTRA_TAB_NAV: Record<AdminTab, { label: string; href: string }> = {
+  assinaturas: { label: 'Assinaturas', href: ROUTES.ADMIN_ASSINATURAS },
+  users:       { label: 'Usuarios',    href: ROUTES.ADMIN_USERS },
+  ranking:     { label: 'Ranking',     href: ROUTES.ADMIN_RANKING },
+};
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading, logout } = useAuth();
@@ -45,7 +52,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const navItems = user.role === 'campaign_admin' ? campaignAdminNavItems : masterNavItems;
+  const navItems = user.role === 'campaign_admin'
+    ? [
+        ...campaignAdminBaseNavItems,
+        ...user.extraTabs.map(t => EXTRA_TAB_NAV[t]),
+      ]
+    : masterNavItems;
 
   return (
     <div className="min-h-screen">

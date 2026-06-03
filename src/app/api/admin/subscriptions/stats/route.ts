@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth-guard';
+import { requireTabAccess } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase/server';
 import { PLANS } from '@/services/subscriptions';
 
 export async function GET(req: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireTabAccess('assinaturas');
   if (guard instanceof NextResponse) return guard;
 
   const sp = req.nextUrl.searchParams;

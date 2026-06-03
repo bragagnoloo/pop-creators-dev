@@ -1,8 +1,8 @@
-import { AuthUser, AuthResult, UserRole } from '@/types';
+import { AuthUser, AuthResult, UserRole, AdminTab } from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
-function mapUser(id: string, email: string, role: UserRole, createdAt: string): AuthUser {
-  return { id, email, role, createdAt };
+function mapUser(id: string, email: string, role: UserRole, createdAt: string, extraTabs: AdminTab[] = []): AuthUser {
+  return { id, email, role, createdAt, extraTabs };
 }
 
 /**
@@ -16,7 +16,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email, created_at')
+    .select('role, email, created_at, extra_admin_tabs')
     .eq('id', session.user.id)
     .single();
 
@@ -26,7 +26,8 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     session.user.id,
     profile.email,
     profile.role as UserRole,
-    profile.created_at
+    profile.created_at,
+    (profile.extra_admin_tabs ?? []) as AdminTab[],
   );
 }
 
@@ -42,13 +43,22 @@ export async function login(email: string, password: string): Promise<AuthResult
   }
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, email, created_at')
+    .select('role, email, created_at, extra_admin_tabs')
     .eq('id', data.user.id)
     .single();
   if (!profile) {
     return { success: false, error: 'Falha ao carregar perfil.' };
   }
-  return { success: true, user: mapUser(data.user.id, profile.email, profile.role as UserRole, profile.created_at) };
+  return {
+    success: true,
+    user: mapUser(
+      data.user.id,
+      profile.email,
+      profile.role as UserRole,
+      profile.created_at,
+      (profile.extra_admin_tabs ?? []) as AdminTab[],
+    ),
+  };
 }
 
 export type RegisterResult =

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import type { UserRole } from '@/types';
+import type { UserRole, AdminTab } from '@/types';
 
 export interface GuardResult {
   userId: string;
@@ -75,6 +75,32 @@ export async function requireAnyAdmin(): Promise<GuardResult | NextResponse> {
   if (result instanceof NextResponse) return result;
   if (result.role !== 'admin' && result.role !== 'campaign_admin') {
     return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
+  }
+  return result;
+}
+
+/**
+ * Exige acesso a uma aba específica do painel admin.
+ * Master admin sempre passa. Campaign admin precisa ter a tab em extra_admin_tabs.
+ */
+export async function requireTabAccess(tab: AdminTab): Promise<GuardResult | NextResponse> {
+  const result = await requireUser();
+  if (result instanceof NextResponse) return result;
+  if (result.role === 'admin') return result;
+  if (result.role !== 'campaign_admin') {
+    return NextResponse.json({ error: 'Acesso restrito a administradores.' }, { status: 403 });
+  }
+
+  const supabase = await createClient();
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('extra_admin_tabs')
+    .eq('id', result.userId)
+    .single();
+
+  const tabs = (profile?.extra_admin_tabs ?? []) as string[];
+  if (!tabs.includes(tab)) {
+    return NextResponse.json({ error: 'Sem permissão para esta seção.' }, { status: 403 });
   }
   return result;
 }

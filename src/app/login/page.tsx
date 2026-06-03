@@ -1,22 +1,39 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import * as authService from '@/services/auth';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import GoogleButton from '@/components/auth/GoogleButton';
 import { ROUTES } from '@/lib/constants';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const oauthError = searchParams.get('error');
+    if (oauthError) {
+      setError('Não foi possível entrar com o Google. Tente novamente.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,13 +68,22 @@ export default function LoginPage() {
           <p className="text-text-secondary">Entre na sua conta para continuar</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-surface border border-border rounded-2xl p-6 space-y-4">
+        <div className="bg-surface border border-border rounded-2xl p-6 space-y-4">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
               {error}
             </div>
           )}
 
+          <GoogleButton onError={setError} />
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-text-secondary">ou</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Email"
             type="email"
@@ -104,7 +130,8 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Entrando...' : 'Entrar'}
           </Button>
-        </form>
+          </form>
+        </div>
 
         <p className="text-center text-sm text-text-secondary mt-6">
           Nao tem uma conta?{' '}

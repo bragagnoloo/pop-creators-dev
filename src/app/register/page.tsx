@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import GoogleButton from '@/components/auth/GoogleButton';
 import { ROUTES } from '@/lib/constants';
 import { pixelCompleteRegistration } from '@/lib/pixel';
 
@@ -125,7 +126,7 @@ export default function RegisterPage() {
           <p className="text-text-secondary">Comece a participar de campanhas exclusivas</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-surface border border-border rounded-2xl p-6 space-y-4">
+        <div className="bg-surface border border-border rounded-2xl p-6 space-y-4">
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3 text-sm text-red-400">
               {error}
@@ -142,6 +143,15 @@ export default function RegisterPage() {
             </div>
           )}
 
+          <GoogleButton onError={setError} />
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-text-secondary">ou</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label="Nome Completo"
             type="text"
@@ -201,7 +211,8 @@ export default function RegisterPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Cadastrando...' : 'Cadastrar'}
           </Button>
-        </form>
+          </form>
+        </div>
 
         <p className="text-center text-sm text-text-secondary mt-6">
           Já tem uma conta?{' '}

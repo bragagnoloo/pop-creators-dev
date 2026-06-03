@@ -18,13 +18,15 @@ export default function OnboardingModal({ userId, onComplete }: OnboardingModalP
   const [fullName, setFullName] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
 
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+
   useEffect(() => {
     userService.getProfile(userId).then(profile => {
       if (profile?.fullName) setFullName(profile.fullName);
       if (profile?.whatsapp) setWhatsapp(profile.whatsapp);
+      if (profile?.photoUrl) setPhotoUrl(profile.photoUrl);
     });
   }, [userId]);
-  const [photoUrl] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [error, setError] = useState('');

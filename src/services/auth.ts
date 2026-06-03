@@ -81,6 +81,15 @@ export async function logout(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+export async function signInWithGoogle(): Promise<{ error?: string }> {
+  const supabase = createClient();
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/auth/callback` },
+  });
+  return error ? { error: error.message } : {};
+}
+
 /**
  * Lista todos os usuários (admin only). Usa profiles + created_at.
  */

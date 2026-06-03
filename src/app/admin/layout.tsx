@@ -11,6 +11,7 @@ const masterNavItems = [
   { label: 'Dashboard', href: ROUTES.ADMIN },
   { label: 'Assinaturas', href: ROUTES.ADMIN_ASSINATURAS },
   { label: 'Usuarios', href: ROUTES.ADMIN_USERS },
+  { label: 'Ranking', href: ROUTES.ADMIN_RANKING },
   { label: 'Campanhas', href: ROUTES.ADMIN_CAMPAIGNS },
   { label: 'Candidaturas', href: ROUTES.ADMIN_CANDIDATURAS },
   { label: 'Oficinas', href: ROUTES.ADMIN_OFICINAS },

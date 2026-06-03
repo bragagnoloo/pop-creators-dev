@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { UserProfile, PlanId } from '@/types';
 import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
+import { getAdminUserRanks, type AdminUserRank } from '@/services/ranking';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -16,6 +17,8 @@ export default function AdminUsersPage() {
   const [planFor, setPlanFor] = useState<UserProfile | null>(null);
   const [planChoice, setPlanChoice] = useState<PlanId>('free');
   const [plansMap, setPlansMap] = useState<Record<string, PlanId>>({});
+  const [ranksMap, setRanksMap] = useState<Record<string, AdminUserRank>>({});
+  const [search, setSearch] = useState('');
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
 
@@ -31,8 +34,12 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     (async () => {
-      const list = await userService.getAllProfiles();
+      const [list, ranks] = await Promise.all([
+        userService.getAllProfiles(),
+        getAdminUserRanks(),
+      ]);
       setProfiles(list);
+      setRanksMap(ranks);
       refreshPlans(list);
     })();
   }, []);
@@ -85,12 +92,14 @@ export default function AdminUsersPage() {
 
   // Filtered profiles
   const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
     return profiles.filter(p => {
       if (filterState && p.state !== filterState) return false;
       if (filterCity && p.city !== filterCity) return false;
+      if (q && !p.fullName?.toLowerCase().includes(q) && !p.email.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [profiles, filterState, filterCity]);
+  }, [profiles, filterState, filterCity, search]);
 
   const selectStyle = "bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink transition-colors";
 
@@ -100,12 +109,13 @@ export default function AdminUsersPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <svg className="w-4 h-4 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-          <span className="text-sm text-text-secondary font-medium">Filtrar:</span>
-        </div>
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar nome ou email..."
+          className={`${selectStyle} flex-1 min-w-[200px] max-w-[320px]`}
+        />
         <select value={filterState} onChange={e => handleStateChange(e.target.value)} className={selectStyle}>
           <option value="">Todos os Estados</option>
           {states.map(s => <option key={s} value={s}>{s}</option>)}
@@ -114,8 +124,8 @@ export default function AdminUsersPage() {
           <option value="">Todas as Cidades</option>
           {cities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(filterState || filterCity) && (
-          <Button variant="ghost" size="sm" onClick={() => { setFilterState(''); setFilterCity(''); }}>
+        {(search || filterState || filterCity) && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); }}>
             Limpar
           </Button>
         )}
@@ -227,6 +237,7 @@ export default function AdminUsersPage() {
               <tr className="border-b border-border">
                 <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Usuario</th>
                 <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Localizacao</th>
+                <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Ranking</th>
                 <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Plano</th>
                 <th className="text-left text-sm text-text-secondary font-medium px-6 py-4">Status</th>
                 <th className="text-right text-sm text-text-secondary font-medium px-6 py-4">Acoes</th>
@@ -249,6 +260,9 @@ export default function AdminUsersPage() {
                       ? `${profile.city} - ${profile.state}`
                       : <span className="text-text-secondary/50">—</span>
                     }
+                  </td>
+                  <td className="px-6 py-4 text-xs text-text-secondary whitespace-nowrap">
+                    <RankingCell rank={ranksMap[profile.userId]} />
                   </td>
                   <td className="px-6 py-4">
                     <PlanBadge plan={plansMap[profile.userId] || 'free'} />
@@ -306,6 +320,16 @@ export default function AdminUsersPage() {
       </Card>
     </div>
   );
+}
+
+function RankingCell({ rank }: { rank?: AdminUserRank }) {
+  if (!rank || (rank.monthlyRank == null && rank.alltimeRank == null)) {
+    return <span className="text-text-secondary/50">—</span>;
+  }
+  const parts: string[] = [];
+  if (rank.monthlyRank != null) parts.push(`#${rank.monthlyRank} mensal`);
+  if (rank.alltimeRank != null) parts.push(`#${rank.alltimeRank} geral`);
+  return <span>{parts.join(' · ')}</span>;
 }
 
 function PlanBadge({ plan }: { plan: PlanId }) {

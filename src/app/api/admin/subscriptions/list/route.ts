@@ -40,6 +40,20 @@ export async function GET(req: NextRequest) {
 
   const supabase = createAdminClient();
 
+  // Busca por nome/email exige pré-fetch dos user_ids — o .or() do PostgREST
+  // não interpreta dot-notation de tabela aninhada de forma confiável
+  let userIdsForSearch: string[] | null = null;
+  if (search) {
+    const { data: matches } = await supabase
+      .from('profiles')
+      .select('id')
+      .or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    userIdsForSearch = (matches ?? []).map(m => m.id);
+    if (userIdsForSearch.length === 0) {
+      return NextResponse.json({ data: [], total: 0, page });
+    }
+  }
+
   // Inclui todos que já tiveram assinatura paga (exceto free nunca assinado)
   let query = supabase
     .from('subscriptions')
@@ -53,13 +67,9 @@ export async function GET(req: NextRequest) {
     `, { count: 'exact' })
     .neq('subscription_status', 'free');
 
-  if (plan)   query = query.eq('plan', plan);
-  if (method) query = query.eq('payment_method', method);
-  if (search) {
-    query = query.or(
-      `profiles.full_name.ilike.%${search}%,profiles.email.ilike.%${search}%`
-    );
-  }
+  if (plan)             query = query.eq('plan', plan);
+  if (method)           query = query.eq('payment_method', method);
+  if (userIdsForSearch) query = query.in('user_id', userIdsForSearch);
 
   // Filtro de status — aplicado após fetch por ser derivado
   query = query.order('started_at', { ascending: false }).range(offset, offset + limit - 1);

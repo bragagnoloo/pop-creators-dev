@@ -36,6 +36,7 @@ export const ROUTES = {
   ADMIN_SAQUES: '/admin/saques',
   ADMIN_ASSINATURAS: '/admin/assinaturas',
   ADMIN_ADMINS: '/admin/admins',
+  ADMIN_RANKING: '/admin/ranking',
   OBRIGADO: '/obrigado',
 } as const;
 

@@ -8,6 +8,7 @@ import * as subService from '@/services/subscriptions';
 import { getProfileCompleteness } from '@/lib/profile';
 import { CURRENT_TERM_VERSION } from '@/lib/constants';
 import { pixelCustom } from '@/lib/pixel';
+import { trackPaywallShown } from '@/lib/paywall-tracking';
 import CampaignCard from './CampaignCard';
 import CampaignTermModal from '@/components/campaigns/CampaignTermModal';
 import Modal from '@/components/ui/Modal';
@@ -40,6 +41,7 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
 
   const handleApply = async (campaignId: string) => {
     if (!(await subService.isPaid(userId))) {
+      trackPaywallShown(userId);
       setPaywallOpen(true);
       return;
     }
@@ -110,8 +112,7 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
       <Paywall
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        feature="Candidatar-se a campanhas"
-        description="Para se candidatar a campanhas você precisa ter um plano ativo."
+        context="campaigns"
       />
 
       {showIncomplete && (

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { pixelCustom, pixelViewContent } from '@/lib/pixel';
+import { trackPaywallShown } from '@/lib/paywall-tracking';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import * as campaignService from '@/services/campaigns';
@@ -48,7 +49,7 @@ export default function CampanhasPage() {
   const handleApply = async (campaignId: string) => {
     if (!user) return;
     if (!(await subService.isPaid(user.id))) {
-      pixelCustom('PaywallShown');
+      trackPaywallShown(user.id);
       setPaywallOpen(true);
       return;
     }
@@ -133,8 +134,7 @@ export default function CampanhasPage() {
       <Paywall
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        feature="Candidatar-se a campanhas"
-        description="Para se candidatar a campanhas você precisa ter um plano ativo."
+        context="campaigns"
       />
 
       {showIncomplete && (

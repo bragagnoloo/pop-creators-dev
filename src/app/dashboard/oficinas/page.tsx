@@ -9,6 +9,7 @@ import { Workshop } from '@/types';
 import * as workshopService from '@/services/workshops';
 import * as lessonService from '@/services/lessons';
 import * as subService from '@/services/subscriptions';
+import { trackPaywallShown } from '@/lib/paywall-tracking';
 import Paywall from '@/components/ui/Paywall';
 import { ROUTES } from '@/lib/constants';
 
@@ -106,15 +107,21 @@ export default function OficinaListPage() {
       <Paywall
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        feature="Assistir oficinas"
-        description="Para acessar as oficinas você precisa ter um plano ativo."
+        context="lessons"
       />
 
       {/* Hero — primeira oficina em destaque */}
       {hero && (
         <button
           type="button"
-          onClick={() => isPaid ? (window.location.href = `${ROUTES.OFICINAS}/${hero.id}`) : setPaywallOpen(true)}
+          onClick={() => {
+            if (isPaid) {
+              window.location.href = `${ROUTES.OFICINAS}/${hero.id}`;
+            } else {
+              trackPaywallShown(user?.id ?? null);
+              setPaywallOpen(true);
+            }
+          }}
           className="group relative w-full overflow-hidden rounded-3xl border border-border bg-surface text-left hover:border-popline-pink/40 transition-all block"
         >
           <div className="grid md:grid-cols-[1.3fr_1fr] gap-0">
@@ -220,10 +227,14 @@ export default function OficinaListPage() {
             <WorkshopCard
               key={workshop.id}
               workshop={workshop}
-              onEnter={() => isPaid
-                ? (window.location.href = `${ROUTES.OFICINAS}/${workshop.id}`)
-                : setPaywallOpen(true)
-              }
+              onEnter={() => {
+                if (isPaid) {
+                  window.location.href = `${ROUTES.OFICINAS}/${workshop.id}`;
+                } else {
+                  trackPaywallShown(user?.id ?? null);
+                  setPaywallOpen(true);
+                }
+              }}
             />
           ))}
         </div>

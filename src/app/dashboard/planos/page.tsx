@@ -1,29 +1,16 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { pixelViewContent, pixelInitiateCheckout, pixelPurchase } from '@/lib/pixel';
+import { pixelViewContent, pixelPurchase } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
+import { useCheckout } from '@/hooks/useCheckout';
 import { PlanId } from '@/types';
 import * as subService from '@/services/subscriptions';
-import { createClient } from '@/lib/supabase/client';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-
-const CHECKOUT_URLS: Record<PlanId, string> = {
-  free:     '',
-  monthly:  process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_MONTHLY  || 'https://pay.kiwify.com.br/CCHoSG4',
-  semester: process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_SEMESTER || 'https://pay.kiwify.com.br/lhfSY5j',
-  yearly:   process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_YEARLY   || 'https://pay.kiwify.com.br/G2MKaHm',
-};
-
-function getCookie(name: string): string {
-  if (typeof document === 'undefined') return '';
-  const match = document.cookie.match(new RegExp(`(^| )${name}=([^;]+)`));
-  return match ? decodeURIComponent(match[2]) : '';
-}
 
 export default function PlanosPage() {
   const { user } = useAuth();
@@ -62,64 +49,7 @@ export default function PlanosPage() {
     pixelViewContent({ content_name: 'Planos POPline Creators' });
   }, []);
 
-  const handleSubscribe = useCallback(async (plan: PlanId) => {
-    if (!user || plan === 'free') return;
-
-    const checkoutUrl = CHECKOUT_URLS[plan];
-    if (!checkoutUrl) {
-      console.error('[planos] URL de checkout não configurada para:', plan);
-      return;
-    }
-
-    // UUID compartilhado entre pixel e CAPI → Meta deduplica como 1 evento
-    const eventId = crypto.randomUUID();
-
-    pixelInitiateCheckout({
-      value: subService.PLANS[plan].priceTotal,
-      currency: 'BRL',
-      content_name: subService.PLANS[plan].name,
-    }, eventId);
-
-    // Captura fbp/fbc/user-agent antes de sair do domínio (fire-and-forget)
-    // Salvar user-agent é crítico pro Event Match Quality no CAPI server-side.
-    const fbp = getCookie('_fbp');
-    const fbclid = new URLSearchParams(window.location.search).get('fbclid');
-    const fbc = getCookie('_fbc') || (fbclid ? `fb.1.${Date.now()}.${fbclid}` : '');
-    const userAgent = navigator.userAgent;
-    fetch('/api/tracking/meta-params', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fbp: fbp || undefined,
-        fbc: fbc || undefined,
-        userAgent,
-      }),
-    }).catch(() => {});
-
-    // CAPI InitiateCheckout server-side com mesmo eventId para deduplicação
-    fetch('/api/tracking/initiate-checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan, eventId }),
-    }).catch(() => {});
-
-    const params = new URLSearchParams({ email: user.email });
-
-    // Busca nome e telefone do profile — se falhar, redireciona mesmo assim
-    try {
-      const { data } = await createClient()
-        .from('profiles')
-        .select('full_name, whatsapp')
-        .eq('id', user.id)
-        .single();
-      if (data?.full_name) params.set('name', data.full_name);
-      if (data?.whatsapp) params.set('phone', data.whatsapp.replace(/\D/g, ''));
-    } catch {
-      // Redireciona com apenas o email se o fetch falhar
-    }
-
-    window.location.href = `${checkoutUrl}?${params.toString()}`;
-  }, [user]);
+  const { subscribeTo: handleSubscribe } = useCheckout(user);
 
   return (
     <div className="py-8 space-y-8">

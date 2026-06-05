@@ -69,6 +69,14 @@ export const PLANS: Record<PlanId, PlanInfo> = {
 
 export const PLAN_ORDER: PlanId[] = ['yearly', 'semester', 'monthly', 'free'];
 
+// URLs do checkout Kiwify por plano. Sobrescritas por env var quando definidas.
+export const CHECKOUT_URLS: Record<PlanId, string> = {
+  free:     '',
+  monthly:  process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_MONTHLY  || 'https://pay.kiwify.com.br/CCHoSG4',
+  semester: process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_SEMESTER || 'https://pay.kiwify.com.br/lhfSY5j',
+  yearly:   process.env.NEXT_PUBLIC_KIWIFY_CHECKOUT_YEARLY   || 'https://pay.kiwify.com.br/G2MKaHm',
+};
+
 type Row = {
   user_id: string;
   plan: PlanId;

@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { SavedScript } from '@/types';
 import * as scriptsService from '@/services/scripts';
 import * as subService from '@/services/subscriptions';
+import { trackPaywallShown } from '@/lib/paywall-tracking';
 import Card from '@/components/ui/Card';
 import Paywall from '@/components/ui/Paywall';
 import Button from '@/components/ui/Button';
@@ -101,6 +102,7 @@ export default function RoteirosPage() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (user && !(await subService.isPaid(user.id))) {
+      trackPaywallShown(user.id);
       setPaywallOpen(true);
       return;
     }
@@ -143,6 +145,7 @@ export default function RoteirosPage() {
   const handleRefine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (user && !(await subService.isPaid(user.id))) {
+      trackPaywallShown(user.id);
       setPaywallOpen(true);
       return;
     }
@@ -343,8 +346,7 @@ export default function RoteirosPage() {
       <Paywall
         isOpen={paywallOpen}
         onClose={() => setPaywallOpen(false)}
-        feature="IA de Roteiros"
-        description="Para gerar e aprimorar roteiros você precisa ter um plano ativo."
+        context="scripts"
       />
 
       {/* Refine modal */}

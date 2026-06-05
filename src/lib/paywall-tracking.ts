@@ -16,9 +16,10 @@ export function trackPaywallShown(userId: string | null | undefined): void {
 
   const eventId = crypto.randomUUID();
 
-  // Pixel client-side (sem custom_data: PaywallShown não é transação,
-  // EMQ é maximizado via user_data no CAPI)
-  pixelCustom('PaywallShown', undefined, eventId);
+  // Pixel client-side (custom_data vazio: PaywallShown não é transação,
+  // EMQ é maximizado via user_data no CAPI). {} em vez de undefined para
+  // garantir que o fbq não trate como malformado quando o 4º arg é eventID.
+  pixelCustom('PaywallShown', {}, eventId);
 
   // CAPI server-side com mesmo eventId
   fetch('/api/tracking/paywall-shown', {

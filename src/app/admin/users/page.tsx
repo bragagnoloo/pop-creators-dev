@@ -25,7 +25,13 @@ export default function AdminUsersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
-  const [filterPlan, setFilterPlan] = useState<'' | PlanId>('');
+  const [filterPlans, setFilterPlans] = useState<PlanId[]>([]);
+
+  const togglePlan = (plan: PlanId) => {
+    setFilterPlans(prev =>
+      prev.includes(plan) ? prev.filter(p => p !== plan) : [...prev, plan]
+    );
+  };
 
   // Ranks só dependem do mount, não do search.
   useEffect(() => {
@@ -105,10 +111,10 @@ export default function AdminUsersPage() {
     return profiles.filter(p => {
       if (filterState && p.state !== filterState) return false;
       if (filterCity && p.city !== filterCity) return false;
-      if (filterPlan && p.plan !== filterPlan) return false;
+      if (filterPlans.length > 0 && !filterPlans.includes(p.plan)) return false;
       return true;
     });
-  }, [profiles, filterState, filterCity, filterPlan]);
+  }, [profiles, filterState, filterCity, filterPlans]);
 
   const exportCSV = () => {
     const headers = ['Nome','Email','WhatsApp','Plano','Estado','Cidade','Instagram','Seguidores IG','TikTok','Seguidores TT','Onboarding'];
@@ -161,15 +167,25 @@ export default function AdminUsersPage() {
           <option value="">Todas as Cidades</option>
           {cities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <select value={filterPlan} onChange={e => setFilterPlan(e.target.value as '' | PlanId)} className={selectStyle}>
-          <option value="">Todos os planos</option>
-          <option value="free">Grátis</option>
-          <option value="monthly">Mensal</option>
-          <option value="semester">Semestral</option>
-          <option value="yearly">Anual</option>
-        </select>
-        {(search || filterState || filterCity || filterPlan) && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); setFilterPlan(''); }}>
+        <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1">
+          {(['free', 'monthly', 'semester', 'yearly'] as PlanId[]).map(plan => {
+            const active = filterPlans.includes(plan);
+            return (
+              <button
+                key={plan}
+                type="button"
+                onClick={() => togglePlan(plan)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  active ? 'bg-popline-pink text-white' : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                {subService.PLANS[plan].name}
+              </button>
+            );
+          })}
+        </div>
+        {(search || filterState || filterCity || filterPlans.length > 0) && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); setFilterPlans([]); }}>
             Limpar
           </Button>
         )}

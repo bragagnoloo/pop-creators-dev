@@ -89,13 +89,24 @@ export type UserProfileWithPlan = UserProfile & { plan: PlanId };
  * Nota: subscriptions.user_id é PRIMARY KEY (1:1 com profiles), então o
  * PostgREST retorna `subscriptions` como objeto único — não como array.
  */
-export async function getAllProfilesWithPlans(): Promise<UserProfileWithPlan[]> {
+export async function getAllProfilesWithPlans(search?: string): Promise<UserProfileWithPlan[]> {
   const supabase = createClient();
-  const { data } = await supabase
+  const q = (search ?? '').trim();
+  // PostgREST .or() não aceita vírgulas/parênteses no termo sem escape complexo.
+  // Sanitiza removendo esses caracteres — admin digita só nome/email simples.
+  const safeQ = q.replace(/[,()]/g, '');
+  let query = supabase
     .from('profiles')
     .select(`${SELECT}, subscriptions(plan, expires_at)`)
-    .order('email')
-    .limit(DEFAULT_LIST_LIMIT);
+    .order('email');
+  if (safeQ.length >= 2) {
+    query = query
+      .or(`email.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%`)
+      .limit(1000);
+  } else {
+    query = query.limit(DEFAULT_LIST_LIMIT);
+  }
+  const { data } = await query;
   if (!data) return [];
   const now = Date.now();
   type SubShape = { plan: PlanId; expires_at: string | null };

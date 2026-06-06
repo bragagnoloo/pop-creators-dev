@@ -71,6 +71,7 @@ export default function AdminAssinaturasPage() {
   const [filterMethod, setFilterMethod] = useState('');
   const [search, setSearch]       = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [vencimentoView, setVencimentoView] = useState<'expiring' | 'expired'>('expiring');
 
   const statsUrl = (() => {
     if (allTime) return '/api/admin/subscriptions/stats?all=1';
@@ -102,6 +103,10 @@ export default function AdminAssinaturasPage() {
   const expiringSoon = (list?.data ?? []).filter(
     (r: Record<string, unknown>) => r.status === 'expiring_soon' || r.status === 'cancelando'
   );
+  const expired = (list?.data ?? []).filter(
+    (r: Record<string, unknown>) => r.status === 'expired'
+  );
+  const vencimentoRows = vencimentoView === 'expiring' ? expiringSoon : expired;
 
   function exportCSV() {
     const rows = list?.data ?? [];
@@ -473,27 +478,51 @@ export default function AdminAssinaturasPage() {
         )}
       </Card>
 
-      {/* Próximos vencimentos */}
-      {expiringSoon.length > 0 && (
+      {/* Próximos vencimentos / Expirados */}
+      {(expiringSoon.length > 0 || expired.length > 0) && (
         <Card>
-          <h3 className="text-sm font-semibold mb-4">
-            Atenção — vencendo ou cancelando ({expiringSoon.length})
-          </h3>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <div className="flex items-center gap-1 bg-surface border border-border rounded-lg p-1">
+              <button
+                onClick={() => setVencimentoView('expiring')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  vencimentoView === 'expiring'
+                    ? 'bg-popline-pink text-white'
+                    : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                Prestes a expirar ({expiringSoon.length})
+              </button>
+              <button
+                onClick={() => setVencimentoView('expired')}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  vencimentoView === 'expired'
+                    ? 'bg-popline-pink text-white'
+                    : 'text-text-secondary hover:text-white'
+                }`}
+              >
+                Expirados ({expired.length})
+              </button>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left">
                   <th className="py-2 pr-4 font-medium text-text-secondary">Creator</th>
                   <th className="py-2 px-2 font-medium text-text-secondary">Plano</th>
-                  <th className="py-2 px-2 font-medium text-text-secondary">Vence em</th>
+                  <th className="py-2 px-2 font-medium text-text-secondary">
+                    {vencimentoView === 'expiring' ? 'Vence em' : 'Expirou'}
+                  </th>
                   <th className="py-2 px-2 font-medium text-text-secondary">Método</th>
                   <th className="py-2 px-2 font-medium text-text-secondary">Status</th>
                   <th className="py-2 px-2 font-medium text-text-secondary">WhatsApp</th>
                 </tr>
               </thead>
               <tbody className="[&>tr]:border-b [&>tr]:border-border/40">
-                {expiringSoon.map((r: Record<string, unknown>) => {
+                {vencimentoRows.map((r: Record<string, unknown>) => {
                   const waUrl = whatsappLink(r.whatsapp as string | null);
+                  const daysLeft = r.daysLeft as number | null;
                   return (
                     <tr key={r.userId as string}>
                       <td className="py-2 pr-4">
@@ -502,9 +531,13 @@ export default function AdminAssinaturasPage() {
                       </td>
                       <td className="py-2 px-2">{PLANS[r.plan as PlanId]?.name}</td>
                       <td className="py-2 px-2">
-                        <span className="text-amber-400 font-medium">
-                          {(r.daysLeft as number) !== null ? `${r.daysLeft}d` : '—'}
-                        </span>
+                        {daysLeft === null ? (
+                          <span className="text-text-secondary/50">—</span>
+                        ) : vencimentoView === 'expiring' ? (
+                          <span className="text-amber-400 font-medium">{daysLeft}d</span>
+                        ) : (
+                          <span className="text-red-400 font-medium">há {Math.abs(daysLeft)}d</span>
+                        )}
                       </td>
                       <td className="py-2 px-2 text-text-secondary">{methodLabel(r.paymentMethod as string)}</td>
                       <td className="py-2 px-2">{statusBadge(r.status as string)}</td>
@@ -526,6 +559,13 @@ export default function AdminAssinaturasPage() {
                     </tr>
                   );
                 })}
+                {vencimentoRows.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-6 text-center text-text-secondary text-sm">
+                      Nenhum {vencimentoView === 'expiring' ? 'vencimento próximo' : 'expirado'} nesta página.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

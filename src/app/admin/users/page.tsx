@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { UserProfile, PlanId } from '@/types';
 import * as userService from '@/services/users';
+import type { UserProfileWithPlan } from '@/services/users';
 import * as subService from '@/services/subscriptions';
 import { getAdminUserRanks, type AdminUserRank } from '@/services/ranking';
 import { useRequireTab } from '@/lib/hooks/useRequireTab';
@@ -14,29 +15,42 @@ import { InstagramIcon, TikTokIcon } from '@/components/ui/SocialIcons';
 
 export default function AdminUsersPage() {
   useRequireTab('users');
-  const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [profiles, setProfiles] = useState<UserProfileWithPlan[]>([]);
   const [selected, setSelected] = useState<UserProfile | null>(null);
   const [planFor, setPlanFor] = useState<UserProfile | null>(null);
   const [planChoice, setPlanChoice] = useState<PlanId>('free');
   const [plansMap, setPlansMap] = useState<Record<string, PlanId>>({});
   const [ranksMap, setRanksMap] = useState<Record<string, AdminUserRank>>({});
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
+  const [filterPlan, setFilterPlan] = useState<'' | PlanId>('');
 
+  // Ranks só dependem do mount, não do search.
   useEffect(() => {
     (async () => {
-      const [list, ranks] = await Promise.all([
-        userService.getAllProfilesWithPlans(),
-        getAdminUserRanks(),
-      ]);
+      const ranks = await getAdminUserRanks();
+      setRanksMap(ranks);
+    })();
+  }, []);
+
+  // Debounce do search para evitar refetch a cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Refetch quando o termo debouncado muda. < 2 chars usa lista padrão.
+  useEffect(() => {
+    (async () => {
+      const list = await userService.getAllProfilesWithPlans(debouncedSearch);
       const map: Record<string, PlanId> = {};
       for (const p of list) map[p.userId] = p.plan;
       setProfiles(list);
       setPlansMap(map);
-      setRanksMap(ranks);
     })();
-  }, []);
+  }, [debouncedSearch]);
 
   const openPlanEditor = (profile: UserProfile) => {
     setPlanFor(profile);
@@ -85,16 +99,44 @@ export default function AdminUsersPage() {
     setFilterCity('');
   };
 
-  // Filtered profiles
+  // Filtered profiles — search já foi aplicado server-side em debouncedSearch.
+  // Aqui só aplicamos state/city/plan client-side em cima do resultado.
   const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
     return profiles.filter(p => {
       if (filterState && p.state !== filterState) return false;
       if (filterCity && p.city !== filterCity) return false;
-      if (q && !p.fullName?.toLowerCase().includes(q) && !p.email.toLowerCase().includes(q)) return false;
+      if (filterPlan && p.plan !== filterPlan) return false;
       return true;
     });
-  }, [profiles, filterState, filterCity, search]);
+  }, [profiles, filterState, filterCity, filterPlan]);
+
+  const exportCSV = () => {
+    const headers = ['Nome','Email','WhatsApp','Plano','Estado','Cidade','Instagram','Seguidores IG','TikTok','Seguidores TT','Onboarding'];
+    const escape = (v: unknown) => {
+      const s = v == null ? '' : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = filtered.map(p => [
+      p.fullName,
+      p.email,
+      p.whatsapp,
+      subService.PLANS[plansMap[p.userId] ?? 'free'].name,
+      p.state,
+      p.city,
+      p.instagram,
+      p.instagramFollowers,
+      p.tiktok,
+      p.tiktokFollowers,
+      p.onboardingComplete ? 'Completo' : 'Pendente',
+    ].map(escape).join(','));
+    const csv = '﻿' + [headers.join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `usuarios-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
 
   const selectStyle = "bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink transition-colors";
 
@@ -119,11 +161,21 @@ export default function AdminUsersPage() {
           <option value="">Todas as Cidades</option>
           {cities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(search || filterState || filterCity) && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); }}>
+        <select value={filterPlan} onChange={e => setFilterPlan(e.target.value as '' | PlanId)} className={selectStyle}>
+          <option value="">Todos os planos</option>
+          <option value="free">Grátis</option>
+          <option value="monthly">Mensal</option>
+          <option value="semester">Semestral</option>
+          <option value="yearly">Anual</option>
+        </select>
+        {(search || filterState || filterCity || filterPlan) && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); setFilterPlan(''); }}>
             Limpar
           </Button>
         )}
+        <Button variant="secondary" size="sm" onClick={exportCSV} disabled={filtered.length === 0}>
+          Exportar CSV
+        </Button>
         <span className="text-xs text-text-secondary ml-auto">
           {filtered.length} usuario{filtered.length !== 1 ? 's' : ''}
         </span>

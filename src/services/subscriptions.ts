@@ -53,7 +53,7 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     monthlyEquivalent: 39.9,
     modifier: 2,
     prizes: true,
-    tagline: '2x mais chance em campanhas + prêmios exclusivos.',
+    tagline: '2x mais prioridade em campanhas + oportunidades exclusivas.',
   },
   yearly: {
     id: 'yearly',
@@ -63,7 +63,7 @@ export const PLANS: Record<PlanId, PlanInfo> = {
     monthlyEquivalent: 29.9,
     modifier: 5,
     prizes: true,
-    tagline: '5x mais chance em campanhas + prêmios VIP.',
+    tagline: '5x mais prioridade em campanhas + oportunidades exclusivas.',
   },
 };
 

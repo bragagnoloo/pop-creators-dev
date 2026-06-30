@@ -9,7 +9,7 @@ const features = [
     description: 'Acesse campanhas exclusivas de marcas parceiras. Candidate-se, crie o conteúdo briefado e receba seu cachê em dinheiro real.',
     gradient: 'from-popline-pink/15 to-transparent',
     accent: 'text-popline-pink',
-    tag: 'Ganhe dinheiro',
+    tag: 'Receba por campanhas',
   },
   {
     icon: (
@@ -53,8 +53,8 @@ const features = [
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
       </svg>
     ),
-    title: 'Ranking & Prêmios',
-    description: 'Ganhe pontos assistindo aulas, participando de campanhas e fazendo login diário. Os melhores creators são premiados todo mês.',
+    title: 'Ranking & Oportunidades',
+    description: 'Ganhe pontos assistindo aulas, participando de campanhas e fazendo login diário. Os creators mais ativos desbloqueiam oportunidades exclusivas todo mês.',
     gradient: 'from-blue-500/15 to-transparent',
     accent: 'text-blue-400',
     tag: 'Compete e vence',

@@ -105,7 +105,7 @@ export default function Paywall({ isOpen, onClose, feature, description, context
                     <span className="text-base font-bold">{plan.name}</span>
                     {plan.modifier > 0 && (
                       <span className="text-[11px] text-text-secondary">
-                        {plan.modifier}x chance em campanhas
+                        {plan.modifier}x prioridade em campanhas
                       </span>
                     )}
                   </div>

@@ -137,12 +137,13 @@ function HowItWorksSection() {
         </div>
       </div>
 
-      {/* Premiações */}
+      {/* Oportunidades */}
       <div className="bg-popline-pink/5 border border-popline-pink/20 rounded-2xl p-5 space-y-2">
-        <h3 className="font-semibold text-popline-light text-sm uppercase tracking-wide">🎁 Premiações</h3>
+        <h3 className="font-semibold text-popline-light text-sm uppercase tracking-wide">🌟 Oportunidades</h3>
         <p className="text-sm text-text-secondary leading-relaxed">
-          As premiações são anunciadas mensalmente pela equipe POPline. Os vencedores de cada período são
-          notificados diretamente. Fique de olho nos avisos de campanha para não perder nenhuma novidade!
+          Os creators mais ativos de cada mês desbloqueiam oportunidades exclusivas dentro do universo POPline —
+          convites para eventos, áreas VIP e experiências. Fique de olho nos avisos de campanha para não perder
+          nenhuma novidade!
         </p>
       </div>
     </div>
@@ -174,7 +175,7 @@ export default function RankingPage() {
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-text-primary">Ranking</h1>
-        <p className="text-text-secondary text-sm mt-1">Ganhe pontos e dispute prêmios mensais</p>
+        <p className="text-text-secondary text-sm mt-1">Ganhe pontos por engajamento e desbloqueie oportunidades</p>
       </div>
 
       {/* Toggle tabs */}

@@ -75,7 +75,7 @@ export default function PlanosPage() {
       <div className="text-center max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold">Escolha seu plano</h1>
         <p className="text-text-secondary mt-2">
-          Desbloqueie candidaturas, aulas, IA de Roteiros e prêmios exclusivos.
+          Desbloqueie candidaturas, aulas, IA de Roteiros e oportunidades exclusivas.
         </p>
       </div>
 
@@ -133,7 +133,7 @@ export default function PlanosPage() {
               <ComparisonRow label="Assistir aulas"          values={['—', '✓', '✓', '✓']} />
               <ComparisonRow label="IA de Roteiros"          values={['—', '✓', '✓', '✓']} />
               <ComparisonRow label="Modificador de aprovação" values={['—', '1x', '2x', '5x']} />
-              <ComparisonRow label="Prêmios exclusivos"      values={['—', '—', '✓', '✓ VIP']} />
+              <ComparisonRow label="Oportunidades exclusivas" values={['—', '—', '✓', '✓ VIP']} />
             </tbody>
           </table>
         </div>
@@ -182,8 +182,8 @@ function PlanCard({
         <FeatureLine label="Candidaturas ilimitadas" />
         <FeatureLine label="Todas as aulas" />
         <FeatureLine label="IA de Roteiros" />
-        <FeatureLine label={`${info.modifier}x chance de aprovação`} highlight={info.modifier > 1} />
-        {info.prizes && <FeatureLine label="Prêmios exclusivos" highlight />}
+        <FeatureLine label={`${info.modifier}x prioridade na seleção`} highlight={info.modifier > 1} />
+        {info.prizes && <FeatureLine label="Oportunidades exclusivas" highlight />}
         {plan === 'yearly' && <FeatureLine label="Destaque VIP nas campanhas" highlight />}
       </ul>
       <Button onClick={onSubscribe} disabled={isCurrent} className="w-full">

@@ -8,24 +8,24 @@ const PLAN_FEATURES = {
     { label: 'Candidaturas ilimitadas', highlight: false },
     { label: 'Todas as aulas com experts', highlight: false },
     { label: 'IA de Roteiros', highlight: false },
-    { label: '1x chance de aprovação', highlight: false },
+    { label: 'Prioridade padrão na seleção', highlight: false },
     { label: 'Carteira & PIX', highlight: false },
   ],
   semester: [
     { label: 'Candidaturas ilimitadas', highlight: false },
     { label: 'Todas as aulas com experts', highlight: false },
     { label: 'IA de Roteiros', highlight: false },
-    { label: '2x mais chance de aprovação', highlight: true },
+    { label: '2x mais prioridade na seleção', highlight: true },
     { label: 'Carteira & PIX', highlight: false },
-    { label: 'Prêmios exclusivos mensais', highlight: true },
+    { label: 'Oportunidades exclusivas', highlight: true },
   ],
   yearly: [
     { label: 'Candidaturas ilimitadas', highlight: false },
     { label: 'Todas as aulas com experts', highlight: false },
     { label: 'IA de Roteiros', highlight: false },
-    { label: '5x mais chance de aprovação', highlight: true },
+    { label: '5x mais prioridade na seleção', highlight: true },
     { label: 'Carteira & PIX', highlight: false },
-    { label: 'Prêmios VIP exclusivos', highlight: true },
+    { label: 'Oportunidades exclusivas', highlight: true },
     { label: 'Destaque VIP nas campanhas', highlight: true },
   ],
 } as const;
@@ -53,7 +53,7 @@ export default function PlansSection() {
             Escolha seu <span className="gradient-text">plano</span>
           </h2>
           <p className="text-text-secondary max-w-xl mx-auto text-lg">
-            Desbloqueie campanhas, aulas com experts, IA de roteiros e prêmios exclusivos.
+            Desbloqueie campanhas, aulas com experts, IA de roteiros e oportunidades exclusivas.
           </p>
         </div>
 

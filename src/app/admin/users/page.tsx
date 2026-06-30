@@ -217,7 +217,7 @@ export default function AdminUsersPage() {
             <p className="text-xs text-text-secondary">
               Ao ativar, passa a valer por {subService.PLANS[planChoice].durationMonths || 0} mês(es).
               Modificador: {subService.PLANS[planChoice].modifier}x
-              {subService.PLANS[planChoice].prizes ? ' · acesso a prêmios exclusivos' : ''}.
+              {subService.PLANS[planChoice].prizes ? ' · acesso a oportunidades exclusivas' : ''}.
             </p>
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={() => setPlanFor(null)}>

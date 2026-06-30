@@ -55,7 +55,7 @@ export const PAYWALL_PRESETS: Record<PaywallContext, PaywallPreset> = {
       'Candidatar-se a campanhas',
       'Assistir todas as oficinas',
       'Gerar roteiros com IA',
-      'Modificador de chance em campanhas',
+      'Modificador de prioridade em campanhas',
     ],
     plansHeading: 'Escolha seu plano',
   },

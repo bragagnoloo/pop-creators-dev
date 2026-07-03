@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import React from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/auth-guard';
+import { sendEmail, getUserEmailData } from '@/lib/email';
+import WithdrawalFlaggedEmail from '@/emails/withdrawal-flagged';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -45,17 +48,21 @@ export async function POST(request: Request) {
   if (!result) return NextResponse.json({ error: 'Resposta inesperada.' }, { status: 500 });
   if (!result.success) return NextResponse.json({ error: result.error }, { status: 400 });
 
-  // Fire-and-forget do email de conformidade — não bloqueia a resposta.
-  const host = request.headers.get('host');
-  const proto = request.headers.get('x-forwarded-proto') ?? 'https';
-  fetch(`${proto}://${host}/api/email/notify`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      event: 'withdrawal-flagged',
-      data: { userId: result.user_id, amount: result.amount, reason },
-    }),
-  }).catch(() => {});
+  // Envia o email inline (não via fetch para /api/email/notify). Em serverless,
+  // um fetch fire-and-forget é cancelado quando a função encerra — o email
+  // silenciosamente nunca sai. Aqui aguardamos antes de responder.
+  const user = await getUserEmailData(result.user_id);
+  if (user) {
+    await sendEmail(
+      user.email,
+      'Precisamos revisar seu último saque',
+      React.createElement(WithdrawalFlaggedEmail, {
+        fullName: user.fullName,
+        amount: Number(result.amount),
+        reason: reason || null,
+      }),
+    );
+  }
 
   return NextResponse.json({ success: true });
 }

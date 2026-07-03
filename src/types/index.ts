@@ -36,6 +36,7 @@ export interface UserProfile {
   onboardingComplete: boolean;
   pixKey: string | null;
   pixKeyType: PixKeyType | null;
+  pixHolderName: string | null;
 }
 
 export type PixKeyType = 'cpf' | 'cnpj' | 'email' | 'phone' | 'random';
@@ -206,9 +207,13 @@ export interface Withdrawal {
   amount: number;
   pixKey: string;
   pixKeyType: PixKeyType;
-  status: 'requested' | 'paid';
+  pixHolderName: string | null;
+  profileNameSnapshot: string | null;
+  status: 'requested' | 'paid' | 'flagged';
   createdAt: string;
   paidAt: string | null;
+  flaggedAt: string | null;
+  flagReason: string | null;
   consumedCredits: { creditId: string; amount: number }[];
 }
 

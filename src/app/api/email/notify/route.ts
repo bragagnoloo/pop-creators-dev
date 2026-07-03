@@ -8,6 +8,7 @@ import ApplicationApprovedEmail from '@/emails/application-approved';
 import CreditProcessingEmail from '@/emails/credit-processing';
 import CreditReleasedEmail from '@/emails/credit-released';
 import WithdrawalPaidEmail from '@/emails/withdrawal-paid';
+import WithdrawalFlaggedEmail from '@/emails/withdrawal-flagged';
 import DeliveryScheduledEmail from '@/emails/delivery-scheduled';
 import CampaignNoticeEmail from '@/emails/campaign-notice';
 import PlanSubscribedEmail from '@/emails/plan-subscribed';
@@ -111,6 +112,21 @@ export async function POST(req: NextRequest) {
             fullName: user.fullName,
             amount: data.amount as number,
             pixKeyType: data.pixKeyType as PixKeyType,
+          }),
+        );
+        break;
+      }
+
+      case 'withdrawal-flagged': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          'Precisamos revisar seu último saque',
+          React.createElement(WithdrawalFlaggedEmail, {
+            fullName: user.fullName,
+            amount: data.amount as number,
+            reason: (data.reason as string) || null,
           }),
         );
         break;

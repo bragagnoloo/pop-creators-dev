@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import confetti from 'canvas-confetti';
 import { pixelAddPaymentInfo, pixelCustom } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
@@ -13,6 +14,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
+import WithdrawalRulesModal from '@/components/wallet/WithdrawalRulesModal';
 
 export default function CarteiraPage() {
   const { user } = useAuth();
@@ -43,12 +45,17 @@ export default function CarteiraPage() {
   const [showPixForm, setShowPixForm] = useState(false);
   const [pixKey, setPixKey] = useState('');
   const [pixKeyType, setPixKeyType] = useState<PixKeyType>('cpf');
+  const [pixHolderName, setPixHolderName] = useState('');
   const [pixConfirm, setPixConfirm] = useState(false);
 
   // Withdraw
   const [showWithdraw, setShowWithdraw] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+
+  // Rules modal
+  const [showRules, setShowRules] = useState(false);
 
 
   const history = useMemo(() => {
@@ -64,11 +71,12 @@ export default function CarteiraPage() {
 
   if (!profile) return null;
 
-  const hasPix = !!profile.pixKey && !!profile.pixKeyType;
+  const hasPix = !!profile.pixKey && !!profile.pixKeyType && !!profile.pixHolderName;
 
   const openPixForm = () => {
     setPixKey(profile.pixKey || '');
     setPixKeyType(profile.pixKeyType || 'cpf');
+    setPixHolderName(profile.pixHolderName || profile.fullName || '');
     setPixConfirm(false);
     setShowPixForm(true);
   };
@@ -80,7 +88,11 @@ export default function CarteiraPage() {
 
   const confirmPix = async () => {
     if (!user) return;
-    await userService.updateProfile(user.id, { pixKey, pixKeyType });
+    await userService.updateProfile(user.id, {
+      pixKey,
+      pixKeyType,
+      pixHolderName: pixHolderName.trim(),
+    });
     pixelAddPaymentInfo({ currency: 'BRL' });
     setShowPixForm(false);
     setPixConfirm(false);
@@ -90,7 +102,14 @@ export default function CarteiraPage() {
   const openWithdraw = () => {
     setWithdrawAmount('');
     setWithdrawError(null);
+    setWithdrawSuccess(false);
     setShowWithdraw(true);
+  };
+
+  const closeWithdraw = () => {
+    setShowWithdraw(false);
+    setWithdrawSuccess(false);
+    if (withdrawSuccess) mutateWallet();
   };
 
   const handleWithdraw = async (e: React.FormEvent) => {
@@ -103,8 +122,11 @@ export default function CarteiraPage() {
       return;
     }
     pixelCustom('WithdrawalRequested', { value: amount, currency: 'BRL' });
-    setShowWithdraw(false);
-    mutateWallet();
+    setWithdrawSuccess(true);
+    // Confete — dispara ao chegar na tela de sucesso.
+    confetti({ particleCount: 120, spread: 90, origin: { y: 0.6 } });
+    setTimeout(() => confetti({ particleCount: 80, spread: 100, origin: { x: 0.2, y: 0.7 } }), 250);
+    setTimeout(() => confetti({ particleCount: 80, spread: 100, origin: { x: 0.8, y: 0.7 } }), 400);
   };
 
   return (
@@ -143,6 +165,9 @@ export default function CarteiraPage() {
         </Button>
         <Button variant="secondary" onClick={openPixForm}>
           {hasPix ? 'Editar chave PIX' : 'Cadastrar chave PIX'}
+        </Button>
+        <Button variant="ghost" onClick={() => setShowRules(true)}>
+          Regras de saque
         </Button>
       </div>
 
@@ -217,17 +242,40 @@ export default function CarteiraPage() {
                           <Badge variant="warning">Saque</Badge>
                         </td>
                         <td className="py-3 pr-4">
-                          PIX: {entry.withdrawal.pixKey}
+                          <p>PIX: {entry.withdrawal.pixKey}</p>
+                          {entry.withdrawal.status === 'flagged' && (
+                            <p className="text-xs text-red-400 mt-1">
+                              Saque interrompido por divergência de titularidade. Confira as{' '}
+                              <button
+                                type="button"
+                                className="underline hover:text-red-300 cursor-pointer"
+                                onClick={() => setShowRules(true)}
+                              >
+                                regras de saque
+                              </button>
+                              {' '}e atualize sua chave PIX se necessário.
+                            </p>
+                          )}
                         </td>
                         <td className="py-3 pr-4">
-                          {entry.withdrawal.status === 'requested' ? (
+                          {entry.withdrawal.status === 'requested' && (
                             <span className="text-yellow-400">Solicitado</span>
-                          ) : (
+                          )}
+                          {entry.withdrawal.status === 'paid' && (
                             <span className="text-green-400">Pago</span>
+                          )}
+                          {entry.withdrawal.status === 'flagged' && (
+                            <span className="text-red-400">Interrompido — conformidade</span>
                           )}
                         </td>
                         <td className="py-3 text-right font-medium whitespace-nowrap">
-                          − {walletService.formatBRL(entry.withdrawal.amount)}
+                          {entry.withdrawal.status === 'flagged' ? (
+                            <span className="text-text-secondary line-through">
+                              − {walletService.formatBRL(entry.withdrawal.amount)}
+                            </span>
+                          ) : (
+                            <>− {walletService.formatBRL(entry.withdrawal.amount)}</>
+                          )}
                         </td>
                       </>
                     )}
@@ -244,6 +292,11 @@ export default function CarteiraPage() {
         <Modal isOpen onClose={() => setShowPixForm(false)} title="Chave PIX">
           {!pixConfirm ? (
             <form onSubmit={handlePixSave} className="space-y-4">
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+                Por segurança, a chave PIX cadastrada precisa ser da <strong>sua própria conta bancária</strong>.
+                O nome do titular deve ser o mesmo que consta no seu perfil ({profile.fullName || 'seu nome'}).
+                Saques com dados divergentes são interrompidos por conformidade.
+              </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm text-text-secondary font-medium">Tipo da chave</label>
                 <select
@@ -258,6 +311,13 @@ export default function CarteiraPage() {
                   <option value="random">Chave aleatória</option>
                 </select>
               </div>
+              <Input
+                label="Nome completo do titular da conta"
+                value={pixHolderName}
+                onChange={e => setPixHolderName(e.target.value)}
+                placeholder="Como aparece no seu banco"
+                required
+              />
               <Input
                 label="Chave"
                 value={pixKey}
@@ -282,6 +342,10 @@ export default function CarteiraPage() {
                   <span className="font-medium">{walletService.pixKeyTypeLabels[pixKeyType]}</span>
                 </div>
                 <div className="flex justify-between text-sm">
+                  <span className="text-text-secondary">Titular</span>
+                  <span className="font-medium text-right">{pixHolderName}</span>
+                </div>
+                <div className="flex justify-between text-sm">
                   <span className="text-text-secondary">Chave</span>
                   <span className="font-medium break-all text-right">{pixKey}</span>
                 </div>
@@ -301,45 +365,88 @@ export default function CarteiraPage() {
 
       {/* Withdraw Modal */}
       {showWithdraw && (
-        <Modal isOpen onClose={() => setShowWithdraw(false)} title="Solicitar saque">
-          <form onSubmit={handleWithdraw} className="space-y-4">
-            <div className="p-3 rounded-xl bg-background border border-border text-sm">
-              <p className="text-text-secondary">Disponível</p>
-              <p className="text-lg font-bold text-green-400">
-                {walletService.formatBRL(summary.available)}
+        <Modal isOpen onClose={closeWithdraw} title={withdrawSuccess ? undefined : 'Solicitar saque'}>
+          {withdrawSuccess ? (
+            <div className="text-center py-4 space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center">
+                <svg className="w-9 h-9 text-green-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-text-primary">
+                Parabéns! Seu Cachê está chegando.
+              </h3>
+              <p className="text-sm text-text-secondary leading-relaxed">
+                O Prazo máximo é de até <strong className="text-text-primary">48h úteis</strong>.
               </p>
-            </div>
-            <Input
-              label="Valor (R$)"
-              type="number"
-              min="0.01"
-              step="0.01"
-              max={summary.available}
-              value={withdrawAmount}
-              onChange={e => {
-                setWithdrawAmount(e.target.value);
-                setWithdrawError(null);
-              }}
-              required
-            />
-            <div className="text-sm">
-              <p className="text-text-secondary">Receberá em</p>
-              <p className="font-medium">
-                {walletService.pixKeyTypeLabels[profile.pixKeyType!]}: {profile.pixKey}
+              <p className="text-sm text-text-secondary">
+                Obrigado por fazer parte da POPline Creators.
               </p>
-            </div>
-            {withdrawError && <p className="text-xs text-red-400">{withdrawError}</p>}
-            <div className="flex gap-3">
-              <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowWithdraw(false)}>
-                Cancelar
-              </Button>
-              <Button type="submit" className="flex-1">
-                Solicitar
+              <Button className="w-full mt-2" onClick={closeWithdraw}>
+                Fechar
               </Button>
             </div>
-          </form>
+          ) : (
+            <form onSubmit={handleWithdraw} className="space-y-4">
+              <div className="p-3 rounded-xl bg-background border border-border text-sm">
+                <p className="text-text-secondary">Disponível</p>
+                <p className="text-lg font-bold text-green-400">
+                  {walletService.formatBRL(summary.available)}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 leading-relaxed space-y-1.5">
+                <p>
+                  <strong>⚠️ Titularidade obrigatória:</strong> a chave PIX cadastrada deve ser da{' '}
+                  <strong>sua própria conta bancária</strong>, com o mesmo nome do assinante. Saques com
+                  dados divergentes serão interrompidos.
+                </p>
+                <p>
+                  <strong>⏱️ Prazo:</strong> saques solicitados podem levar até <strong>48h úteis</strong>{' '}
+                  para serem depositados.
+                </p>
+              </div>
+
+              <Input
+                label="Valor (R$)"
+                type="number"
+                min="0.01"
+                step="0.01"
+                max={summary.available}
+                value={withdrawAmount}
+                onChange={e => {
+                  setWithdrawAmount(e.target.value);
+                  setWithdrawError(null);
+                }}
+                required
+              />
+
+              <div className="text-sm space-y-1">
+                <p className="text-text-secondary">Receberá em</p>
+                <p className="font-medium">
+                  {walletService.pixKeyTypeLabels[profile.pixKeyType!]}: {profile.pixKey}
+                </p>
+                <p className="text-xs text-text-secondary">
+                  Titular: <span className="text-text-primary font-medium">{profile.pixHolderName || '—'}</span>
+                </p>
+              </div>
+
+              {withdrawError && <p className="text-xs text-red-400">{withdrawError}</p>}
+
+              <div className="flex gap-3">
+                <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowWithdraw(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" className="flex-1">
+                  Solicitar
+                </Button>
+              </div>
+            </form>
+          )}
         </Modal>
       )}
+
+      <WithdrawalRulesModal isOpen={showRules} onClose={() => setShowRules(false)} />
     </div>
   );
 }

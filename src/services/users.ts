@@ -20,6 +20,7 @@ type Row = {
   onboarding_complete: boolean;
   pix_key: string | null;
   pix_key_type: PixKeyType | null;
+  pix_holder_name: string | null;
 };
 
 function toProfile(r: Row): UserProfile {
@@ -42,10 +43,11 @@ function toProfile(r: Row): UserProfile {
     onboardingComplete: r.onboarding_complete,
     pixKey: r.pix_key,
     pixKeyType: r.pix_key_type,
+    pixHolderName: r.pix_holder_name,
   };
 }
 
-const SELECT = 'id, email, full_name, whatsapp, photo_url, bio, instagram, instagram_followers, tiktok, tiktok_followers, cep, state, city, neighborhood, address, onboarding_complete, pix_key, pix_key_type';
+const SELECT = 'id, email, full_name, whatsapp, photo_url, bio, instagram, instagram_followers, tiktok, tiktok_followers, cep, state, city, neighborhood, address, onboarding_complete, pix_key, pix_key_type, pix_holder_name';
 
 export async function getProfile(userId: string): Promise<UserProfile | null> {
   const supabase = createClient();
@@ -143,6 +145,7 @@ export async function updateProfile(userId: string, data: Partial<UserProfile>):
   if (data.onboardingComplete !== undefined) patch.onboarding_complete = data.onboardingComplete;
   if (data.pixKey !== undefined) patch.pix_key = data.pixKey;
   if (data.pixKeyType !== undefined) patch.pix_key_type = data.pixKeyType;
+  if (data.pixHolderName !== undefined) patch.pix_holder_name = data.pixHolderName;
 
   const { data: updated } = await supabase
     .from('profiles')

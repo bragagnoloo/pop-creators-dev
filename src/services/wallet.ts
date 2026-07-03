@@ -18,9 +18,13 @@ type WithdrawalRow = {
   amount: number;
   pix_key: string;
   pix_key_type: PixKeyType;
+  pix_holder_name: string | null;
+  profile_name_snapshot: string | null;
   status: Withdrawal['status'];
   created_at: string;
   paid_at: string | null;
+  flagged_at: string | null;
+  flag_reason: string | null;
   consumed_credits: { creditId: string; amount: number }[];
 };
 
@@ -44,15 +48,19 @@ function toWithdrawal(r: WithdrawalRow): Withdrawal {
     amount: Number(r.amount),
     pixKey: r.pix_key,
     pixKeyType: r.pix_key_type,
+    pixHolderName: r.pix_holder_name,
+    profileNameSnapshot: r.profile_name_snapshot,
     status: r.status,
     createdAt: r.created_at,
     paidAt: r.paid_at,
+    flaggedAt: r.flagged_at,
+    flagReason: r.flag_reason,
     consumedCredits: r.consumed_credits || [],
   };
 }
 
 const C_SELECT = 'id, user_id, campaign_id, amount, status, consumed_amount, created_at, released_at';
-const W_SELECT = 'id, user_id, amount, pix_key, pix_key_type, status, created_at, paid_at, consumed_credits';
+const W_SELECT = 'id, user_id, amount, pix_key, pix_key_type, pix_holder_name, profile_name_snapshot, status, created_at, paid_at, flagged_at, flag_reason, consumed_credits';
 
 // ---------- Credits ----------
 
@@ -195,6 +203,35 @@ export async function requestWithdrawal(
       return { success: false, error: payload.error || 'Falha ao processar saque.' };
     }
     return { success: true, withdrawal: toWithdrawal(payload.withdrawal as WithdrawalRow) };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro de rede.';
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Marca um saque como "flagged" (interrompido por divergência de dados) e
+ * reverte os créditos consumidos. Servidor faz o trabalho atômico via RPC
+ * flag_withdrawal, protegido por is_admin().
+ */
+export async function flagWithdrawal(
+  withdrawalId: string,
+  reason: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const res = await fetch('/api/wallet/flag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ withdrawalId, reason }),
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload) {
+      return { success: false, error: payload?.error || 'Falha ao notificar saque.' };
+    }
+    if (!payload.success) {
+      return { success: false, error: payload.error || 'Falha ao notificar saque.' };
+    }
+    return { success: true };
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Erro de rede.';
     return { success: false, error: msg };

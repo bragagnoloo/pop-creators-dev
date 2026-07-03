@@ -23,18 +23,19 @@ function ObrigadoContent() {
       return;
     }
 
-    const isKiwifyRedirect = searchParams.get('ref') === 'kiwify';
+    const ref = searchParams.get('ref');
+    const isPaidRedirect = ref === 'hotmart' || ref === 'kiwify';
 
     getUserSubscription(user.id).then(sub => {
       if (sub.plan === 'free') {
-        // Webhook pode ainda não ter processado — se veio da Kiwify, vai para
+        // Webhook pode ainda não ter processado — se veio do gateway, vai para
         // /planos com ?payment=success para ativar o polling e disparar o pixel
         // quando o plano ativar.
-        router.replace(isKiwifyRedirect ? '/dashboard/planos?payment=success' : '/dashboard/planos');
+        router.replace(isPaidRedirect ? '/dashboard/planos?payment=success' : '/dashboard/planos');
         return;
       }
       setAllowed(true);
-      if (isKiwifyRedirect) {
+      if (isPaidRedirect) {
         fetch('/api/tracking/latest-order')
           .then(r => r.json())
           .then(({ orderId }: { orderId: string | null }) => {

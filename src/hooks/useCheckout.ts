@@ -78,7 +78,7 @@ export function useCheckout(user: User | null | undefined): {
         .eq('id', user.id)
         .single();
       if (data?.full_name) params.set('name', data.full_name);
-      if (data?.whatsapp) params.set('phone', data.whatsapp.replace(/\D/g, ''));
+      if (data?.whatsapp) params.set('phonenumber', data.whatsapp.replace(/\D/g, ''));
     } catch {
       // Redireciona com apenas o email se o fetch falhar
     }

@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Button from './Button';
-import GatewayMigrationModal from './GatewayMigrationModal';
+import { useAuth } from '@/providers/AuthProvider';
+import { useCheckout } from '@/hooks/useCheckout';
 import { PLANS, PLAN_ORDER } from '@/services/subscriptions';
 import { PAYWALL_TITLE, PAYWALL_PRESETS, type PaywallContext } from '@/lib/paywall-presets';
 import type { PlanId } from '@/types';
@@ -20,9 +21,8 @@ function formatBRL(value: number): string {
 }
 
 export default function Paywall({ isOpen, onClose, feature, description, context = 'default' }: PaywallProps) {
-  // TEMPORÁRIO: durante a migração Kiwify → Hotmart, "Assinar" abre o aviso de
-  // migração em vez de redirecionar ao checkout.
-  const [showMigration, setShowMigration] = useState(false);
+  const { user } = useAuth();
+  const { subscribeTo, busy } = useCheckout(user);
   const preset = PAYWALL_PRESETS[context];
 
   useEffect(() => {
@@ -44,7 +44,6 @@ export default function Paywall({ isOpen, onClose, feature, description, context
   const paidPlans = PLAN_ORDER.filter(id => id !== 'free') as Exclude<PlanId, 'free'>[];
 
   return (
-    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-surface border border-popline-pink/30 rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl shadow-popline-pink/10">
@@ -122,9 +121,10 @@ export default function Paywall({ isOpen, onClose, feature, description, context
                   <Button
                     className="w-full min-h-11"
                     variant={isHighlight ? 'primary' : 'secondary'}
-                    onClick={() => setShowMigration(true)}
+                    onClick={() => subscribeTo(planId)}
+                    disabled={busy}
                   >
-                    Assinar
+                    {busy ? 'Redirecionando...' : 'Assinar'}
                   </Button>
                 </div>
               );
@@ -135,7 +135,8 @@ export default function Paywall({ isOpen, onClose, feature, description, context
           <div className="flex justify-center pt-1">
             <button
               onClick={onClose}
-              className="text-sm text-text-secondary hover:text-text-primary transition-colors px-4 py-2"
+              disabled={busy}
+              className="text-sm text-text-secondary hover:text-text-primary transition-colors px-4 py-2 disabled:opacity-50"
             >
               Continuar Explorando
             </button>
@@ -143,7 +144,5 @@ export default function Paywall({ isOpen, onClose, feature, description, context
         </div>
       </div>
     </div>
-    <GatewayMigrationModal isOpen={showMigration} onClose={() => setShowMigration(false)} />
-    </>
   );
 }

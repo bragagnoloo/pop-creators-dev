@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { pixelViewContent, pixelPurchase } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
+import { useCheckout } from '@/hooks/useCheckout';
 import { PlanId } from '@/types';
 import * as subService from '@/services/subscriptions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import GatewayMigrationModal from '@/components/ui/GatewayMigrationModal';
 
 export default function PlanosPage() {
   const { user } = useAuth();
@@ -49,9 +49,7 @@ export default function PlanosPage() {
     pixelViewContent({ content_name: 'Planos POPline Creators' });
   }, []);
 
-  // TEMPORÁRIO: durante a migração Kiwify → Hotmart, "Assinar" abre o aviso de
-  // migração em vez de redirecionar ao checkout.
-  const [showMigration, setShowMigration] = useState(false);
+  const { subscribeTo: handleSubscribe } = useCheckout(user);
 
   return (
     <div className="py-8 space-y-8">
@@ -110,9 +108,9 @@ export default function PlanosPage() {
 
       {/* Grade de planos */}
       <div className="grid md:grid-cols-3 gap-5">
-        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => setShowMigration(true)} />
-        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => setShowMigration(true)} highlighted />
-        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => setShowMigration(true)} />
+        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => handleSubscribe('monthly')} />
+        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => handleSubscribe('semester')} highlighted />
+        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => handleSubscribe('yearly')} />
       </div>
 
       {/* Tabela comparativa */}
@@ -140,8 +138,6 @@ export default function PlanosPage() {
           </table>
         </div>
       </Card>
-
-      <GatewayMigrationModal isOpen={showMigration} onClose={() => setShowMigration(false)} />
     </div>
   );
 }

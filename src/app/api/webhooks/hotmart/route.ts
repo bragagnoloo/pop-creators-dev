@@ -22,6 +22,7 @@ type HotmartPayload = {
       status?: string;
       recurrence_number?: number;
       price?: { value?: number };
+      full_price?: { value?: number };
       payment?: { type?: string; method?: string };
       offer?: { code?: string };
     };
@@ -56,8 +57,18 @@ const OFFER_MAP: Record<string, PlanId> = {
 };
 
 function resolvePlan(payload: HotmartPayload): PlanId | null {
-  const code = payload.data?.purchase?.offer?.code;
+  const purchase = payload.data?.purchase;
+  const code = purchase?.offer?.code;
   if (code && OFFER_MAP[code]) return OFFER_MAP[code];
+  // Rede de segurança: casa pelo preço de tabela (os 3 planos têm valores
+  // distintos), caso o offer.code real difira do configurado.
+  const listValue = purchase?.full_price?.value ?? purchase?.price?.value;
+  if (typeof listValue === 'number') {
+    const match = (['monthly', 'semester', 'yearly'] as PlanId[]).find(
+      p => Math.abs(PLANS[p].priceTotal - listValue) < 0.01,
+    );
+    if (match) return match;
+  }
   return null;
 }
 
@@ -284,16 +295,16 @@ export async function POST(req: NextRequest) {
   // ------------------------------------------------- CANCELAMENTO DE RENOVAÇÃO
   if (event === 'SUBSCRIPTION_CANCELLATION') {
     await logEvent('subscription_cancelled');
-    // Casa pelo código da assinatura (== kiwify_subscription_id gravado na
-    // ativação) — mais robusto que email. Fallback por user_id se necessário.
-    if (subscriberCode) {
-      await supabase.from('subscriptions')
-        .update({ kiwify_subscription_id: null })
-        .eq('kiwify_subscription_id', subscriberCode);
-    } else if (userId) {
+    // Prioriza o usuário (PK, via email da conta em data.subscriber.email);
+    // fallback pelo código da assinatura se o email não casar com um perfil.
+    if (userId) {
       await supabase.from('subscriptions')
         .update({ kiwify_subscription_id: null })
         .eq('user_id', userId);
+    } else if (subscriberCode) {
+      await supabase.from('subscriptions')
+        .update({ kiwify_subscription_id: null })
+        .eq('kiwify_subscription_id', subscriberCode);
     }
     return NextResponse.json({ ok: true });
   }

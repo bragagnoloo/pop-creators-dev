@@ -83,7 +83,10 @@ export function useCheckout(user: User | null | undefined): {
       // Redireciona com apenas o email se o fetch falhar
     }
 
-    window.location.href = `${checkoutUrl}?${params.toString()}`;
+    // A URL de checkout Hotmart já traz query string (?off=...), então anexamos
+    // os dados do comprador com o separador correto.
+    const separator = checkoutUrl.includes('?') ? '&' : '?';
+    window.location.href = `${checkoutUrl}${separator}${params.toString()}`;
   }, [user, busy]);
 
   return { subscribeTo, busy };

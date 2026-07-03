@@ -69,12 +69,13 @@ export const PLANS: Record<PlanId, PlanInfo> = {
 
 export const PLAN_ORDER: PlanId[] = ['yearly', 'semester', 'monthly', 'free'];
 
-// URLs do checkout Hotmart por plano (1 produto, 3 ofertas). Definidas por env.
+// URLs do checkout Hotmart por plano (1 produto J106555340X, 3 ofertas).
+// Sobrescritas por env quando definidas; senão usam a URL pública da oferta.
 export const CHECKOUT_URLS: Record<PlanId, string> = {
   free:     '',
-  monthly:  process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_MONTHLY  || '',
-  semester: process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_SEMESTER || '',
-  yearly:   process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_YEARLY   || '',
+  monthly:  process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_MONTHLY  || 'https://pay.hotmart.com/J106555340X?off=hp9j1u5w',
+  semester: process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_SEMESTER || 'https://pay.hotmart.com/J106555340X?off=9fs5f41h',
+  yearly:   process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_YEARLY   || 'https://pay.hotmart.com/J106555340X?off=47tdmvul',
 };
 
 type Row = {

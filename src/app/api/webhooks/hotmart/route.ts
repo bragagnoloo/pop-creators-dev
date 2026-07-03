@@ -45,11 +45,12 @@ type ProfileRow = {
   cep: string | null;
 };
 
-// offer.code → PlanId. As chaves vêm das envs; entradas '' (env ausente) são inertes.
+// offer.code → PlanId. Padrões = o `off=` de cada oferta (público); env sobrescreve.
+// ⚠️ Confirmar no 1º payload real que data.purchase.offer.code == estes códigos.
 const OFFER_MAP: Record<string, PlanId> = {
-  [process.env.HOTMART_OFFER_MONTHLY ?? '']:  'monthly',
-  [process.env.HOTMART_OFFER_SEMESTER ?? '']: 'semester',
-  [process.env.HOTMART_OFFER_YEARLY ?? '']:   'yearly',
+  [process.env.HOTMART_OFFER_MONTHLY  || 'hp9j1u5w']: 'monthly',
+  [process.env.HOTMART_OFFER_SEMESTER || '9fs5f41h']: 'semester',
+  [process.env.HOTMART_OFFER_YEARLY   || '47tdmvul']: 'yearly',
 };
 
 function resolvePlan(payload: HotmartPayload): PlanId | null {

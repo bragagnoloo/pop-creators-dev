@@ -29,6 +29,8 @@ type HotmartPayload = {
       subscriber?: { code?: string };
       plan?: { name?: string };
     };
+    // Estrutura do SUBSCRIPTION_CANCELLATION (difere dos eventos de compra)
+    subscriber?: { code?: string; email?: string };
   };
 };
 
@@ -83,8 +85,10 @@ export async function POST(req: NextRequest) {
   const event          = payload.event ?? '';
   const purchase       = payload.data?.purchase;
   const transaction    = purchase?.transaction ?? null;
-  const subscriberCode = payload.data?.subscription?.subscriber?.code ?? null;
-  const email          = payload.data?.buyer?.email?.toLowerCase().trim();
+  // Compra: data.subscription.subscriber.code + data.buyer.email
+  // Cancelamento: data.subscriber.code + data.subscriber.email
+  const subscriberCode = payload.data?.subscription?.subscriber?.code ?? payload.data?.subscriber?.code ?? null;
+  const email          = (payload.data?.buyer?.email ?? payload.data?.subscriber?.email)?.toLowerCase().trim();
   const rawMethod      = purchase?.payment?.type ?? purchase?.payment?.method ?? null;
   const paymentMethod  = rawMethod ? rawMethod.toLowerCase() : null;
   const plan           = resolvePlan(payload);
@@ -280,7 +284,13 @@ export async function POST(req: NextRequest) {
   // ------------------------------------------------- CANCELAMENTO DE RENOVAÇÃO
   if (event === 'SUBSCRIPTION_CANCELLATION') {
     await logEvent('subscription_cancelled');
-    if (userId) {
+    // Casa pelo código da assinatura (== kiwify_subscription_id gravado na
+    // ativação) — mais robusto que email. Fallback por user_id se necessário.
+    if (subscriberCode) {
+      await supabase.from('subscriptions')
+        .update({ kiwify_subscription_id: null })
+        .eq('kiwify_subscription_id', subscriberCode);
+    } else if (userId) {
       await supabase.from('subscriptions')
         .update({ kiwify_subscription_id: null })
         .eq('user_id', userId);

@@ -80,6 +80,33 @@ export default function OficinaDetailPage() {
     );
   }
 
+  // Oficina "Em Breve": bloqueia o acesso às aulas (mesmo via URL direta)
+  if (workshop.status === 'coming_soon') {
+    return (
+      <div className="py-8 space-y-8">
+        <Link href={ROUTES.OFICINAS} className="inline-flex items-center gap-2 text-sm text-text-secondary hover:text-text-primary transition-colors">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Oficinas
+        </Link>
+
+        <div className="text-center py-16 px-6 rounded-3xl border border-dashed border-border bg-surface">
+          <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-amber-500 text-white mb-4">
+            Em Breve
+          </span>
+          <h1 className="text-2xl font-bold mb-1">{workshop.title}</h1>
+          {workshop.expert && (
+            <p className="text-sm text-popline-light font-medium mb-3">Com {workshop.expert}</p>
+          )}
+          <p className="text-text-secondary max-w-md mx-auto">
+            Esta oficina ainda não está disponível. As aulas serão liberadas em breve — fique de olho!
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="py-8 space-y-8">
       {/* Breadcrumb */}

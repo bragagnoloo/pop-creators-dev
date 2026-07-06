@@ -115,6 +115,7 @@ export default function OficinaListPage() {
         <button
           type="button"
           onClick={() => {
+            if (hero.status === 'coming_soon') return;
             if (isPaid) {
               window.location.href = `${ROUTES.OFICINAS}/${hero.id}`;
             } else {
@@ -228,6 +229,7 @@ export default function OficinaListPage() {
               key={workshop.id}
               workshop={workshop}
               onEnter={() => {
+                if (workshop.status === 'coming_soon') return;
                 if (isPaid) {
                   window.location.href = `${ROUTES.OFICINAS}/${workshop.id}`;
                 } else {

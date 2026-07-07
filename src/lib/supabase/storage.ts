@@ -5,7 +5,7 @@ import { createClient } from './client';
  * Se `oldUrl` pertencer ao mesmo bucket, tenta remover o arquivo antigo antes.
  */
 export async function uploadImage(
-  bucket: 'avatars' | 'campaign-logos' | 'lesson-thumbnails',
+  bucket: 'avatars' | 'campaign-logos' | 'lesson-thumbnails' | 'criarsemtigrinho-logos',
   path: string,
   file: File,
   oldUrl?: string | null
@@ -65,6 +65,11 @@ export function campaignLogoPath(file: File): string {
 export function lessonThumbnailPath(file: File): string {
   const ext = file.name.split('.').pop() || 'jpg';
   return `thumb-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+}
+
+export function opportunityLogoPath(file: File): string {
+  const ext = file.name.split('.').pop() || 'png';
+  return `logo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
 }
 
 export function videoPath(file: File): string {

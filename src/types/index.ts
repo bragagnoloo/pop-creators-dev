@@ -289,6 +289,23 @@ export interface LessonRating {
   updatedAt: string;
 }
 
+// ---- #CriarSemTigrinho ----
+
+export type OppCategory = 'marcas' | 'ugc' | 'afiliados' | 'plataformas' | 'editais';
+
+export interface Opportunity {
+  id: string;
+  name: string;
+  category: OppCategory;
+  logoUrl: string | null;
+  shortDesc: string;
+  fullDesc: string;
+  url: string;
+  position: number;
+  published: boolean;
+  createdAt: string;
+}
+
 export interface LessonComment {
   id: string;
   lessonId: string;

@@ -121,6 +121,7 @@ function OpportunityCard({
       className={`rounded-2xl border bg-surface/70 transition-colors duration-200 relative overflow-hidden ${
         open ? 'border-popline-pink/40' : 'border-white/5 hover:border-white/10'
       }`}
+      style={{ contain: 'layout paint' }}
     >
       {/* Cabeçalho clicável */}
       <button

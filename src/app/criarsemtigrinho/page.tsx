@@ -15,7 +15,7 @@ export default async function CriarSemTigrinhoPage() {
   const opportunities = await getPublishedOpportunities(supabase);
 
   return (
-    <main className="relative min-h-screen flex flex-col items-center overflow-x-hidden noise-overlay grid-bg">
+    <main className="relative min-h-screen flex flex-col items-center overflow-x-hidden">
       {/* Top bar com glass */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 px-6 backdrop-blur-md bg-background/60 border-b border-white/5">
         <div className="flex items-center gap-2">
@@ -24,12 +24,17 @@ export default async function CriarSemTigrinhoPage() {
         </div>
       </header>
 
-      {/* Background orbs */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/20 rounded-full blur-[120px] animate-pulse-glow" />
+      {/* Camada de fundo FIXA (tamanho da viewport, constante): grid + ruído + orbs.
+          Como não redimensiona quando o conteúdo cresce, não repinta a página inteira
+          durante a animação de abrir/fechar dos cards. Orbs promovidos a camadas de GPU. */}
+      <div className="fixed inset-0 pointer-events-none grid-bg noise-overlay" style={{ transform: 'translateZ(0)' }}>
+        <div
+          className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/20 rounded-full blur-[120px] animate-pulse-glow"
+          style={{ willChange: 'transform, opacity' }}
+        />
         <div
           className="absolute bottom-1/4 -right-40 w-[500px] h-[500px] bg-popline-pink/15 rounded-full blur-[120px] animate-pulse-glow"
-          style={{ animationDelay: '2s' }}
+          style={{ animationDelay: '2s', willChange: 'transform, opacity' }}
         />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-popline-light/5 rounded-full blur-[150px]" />
       </div>
@@ -48,16 +53,44 @@ export default async function CriarSemTigrinhoPage() {
           <span className="w-2 h-2 rounded-full bg-popline-pink animate-pulse" />
         </div>
 
-        {/* Headline */}
-        <h1 className="animate-slide-up-delay-1 mt-6 text-4xl sm:text-6xl font-bold leading-[1.08] tracking-tight">
-          É possível viver da internet{' '}
-          <span className="gradient-text">sem divulgar apostas</span>
+        {/* Headline — mesma quebra em mobile e desktop (2 linhas). Tamanho fluido
+            no mobile p/ "É possível viver da internet" caber sempre numa linha. */}
+        <h1 className="animate-slide-up-delay-1 mt-6 text-[clamp(1.4rem,6.4vw,2.25rem)] sm:text-6xl font-bold leading-[1.12] tracking-tight">
+          <span className="whitespace-nowrap">É possível viver da internet</span>
+          <br />
+          <span className="relative inline-block whitespace-nowrap">
+            <span className="gradient-text">Sem Divulgar Apostas</span>
+            {/* Sublinhado riscado de giz rosa */}
+            <svg
+              aria-hidden
+              viewBox="0 0 300 24"
+              preserveAspectRatio="none"
+              className="pointer-events-none absolute left-[-1.5%] -bottom-1.5 sm:-bottom-2.5 w-[103%] h-[0.34em] overflow-visible"
+            >
+              <defs>
+                <filter id="chalkRough" x="-15%" y="-60%" width="130%" height="220%">
+                  <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n" />
+                  <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5" />
+                </filter>
+              </defs>
+              <path
+                className="chalk-underline"
+                pathLength={100}
+                d="M4,15 C58,7 122,6 160,12 C206,19 252,9 296,13"
+                fill="none"
+                stroke="#f06abc"
+                strokeWidth={6}
+                strokeLinecap="round"
+                filter="url(#chalkRough)"
+              />
+            </svg>
+          </span>
         </h1>
 
         {/* Sub-headline */}
         <p className="animate-slide-up-delay-2 mt-6 text-lg sm:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed">
           O <span className="text-text-primary font-medium">#CriarSemTigrinho</span> é uma iniciativa do
-          POPline Creators que reúne oportunidades reais de monetização para creators — campanhas com
+          POPline Creators que reúne oportunidades reais de monetização para creators, como campanhas com
           marcas, UGC, programas de afiliados, plataformas, editais e outras formas de gerar renda de
           maneira ética e sustentável.
         </p>
@@ -70,7 +103,16 @@ export default async function CriarSemTigrinhoPage() {
         {/* Vídeo informativo */}
         <div className="animate-slide-up-delay-3 mt-10 sm:mt-12">
           <p className="text-xs text-text-secondary tracking-wider uppercase mb-3">
-            Entenda o que é o #CriarSemTigrinho
+            Siga{' '}
+            <a
+              href="https://instagram.com/blocknotigrinho"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-popline-light font-semibold hover:underline"
+            >
+              @Blocknotigrinho
+            </a>{' '}
+            no Instagram
           </p>
           <div className="w-full max-w-2xl mx-auto rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
             {VIDEO_URL ? (

@@ -217,3 +217,16 @@ body {
     linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
   background-size: 60px 60px;
 }
+
+/* Sublinhado "giz" — traço desenhado ao carregar */
+@keyframes chalk-draw {
+  to { stroke-dashoffset: 0; }
+}
+.chalk-underline {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  animation: chalk-draw 0.9s ease-out 0.6s forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .chalk-underline { animation: none; stroke-dashoffset: 0; }
+}

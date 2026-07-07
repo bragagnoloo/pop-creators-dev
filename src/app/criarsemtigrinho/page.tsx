@@ -6,9 +6,8 @@ import OpportunitiesExplorer from '@/components/criarsemtigrinho/OpportunitiesEx
 // Reflete edições do admin sem ser dinâmico a cada request.
 export const revalidate = 60;
 
-// Vídeo informativo — trocar pela URL final quando disponível.
-// (ex: Supabase Storage: https://<proj>.supabase.co/storage/v1/object/public/videos/...)
-const VIDEO_URL = '';
+// Vídeo informativo (YouTube). Trocar o ID para atualizar.
+const YOUTUBE_ID = 'oU5WTXAXSkY';
 
 export default async function CriarSemTigrinhoPage() {
   const supabase = await createClient();
@@ -115,24 +114,15 @@ export default async function CriarSemTigrinhoPage() {
             no Instagram
           </p>
           <div className="w-full max-w-2xl mx-auto rounded-2xl overflow-hidden border border-border/50 shadow-2xl shadow-popline-pink/10 glow-border">
-            {VIDEO_URL ? (
-              <video
-                className="aspect-video w-full object-cover"
-                src={VIDEO_URL}
-                controls
-                playsInline
-                preload="metadata"
-              />
-            ) : (
-              <div className="aspect-video w-full flex flex-col items-center justify-center gap-3 bg-surface/60">
-                <div className="w-14 h-14 rounded-full gradient-bg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-                <span className="text-sm text-text-secondary">Vídeo em breve</span>
-              </div>
-            )}
+            <iframe
+              className="aspect-video w-full"
+              src={`https://www.youtube-nocookie.com/embed/${YOUTUBE_ID}`}
+              title="Criar sem Tigrinho"
+              loading="lazy"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
           </div>
         </div>
       </section>

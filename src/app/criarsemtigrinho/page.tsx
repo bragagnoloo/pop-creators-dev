@@ -7,7 +7,7 @@ import OpportunitiesExplorer from '@/components/criarsemtigrinho/OpportunitiesEx
 export const revalidate = 60;
 
 // Vídeo informativo (YouTube). Trocar o ID para atualizar.
-const YOUTUBE_ID = 'oU5WTXAXSkY';
+const YOUTUBE_ID = 'oe7b5UZsNhA';
 
 export default async function CriarSemTigrinhoPage() {
   const supabase = await createClient();

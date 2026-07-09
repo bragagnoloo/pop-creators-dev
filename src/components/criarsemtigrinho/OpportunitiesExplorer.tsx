@@ -6,16 +6,17 @@ import { Opportunity, OppCategory } from '@/types';
 import { pixelViewContent } from '@/lib/pixel';
 
 const CATEGORY_LABEL: Record<OppCategory, string> = {
-  marcas: 'Marcas',
+  freelance: 'Freelance',
+  agencias: 'Agências',
+  plataformas: 'Plataformas',
+  marcas: 'Campanhas com Marcas',
   ugc: 'UGC',
   afiliados: 'Afiliados',
-  plataformas: 'Plataformas',
-  editais: 'Editais',
 };
 
 type Filter = 'todas' | OppCategory;
 
-const FILTER_ORDER: OppCategory[] = ['marcas', 'ugc', 'afiliados', 'plataformas', 'editais'];
+const FILTER_ORDER: OppCategory[] = ['freelance', 'agencias', 'plataformas', 'marcas', 'ugc', 'afiliados'];
 
 export default function OpportunitiesExplorer({ opportunities }: { opportunities: Opportunity[] }) {
   const [filter, setFilter] = useState<Filter>('todas');
@@ -27,12 +28,12 @@ export default function OpportunitiesExplorer({ opportunities }: { opportunities
 
   // Só mostra chips de categorias que realmente têm itens.
   const availableCategories = useMemo(() => {
-    const present = new Set(opportunities.map((o) => o.category));
+    const present = new Set(opportunities.flatMap((o) => o.categories));
     return FILTER_ORDER.filter((c) => present.has(c));
   }, [opportunities]);
 
   const filtered = useMemo(
-    () => (filter === 'todas' ? opportunities : opportunities.filter((o) => o.category === filter)),
+    () => (filter === 'todas' ? opportunities : opportunities.filter((o) => o.categories.includes(filter))),
     [opportunities, filter]
   );
 
@@ -149,11 +150,13 @@ function OpportunityCard({
         </div>
 
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="font-bold leading-tight">{opportunity.name}</h3>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-popline-pink/15 text-popline-light">
-              {CATEGORY_LABEL[opportunity.category]}
-            </span>
+          <h3 className="font-bold leading-tight">{opportunity.name}</h3>
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            {opportunity.categories.map(cat => (
+              <span key={cat} className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-popline-pink/15 text-popline-light">
+                {CATEGORY_LABEL[cat]}
+              </span>
+            ))}
           </div>
           <p className="text-sm text-text-secondary mt-1.5 leading-relaxed">{opportunity.shortDesc}</p>
         </div>

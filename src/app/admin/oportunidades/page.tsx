@@ -13,19 +13,21 @@ import Textarea from '@/components/ui/Textarea';
 import { uploadImage, opportunityLogoPath } from '@/lib/supabase/storage';
 
 const CATEGORY_OPTIONS: { value: OppCategory; label: string }[] = [
-  { value: 'marcas', label: 'Campanhas com marcas' },
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'agencias', label: 'Agências' },
+  { value: 'plataformas', label: 'Plataformas' },
+  { value: 'marcas', label: 'Campanhas com Marcas' },
   { value: 'ugc', label: 'UGC' },
   { value: 'afiliados', label: 'Afiliados' },
-  { value: 'plataformas', label: 'Plataformas' },
-  { value: 'editais', label: 'Editais' },
 ];
 
 const CATEGORY_LABEL: Record<OppCategory, string> = {
-  marcas: 'Marcas',
+  freelance: 'Freelance',
+  agencias: 'Agências',
+  plataformas: 'Plataformas',
+  marcas: 'Campanhas com Marcas',
   ugc: 'UGC',
   afiliados: 'Afiliados',
-  plataformas: 'Plataformas',
-  editais: 'Editais',
 };
 
 // ---------- Form Modal ----------
@@ -39,7 +41,7 @@ function OpportunityModal({
   onSaved: () => void;
 }) {
   const [name, setName] = useState(editing?.name ?? '');
-  const [category, setCategory] = useState<OppCategory>(editing?.category ?? 'plataformas');
+  const [categories, setCategories] = useState<OppCategory[]>(editing?.categories ?? []);
   const [shortDesc, setShortDesc] = useState(editing?.shortDesc ?? '');
   const [fullDesc, setFullDesc] = useState(editing?.fullDesc ?? '');
   const [url, setUrl] = useState(editing?.url ?? '');
@@ -58,8 +60,18 @@ function OpportunityModal({
     setLogoPreview(URL.createObjectURL(file));
   };
 
+  const toggleCategory = (value: OppCategory) => {
+    setCategories((prev) =>
+      prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
+    );
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (categories.length === 0) {
+      alert('Selecione ao menos um badge.');
+      return;
+    }
     setSaving(true);
     let finalLogo = logoUrl;
     if (logoFile) {
@@ -73,7 +85,7 @@ function OpportunityModal({
     }
     const data = {
       name: name.trim(),
-      category,
+      categories,
       logoUrl: finalLogo,
       shortDesc: shortDesc.trim(),
       fullDesc: fullDesc.trim(),
@@ -125,17 +137,20 @@ function OpportunityModal({
 
         <Input label="Nome da plataforma" value={name} onChange={e => setName(e.target.value)} required />
 
-        {/* Categoria */}
+        {/* Categorias (múltipla escolha) */}
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">Categoria</label>
+          <label className="block text-sm font-medium text-text-secondary mb-2">
+            Badges <span className="text-text-secondary/60">(selecione um ou mais)</span>
+          </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {CATEGORY_OPTIONS.map(opt => (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setCategory(opt.value)}
+                onClick={() => toggleCategory(opt.value)}
+                aria-pressed={categories.includes(opt.value)}
                 className={`py-2 px-2 rounded-xl text-xs font-semibold border transition-all ${
-                  category === opt.value
+                  categories.includes(opt.value)
                     ? 'gradient-bg text-white border-transparent'
                     : 'bg-transparent border-border text-text-secondary hover:border-white/20'
                 }`}
@@ -224,9 +239,11 @@ function OpportunityRow({
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                   <h3 className="font-semibold truncate">{opportunity.name}</h3>
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-popline-pink/20 text-popline-light">
-                    {CATEGORY_LABEL[opportunity.category]}
-                  </span>
+                  {opportunity.categories.map(cat => (
+                    <span key={cat} className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-popline-pink/20 text-popline-light">
+                      {CATEGORY_LABEL[cat]}
+                    </span>
+                  ))}
                   {!opportunity.published && (
                     <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
                       Rascunho

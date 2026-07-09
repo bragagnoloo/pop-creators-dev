@@ -291,12 +291,12 @@ export interface LessonRating {
 
 // ---- #CriarSemTigrinho ----
 
-export type OppCategory = 'marcas' | 'ugc' | 'afiliados' | 'plataformas' | 'editais';
+export type OppCategory = 'freelance' | 'agencias' | 'plataformas' | 'marcas' | 'ugc' | 'afiliados';
 
 export interface Opportunity {
   id: string;
   name: string;
-  category: OppCategory;
+  categories: OppCategory[];
   logoUrl: string | null;
   shortDesc: string;
   fullDesc: string;

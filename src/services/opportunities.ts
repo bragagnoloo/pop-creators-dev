@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 type OpportunityRow = {
   id: string;
   name: string;
-  category: OppCategory;
+  categories: OppCategory[];
   logo_url: string | null;
   short_desc: string;
   full_desc: string;
@@ -19,7 +19,7 @@ function toOpportunity(r: OpportunityRow): Opportunity {
   return {
     id: r.id,
     name: r.name,
-    category: r.category,
+    categories: r.categories ?? [],
     logoUrl: r.logo_url,
     shortDesc: r.short_desc,
     fullDesc: r.full_desc,
@@ -31,7 +31,7 @@ function toOpportunity(r: OpportunityRow): Opportunity {
 }
 
 const O_SELECT =
-  'id, name, category, logo_url, short_desc, full_desc, url, position, published, created_at';
+  'id, name, categories, logo_url, short_desc, full_desc, url, position, published, created_at';
 
 /**
  * Oportunidades publicadas, ordenadas por posição — usadas na página pública.
@@ -76,7 +76,7 @@ export async function createOpportunity(
     .from('criarsemtigrinho_opportunities')
     .insert({
       name: data.name,
-      category: data.category,
+      categories: data.categories,
       logo_url: data.logoUrl,
       short_desc: data.shortDesc,
       full_desc: data.fullDesc,
@@ -96,7 +96,7 @@ export async function updateOpportunity(
   const supabase = createClient();
   const patch: Record<string, unknown> = {};
   if (data.name !== undefined) patch.name = data.name;
-  if (data.category !== undefined) patch.category = data.category;
+  if (data.categories !== undefined) patch.categories = data.categories;
   if (data.logoUrl !== undefined) patch.logo_url = data.logoUrl;
   if (data.shortDesc !== undefined) patch.short_desc = data.shortDesc;
   if (data.fullDesc !== undefined) patch.full_desc = data.fullDesc;

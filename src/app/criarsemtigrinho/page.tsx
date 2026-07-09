@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
 import { getPublishedOpportunities } from '@/services/opportunities';
 import SoundWaves from '@/components/landing/SoundWaves';
@@ -17,10 +18,10 @@ export default async function CriarSemTigrinhoPage() {
     <main className="relative min-h-screen flex flex-col items-center overflow-x-hidden">
       {/* Top bar com glass */}
       <header className="fixed top-0 left-0 right-0 z-50 flex items-center justify-center h-16 px-6 backdrop-blur-md bg-background/60 border-b border-white/5">
-        <div className="flex items-center gap-2">
+        <Link href="/" aria-label="Ir para a home do POPline Creators" className="flex items-center gap-2">
           <span className="text-lg font-bold gradient-text tracking-tight">POPline</span>
           <span className="text-sm font-medium text-text-secondary tracking-widest uppercase">Creators</span>
-        </div>
+        </Link>
       </header>
 
       {/* Camada de fundo FIXA (tamanho da viewport, constante): grid + ruído + orbs.

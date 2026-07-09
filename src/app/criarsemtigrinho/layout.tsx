@@ -5,7 +5,6 @@ export const metadata: Metadata = {
   title: 'Criar sem Tigrinho | POPline Creators',
   description:
     'É possível viver da internet sem divulgar apostas. O #CriarSemTigrinho reúne oportunidades reais de monetização para creators, como campanhas com marcas, UGC, afiliados, plataformas e editais. Crie mais. Monetize melhor.',
-  robots: { index: false, follow: false },
   openGraph: {
     title: 'Criar sem Tigrinho | POPline Creators',
     description:

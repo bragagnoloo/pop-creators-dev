@@ -12,6 +12,7 @@ export default function Navbar() {
     { label: 'Como Funciona', href: '#como-funciona' },
     { label: 'Vantagens', href: '#vantagens' },
     { label: 'Planos', href: '#planos' },
+    { label: 'Criar sem Tigrinho', href: '/criarsemtigrinho' },
   ];
 
   return (
@@ -26,7 +27,15 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <div className="hidden md:flex items-center gap-8">
-            {links.map(link => (
+            {links.map(link => link.href.startsWith('/') ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {link.label}
+              </Link>
+            ) : (
               <a
                 key={link.href}
                 href={link.href}
@@ -69,7 +78,16 @@ export default function Navbar() {
         {/* Mobile menu */}
         {menuOpen && (
           <div id="mobile-menu" className="md:hidden pb-4 space-y-3 animate-slide-up">
-            {links.map(link => (
+            {links.map(link => link.href.startsWith('/') ? (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className="block text-sm text-text-secondary hover:text-text-primary transition-colors py-2"
+              >
+                {link.label}
+              </Link>
+            ) : (
               <a
                 key={link.href}
                 href={link.href}

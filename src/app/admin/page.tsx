@@ -5,7 +5,6 @@ import Card from '@/components/ui/Card';
 import BarChart from '@/components/ui/BarChart';
 import PieChart from '@/components/ui/PieChart';
 import * as authService from '@/services/auth';
-import * as userService from '@/services/users';
 import * as campaignService from '@/services/campaigns';
 import * as walletService from '@/services/wallet';
 import * as analyticsService from '@/services/analytics';
@@ -27,7 +26,7 @@ export default function AdminDashboard() {
     (async () => {
     const allUsers = await authService.getAllUsers();
     const users = analyticsService.nonAdminUsers(allUsers);
-    const profiles = await userService.getAllProfiles();
+    const totalUsers = await authService.countUsers();
     const campaigns = await campaignService.getAllCampaigns();
     const applications = await campaignService.getAllApplications();
     const withdrawals = await walletService.getAllWithdrawals();
@@ -40,7 +39,7 @@ export default function AdminDashboard() {
     const pendingWithdrawals = withdrawals.filter(w => w.status === 'requested').length;
 
     setData({
-      totalUsers: Math.max(users.length, profiles.length),
+      totalUsers,
       activeCampaigns: campaigns.filter(c => c.status === 'open').length,
       totalApplications: applications.length,
       approvedApplications: applications.filter(a => a.status === 'approved').length,

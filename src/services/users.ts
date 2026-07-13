@@ -91,29 +91,26 @@ export type UserProfileWithPlan = UserProfile & { plan: PlanId };
  * Nota: subscriptions.user_id é PRIMARY KEY (1:1 com profiles), então o
  * PostgREST retorna `subscriptions` como objeto único — não como array.
  */
-export async function getAllProfilesWithPlans(search?: string): Promise<UserProfileWithPlan[]> {
+export async function getAllProfilesWithPlans(): Promise<UserProfileWithPlan[]> {
   const supabase = createClient();
-  const q = (search ?? '').trim();
-  // PostgREST .or() não aceita vírgulas/parênteses no termo sem escape complexo.
-  // Sanitiza removendo esses caracteres — admin digita só nome/email simples.
-  const safeQ = q.replace(/[,()]/g, '');
-  let query = supabase
-    .from('profiles')
-    .select(`${SELECT}, subscriptions(plan, expires_at)`)
-    .order('email');
-  if (safeQ.length >= 2) {
-    query = query
-      .or(`email.ilike.%${safeQ}%,full_name.ilike.%${safeQ}%`)
-      .limit(1000);
-  } else {
-    query = query.limit(DEFAULT_LIST_LIMIT);
-  }
-  const { data } = await query;
-  if (!data) return [];
   const now = Date.now();
   type SubShape = { plan: PlanId; expires_at: string | null };
   type RowWithSub = Row & { subscriptions: SubShape | SubShape[] | null };
-  return (data as unknown as RowWithSub[]).map(r => {
+  // Pagina por range() para furar o teto de 1000 linhas do PostgREST e trazer
+  // TODOS os perfis. Busca/filtros são aplicados client-side no admin.
+  const PAGE = 1000;
+  const rows: RowWithSub[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(`${SELECT}, subscriptions(plan, expires_at)`)
+      .order('email')
+      .range(from, from + PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    rows.push(...(data as unknown as RowWithSub[]));
+    if (data.length < PAGE) break;
+  }
+  return rows.map(r => {
     const sub: SubShape | null = Array.isArray(r.subscriptions)
       ? r.subscriptions[0] ?? null
       : r.subscriptions;

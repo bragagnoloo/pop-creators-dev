@@ -105,9 +105,25 @@ export async function signInWithGoogle(): Promise<{ error?: string }> {
  */
 export async function getAllUsers(): Promise<AuthUser[]> {
   const supabase = createClient();
+  // Ordena por created_at desc: mesmo que o PostgREST cape em 1000 linhas, os
+  // cadastros recentes (usados no gráfico "novos usuários por dia") sempre entram.
   const { data } = await supabase
     .from('profiles')
-    .select('id, email, role, created_at');
+    .select('id, email, role, created_at')
+    .order('created_at', { ascending: false });
   if (!data) return [];
   return data.map(p => mapUser(p.id, p.email, p.role as UserRole, p.created_at));
+}
+
+/**
+ * Contagem exata de usuários não-admin (head + count, sem trazer linhas).
+ * Não sofre o teto de 1000 linhas do PostgREST.
+ */
+export async function countUsers(): Promise<number> {
+  const supabase = createClient();
+  const { count } = await supabase
+    .from('profiles')
+    .select('*', { count: 'exact', head: true })
+    .neq('role', 'admin');
+  return count ?? 0;
 }

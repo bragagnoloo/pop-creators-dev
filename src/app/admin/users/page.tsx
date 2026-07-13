@@ -26,37 +26,38 @@ export default function AdminUsersPage() {
   const [filterState, setFilterState] = useState('');
   const [filterCity, setFilterCity] = useState('');
   const [filterPlans, setFilterPlans] = useState<PlanId[]>([]);
+  const [page, setPage] = useState(1);
+
+  const PAGE_SIZE = 50;
 
   const togglePlan = (plan: PlanId) => {
+    setPage(1);
     setFilterPlans(prev =>
       prev.includes(plan) ? prev.filter(p => p !== plan) : [...prev, plan]
     );
   };
 
-  // Ranks só dependem do mount, não do search.
+  // Carga única no mount: todos os perfis (paginados via range no service) + ranks.
+  // Busca e filtros são aplicados client-side sobre o conjunto completo.
   useEffect(() => {
     (async () => {
       const ranks = await getAdminUserRanks();
       setRanksMap(ranks);
     })();
-  }, []);
-
-  // Debounce do search para evitar refetch a cada tecla.
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(t);
-  }, [search]);
-
-  // Refetch quando o termo debouncado muda. < 2 chars usa lista padrão.
-  useEffect(() => {
     (async () => {
-      const list = await userService.getAllProfilesWithPlans(debouncedSearch);
+      const list = await userService.getAllProfilesWithPlans();
       const map: Record<string, PlanId> = {};
       for (const p of list) map[p.userId] = p.plan;
       setProfiles(list);
       setPlansMap(map);
     })();
-  }, [debouncedSearch]);
+  }, []);
+
+  // Debounce do search para evitar refiltrar a cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const openPlanEditor = (profile: UserProfile) => {
     setPlanFor(profile);
@@ -101,20 +102,31 @@ export default function AdminUsersPage() {
 
   // Reset city filter when state changes
   const handleStateChange = (value: string) => {
+    setPage(1);
     setFilterState(value);
     setFilterCity('');
   };
 
-  // Filtered profiles — search já foi aplicado server-side em debouncedSearch.
-  // Aqui só aplicamos state/city/plan client-side em cima do resultado.
+  // Filtros client-side: busca (nome/email) + estado/cidade/plano.
   const filtered = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
     return profiles.filter(p => {
+      if (q && !(`${p.fullName ?? ''} ${p.email ?? ''}`.toLowerCase().includes(q))) return false;
       if (filterState && p.state !== filterState) return false;
       if (filterCity && p.city !== filterCity) return false;
       if (filterPlans.length > 0 && !filterPlans.includes(p.plan)) return false;
       return true;
     });
-  }, [profiles, filterState, filterCity, filterPlans]);
+  }, [profiles, debouncedSearch, filterState, filterCity, filterPlans]);
+
+  // Paginação de exibição — mantém o DOM leve mesmo com 1000+ usuários.
+  // currentPage é clampado ao total (cobre o caso do conjunto filtrado encolher).
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paged = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
+  );
 
   const exportCSV = () => {
     const headers = ['Nome','Email','WhatsApp','Plano','Estado','Cidade','Instagram','Seguidores IG','TikTok','Seguidores TT','Onboarding'];
@@ -155,7 +167,7 @@ export default function AdminUsersPage() {
         <input
           type="text"
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setPage(1); setSearch(e.target.value); }}
           placeholder="Buscar nome ou email..."
           className={`${selectStyle} flex-1 min-w-[200px] max-w-[320px]`}
         />
@@ -163,7 +175,7 @@ export default function AdminUsersPage() {
           <option value="">Todos os Estados</option>
           {states.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select value={filterCity} onChange={e => setFilterCity(e.target.value)} className={selectStyle} disabled={!filterState}>
+        <select value={filterCity} onChange={e => { setPage(1); setFilterCity(e.target.value); }} className={selectStyle} disabled={!filterState}>
           <option value="">Todas as Cidades</option>
           {cities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
@@ -185,7 +197,7 @@ export default function AdminUsersPage() {
           })}
         </div>
         {(search || filterState || filterCity || filterPlans.length > 0) && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setFilterState(''); setFilterCity(''); setFilterPlans([]); }}>
+          <Button variant="ghost" size="sm" onClick={() => { setPage(1); setSearch(''); setFilterState(''); setFilterCity(''); setFilterPlans([]); }}>
             Limpar
           </Button>
         )}
@@ -307,7 +319,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(profile => (
+              {paged.map(profile => (
                 <tr key={profile.userId} className="border-b border-border last:border-0 hover:bg-surface-hover transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -357,7 +369,7 @@ export default function AdminUsersPage() {
 
         {/* Mobile cards */}
         <div className="sm:hidden divide-y divide-border">
-          {filtered.map(profile => (
+          {paged.map(profile => (
             <div key={profile.userId} className="flex items-center justify-between p-4">
               <div className="flex items-center gap-3">
                 <Avatar src={profile.photoUrl} name={profile.fullName} size="sm" />
@@ -381,6 +393,33 @@ export default function AdminUsersPage() {
           </p>
         )}
       </Card>
+
+      {/* Pagination controls */}
+      {filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 mt-4">
+          <span className="text-xs text-text-secondary">
+            Pagina {currentPage} de {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage <= 1}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage >= totalPages}
+            >
+              Proximo
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

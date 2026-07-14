@@ -16,9 +16,11 @@ const MAGENTA = '#c2185b';
 interface EmailLayoutProps {
   preview: string;
   children: ReactNode;
+  /** Substitui o texto padrão do rodapé (ex.: campanhas para não-usuários). */
+  footerNote?: ReactNode;
 }
 
-export default function EmailLayout({ preview, children }: EmailLayoutProps) {
+export default function EmailLayout({ preview, children, footerNote }: EmailLayoutProps) {
   return (
     <Html lang="pt-BR">
       <Head />
@@ -40,7 +42,7 @@ export default function EmailLayout({ preview, children }: EmailLayoutProps) {
           <Hr style={divider} />
           <Section style={footer}>
             <Text style={footerText}>
-              Você está recebendo este email porque possui uma conta na POPline Creators.
+              {footerNote ?? 'Você está recebendo este email porque possui uma conta na POPline Creators.'}
               <br />
               © {new Date().getFullYear()} POPline Creators · poplinecreators.com.br
             </Text>

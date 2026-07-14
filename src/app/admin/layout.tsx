@@ -18,6 +18,7 @@ const masterNavItems = [
   { label: 'Oficinas', href: ROUTES.ADMIN_OFICINAS },
   { label: 'Saques', href: ROUTES.ADMIN_SAQUES },
   { label: 'Oportunidades', href: ROUTES.ADMIN_OPORTUNIDADES },
+  { label: 'Confidencial', href: ROUTES.ADMIN_CAMPANHA_CONFIDENCIAL },
   { label: 'Admins', href: ROUTES.ADMIN_ADMINS },
 ];
 

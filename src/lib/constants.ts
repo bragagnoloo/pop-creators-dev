@@ -38,6 +38,7 @@ export const ROUTES = {
   ADMIN_ADMINS: '/admin/admins',
   ADMIN_RANKING: '/admin/ranking',
   ADMIN_OPORTUNIDADES: '/admin/oportunidades',
+  ADMIN_CAMPANHA_CONFIDENCIAL: '/admin/campanha-confidencial',
   OBRIGADO: '/obrigado',
 } as const;
 

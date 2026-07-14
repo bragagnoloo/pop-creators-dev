@@ -5,6 +5,7 @@ import { sendEmail, sendBatchEmails, getUserEmailData, getCampaignApprovedEmails
 import WelcomeEmail from '@/emails/welcome';
 import ApplicationReceivedEmail from '@/emails/application-received';
 import ApplicationApprovedEmail from '@/emails/application-approved';
+import CampaignParticipationEmail from '@/emails/campaign-participation';
 import CreditProcessingEmail from '@/emails/credit-processing';
 import CreditReleasedEmail from '@/emails/credit-released';
 import WithdrawalPaidEmail from '@/emails/withdrawal-paid';
@@ -65,6 +66,20 @@ export async function POST(req: NextRequest) {
           user.email,
           `Candidatura aprovada — ${data.campaignTitle}`,
           React.createElement(ApplicationApprovedEmail, {
+            fullName: user.fullName,
+            campaignTitle: data.campaignTitle as string,
+          }),
+        );
+        break;
+      }
+
+      case 'campaign-participation': {
+        const user = await getUserEmailData(data.userId as string);
+        if (!user) break;
+        await sendEmail(
+          user.email,
+          `Você está participando — ${data.campaignTitle}`,
+          React.createElement(CampaignParticipationEmail, {
             fullName: user.fullName,
             campaignTitle: data.campaignTitle as string,
           }),

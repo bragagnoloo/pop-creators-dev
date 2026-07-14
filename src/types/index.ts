@@ -58,6 +58,9 @@ export interface Campaign {
   hasCommission: boolean;
   commissionPercentage: number | null;
   commissionDescription: string | null;
+  // Campanha Convite (migration 0026): oculta dos usuários; entrada só via admin.
+  // Definido na criação e imutável depois.
+  isInvite: boolean;
   // Stages (migration 0015)
   currentStage?: CampaignStage;
   whatsappGroupLink?: string | null;

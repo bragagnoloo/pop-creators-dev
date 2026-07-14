@@ -41,7 +41,9 @@ export default function CampanhasPage() {
 
   const visible = useMemo(() => {
     if (filter === 'available') {
-      return campaigns.filter(c => c.status === 'open' && !appliedIds.has(c.id));
+      // Campanhas convite (is_invite) nunca entram em "Disponíveis" — só aparecem
+      // em "Participando" depois que o admin adiciona o usuário.
+      return campaigns.filter(c => c.status === 'open' && !c.isInvite && !appliedIds.has(c.id));
     }
     return campaigns.filter(c => appliedIds.has(c.id));
   }, [campaigns, appliedIds, filter]);
@@ -70,7 +72,7 @@ export default function CampanhasPage() {
   };
 
   const counts = {
-    available: campaigns.filter(c => c.status === 'open' && !appliedIds.has(c.id)).length,
+    available: campaigns.filter(c => c.status === 'open' && !c.isInvite && !appliedIds.has(c.id)).length,
     participating: campaigns.filter(c => appliedIds.has(c.id)).length,
   };
 

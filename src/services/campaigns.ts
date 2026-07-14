@@ -18,6 +18,7 @@ type CampaignRow = {
   has_commission: boolean;
   commission_percentage: number | null;
   commission_description: string | null;
+  is_invite: boolean;
   current_stage: number;
   whatsapp_group_link: string | null;
   briefing_file_url: string | null;
@@ -55,6 +56,7 @@ function toCampaign(r: CampaignRow): Campaign {
     hasCommission: r.has_commission,
     commissionPercentage: r.commission_percentage === null ? null : Number(r.commission_percentage),
     commissionDescription: r.commission_description,
+    isInvite: r.is_invite ?? false,
     currentStage: (r.current_stage ?? 0) as CampaignStage,
     whatsappGroupLink: r.whatsapp_group_link,
     briefingFileUrl: r.briefing_file_url,
@@ -77,7 +79,7 @@ function toApp(r: AppRow): CampaignApplication {
   };
 }
 
-const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
+const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
 const A_SELECT = 'id, campaign_id, user_id, status, applied_at, joined_whatsapp_group, joined_at, disqualified_at, disqualification_reason';
 
 // Limite pragmático para evitar full-table scans acidentais em admin views.
@@ -121,6 +123,8 @@ export async function createCampaign(data: Omit<Campaign, 'id' | 'createdAt'>): 
       has_commission: data.hasCommission,
       commission_percentage: data.hasCommission ? data.commissionPercentage : null,
       commission_description: data.hasCommission ? data.commissionDescription : null,
+      // Tipo definido só na criação; imutável depois (não entra em updateCampaign).
+      is_invite: data.isInvite ?? false,
     })
     .select(C_SELECT)
     .single();
@@ -208,6 +212,51 @@ export async function applyToCampaignWithTerm(
   if (!result.success) return { success: false, error: result.error };
 
   return { success: true, application: toApp(result.application) };
+}
+
+/**
+ * Adiciona um convidado a uma campanha convite (is_invite). Atômico via RPC
+ * add_campaign_guest (SECURITY DEFINER): cria a application já como 'approved'.
+ */
+export async function addCampaignGuest(
+  campaignId: string,
+  userId: string
+): Promise<{ success: true; application: CampaignApplication } | { success: false; error: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('add_campaign_guest', {
+    p_campaign_id: campaignId,
+    p_user_id: userId,
+  });
+  if (error) {
+    return { success: false, error: error.message || 'Falha ao adicionar convidado.' };
+  }
+  const result = data as
+    | { success: true; application: AppRow }
+    | { success: false; error: string }
+    | null;
+  if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
+  if (!result.success) return { success: false, error: result.error };
+  return { success: true, application: toApp(result.application) };
+}
+
+/**
+ * Remove um convidado (adicionado por engano) de uma campanha convite. Hard delete
+ * da application + deliveries do usuário, via RPC remove_campaign_guest.
+ */
+export async function removeCampaignGuest(
+  applicationId: string
+): Promise<{ success: true } | { success: false; error: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('remove_campaign_guest', {
+    p_application_id: applicationId,
+  });
+  if (error) {
+    return { success: false, error: error.message || 'Falha ao remover convidado.' };
+  }
+  const result = data as { success: boolean; error?: string } | null;
+  if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
+  if (!result.success) return { success: false, error: result.error || 'Falha ao remover convidado.' };
+  return { success: true };
 }
 
 export async function getUserApplications(userId: string): Promise<CampaignApplication[]> {

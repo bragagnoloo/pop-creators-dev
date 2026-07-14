@@ -34,7 +34,8 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
   useEffect(() => {
     (async () => {
       const all = await campaignService.getAllCampaigns();
-      setCampaigns(all.filter(c => c.status === 'open'));
+      // Campanhas convite (is_invite) não aparecem na descoberta pública.
+      setCampaigns(all.filter(c => c.status === 'open' && !c.isInvite));
       setApplications(await campaignService.getUserApplications(userId));
     })();
   }, [userId]);

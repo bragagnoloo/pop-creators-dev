@@ -29,6 +29,7 @@ import CampaignSchedule from '@/components/admin/campaign-stages/CampaignSchedul
 import CampaignTimeline from '@/components/admin/campaign-stages/CampaignTimeline';
 import Stage00Opening from '@/components/admin/campaign-stages/Stage00Opening';
 import Stage01Selection from '@/components/admin/campaign-stages/Stage01Selection';
+import Stage01Guests from '@/components/admin/campaign-stages/Stage01Guests';
 import Stage02Briefing from '@/components/admin/campaign-stages/Stage02Briefing';
 import Stage03DeliveryDates from '@/components/admin/campaign-stages/Stage03DeliveryDates';
 import Stage04ReviewDeliverables from '@/components/admin/campaign-stages/Stage04ReviewDeliverables';
@@ -383,19 +384,33 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
       </CollapsibleSection>
 
       <CollapsibleSection
-        title="Etapa 01 — Seleção"
-        description="Aprovar candidatos, link do grupo e presença no WhatsApp"
+        title={campaign.isInvite ? 'Etapa 01 — Adicionar Convidados' : 'Etapa 01 — Seleção'}
+        description={
+          campaign.isInvite
+            ? 'Adicionar participantes diretamente, link do grupo e presença no WhatsApp'
+            : 'Aprovar candidatos, link do grupo e presença no WhatsApp'
+        }
       >
-        <Stage01Selection
-          campaignId={campaign.id}
-          whatsappLink={campaign.whatsappGroupLink ?? null}
-          approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
-          pending={rows
-            .filter(r => r.application.status === 'pending')
-            .map(r => ({ application: r.application, profile: r.profile }))}
-          onChanged={load}
-          onDecide={handleDecide}
-        />
+        {campaign.isInvite ? (
+          <Stage01Guests
+            campaignId={campaign.id}
+            campaignTitle={campaign.title}
+            whatsappLink={campaign.whatsappGroupLink ?? null}
+            approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+            onChanged={load}
+          />
+        ) : (
+          <Stage01Selection
+            campaignId={campaign.id}
+            whatsappLink={campaign.whatsappGroupLink ?? null}
+            approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+            pending={rows
+              .filter(r => r.application.status === 'pending')
+              .map(r => ({ application: r.application, profile: r.profile }))}
+            onChanged={load}
+            onDecide={handleDecide}
+          />
+        )}
       </CollapsibleSection>
 
       <CollapsibleSection

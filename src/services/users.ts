@@ -67,19 +67,25 @@ export async function getProfilesByIds(userIds: string[]): Promise<Map<string, U
   return map;
 }
 
-// Limite pragmático para evitar full-table scans acidentais em admin views.
-// Para listas maiores, paginar no UI (range/limit/offset).
-const DEFAULT_LIST_LIMIT = 500;
+// Traz TODOS os perfis, paginando por range() para furar o teto de 1000 linhas
+// do PostgREST. Usado pela busca de convidados (admin) — qualquer usuário da
+// plataforma precisa ser encontrável, sem teto artificial.
+const PROFILES_PAGE = 1000;
 
 export async function getAllProfiles(): Promise<UserProfile[]> {
   const supabase = createClient();
-  const { data } = await supabase
-    .from('profiles')
-    .select(SELECT)
-    .order('email')
-    .limit(DEFAULT_LIST_LIMIT);
-  if (!data) return [];
-  return (data as Row[]).map(toProfile);
+  const rows: Row[] = [];
+  for (let from = 0; ; from += PROFILES_PAGE) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select(SELECT)
+      .order('email')
+      .range(from, from + PROFILES_PAGE - 1);
+    if (error || !data || data.length === 0) break;
+    rows.push(...(data as Row[]));
+    if (data.length < PROFILES_PAGE) break;
+  }
+  return rows.map(toProfile);
 }
 
 export type UserProfileWithPlan = UserProfile & { plan: PlanId };

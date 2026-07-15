@@ -422,6 +422,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           campaignTitle={campaign.title}
           initialBriefing={campaign.briefing}
           initialBriefingFileUrl={campaign.briefingFileUrl ?? null}
+          deliveryCount={campaign.deliveryCount ?? 1}
           onSaved={load}
         />
       </CollapsibleSection>

@@ -9,6 +9,7 @@ import * as walletService from '@/services/wallet';
 import * as campaignService from '@/services/campaigns';
 import * as revisionsService from '@/services/delivery-revisions';
 import * as pubRevisionsService from '@/services/publication-revisions';
+import * as briefingsService from '@/services/briefings';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Button from '@/components/ui/Button';
@@ -41,7 +42,8 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedPubId, setSavedPubId] = useState<string | null>(null);
   const [savedRevisionId, setSavedRevisionId] = useState<string | null>(null);
-  const [showBriefing, setShowBriefing] = useState(false);
+  const [briefingsByIndex, setBriefingsByIndex] = useState<Map<number, briefingsService.CampaignBriefing>>(new Map());
+  const [briefingView, setBriefingView] = useState<{ label: string; text: string | null; fileUrl: string | null } | null>(null);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -77,6 +79,12 @@ export default function ParticipatingCard({ campaign, application, userId, notic
       pubMap.set(rev.deliveryId, arr);
     }
     setPubRevisionsByDelivery(pubMap);
+
+    // Briefing por entregável (só quando a campanha tem mais de 1 entrega).
+    if ((campaign.deliveryCount ?? 1) > 1) {
+      const bs = await briefingsService.getCampaignBriefings(campaign.id);
+      setBriefingsByIndex(new Map(bs.map(b => [b.index, b])));
+    }
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
   useLoadOnMount(load, [load]);
@@ -104,28 +112,30 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     load();
   };
 
-  const hasBriefingText = !!campaign.briefing?.trim();
-  const hasBriefingFile = !!campaign.briefingFileUrl;
-  const hasBriefing = hasBriefingText || hasBriefingFile;
+  const multiBriefing = (campaign.deliveryCount ?? 1) > 1;
+  const hasSingleBriefing = !!campaign.briefing?.trim() || !!campaign.briefingFileUrl;
 
   const handleDownloadBriefing = () => {
-    if (!hasBriefingText) return;
-    const safeTitle = campaign.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').slice(0, 50);
-    const blob = new Blob([campaign.briefing!], { type: 'text/plain;charset=utf-8' });
+    if (!briefingView?.text) return;
+    const base = `${campaign.title} ${briefingView.label}`
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 60);
+    const blob = new Blob([briefingView.text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `briefing-${safeTitle || 'campanha'}.txt`;
+    a.download = `briefing-${base || 'campanha'}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleOpenBriefingFile = async () => {
-    if (!campaign.briefingFileUrl) return;
+    if (!briefingView?.fileUrl) return;
     const supabase = (await import('@/lib/supabase/client')).createClient();
     const { data, error: sErr } = await supabase.storage
       .from('campaign-briefings')
-      .createSignedUrl(campaign.briefingFileUrl, 3600);
+      .createSignedUrl(briefingView.fileUrl, 3600);
     if (sErr || !data?.signedUrl) {
       alert('Não foi possível abrir o briefing. Tente novamente.');
       return;
@@ -235,20 +245,24 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         </Modal>
       )}
 
-      {showBriefing && hasBriefing && (
-        <Modal isOpen onClose={() => setShowBriefing(false)} title={`Briefing · ${campaign.title}`}>
+      {briefingView && (
+        <Modal
+          isOpen
+          onClose={() => setBriefingView(null)}
+          title={`Briefing · ${briefingView.label}`}
+        >
           <div className="space-y-4">
-            {hasBriefingText && (
+            {briefingView.text?.trim() && (
               <div className="max-h-96 overflow-y-auto p-4 rounded-xl bg-background border border-border">
-                <p className="text-sm whitespace-pre-line">{campaign.briefing}</p>
+                <p className="text-sm whitespace-pre-line">{briefingView.text}</p>
               </div>
             )}
-            {hasBriefingFile && (
+            {briefingView.fileUrl && (
               <div className="p-3 rounded-xl bg-popline-pink/10 border border-popline-pink/30 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium">Arquivo do briefing</p>
                   <p className="text-xs text-text-secondary truncate">
-                    {campaign.briefingFileUrl?.split('/').pop()}
+                    {briefingView.fileUrl.split('/').pop()}
                   </p>
                 </div>
                 <Button size="sm" variant="secondary" onClick={handleOpenBriefingFile}>
@@ -256,14 +270,14 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                 </Button>
               </div>
             )}
-            {!hasBriefingText && !hasBriefingFile && (
+            {!briefingView.text?.trim() && !briefingView.fileUrl && (
               <p className="text-sm text-text-secondary italic">Briefing ainda não disponível.</p>
             )}
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setShowBriefing(false)}>
+              <Button variant="secondary" className="flex-1" onClick={() => setBriefingView(null)}>
                 Fechar
               </Button>
-              {hasBriefingText && (
+              {briefingView.text?.trim() && (
                 <Button className="flex-1" onClick={handleDownloadBriefing}>
                   Baixar texto
                 </Button>
@@ -364,18 +378,31 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
             {isActive ? (
               <>
-                {/* Briefing */}
-                <div>
-                  {hasBriefing ? (
-                    <Button size="sm" variant="secondary" onClick={() => setShowBriefing(true)}>
-                      Ver briefing
-                    </Button>
-                  ) : (
-                    <p className="text-sm text-text-secondary italic">
-                      Aguarde pela entrega do Briefing
-                    </p>
-                  )}
-                </div>
+                {/* Briefing único (campanhas com 1 entregável). No modo múltiplo,
+                    o briefing aparece dentro de cada card de entrega abaixo. */}
+                {!multiBriefing && (
+                  <div>
+                    {hasSingleBriefing ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() =>
+                          setBriefingView({
+                            label: campaign.title,
+                            text: campaign.briefing ?? null,
+                            fileUrl: campaign.briefingFileUrl ?? null,
+                          })
+                        }
+                      >
+                        Ver briefing
+                      </Button>
+                    ) : (
+                      <p className="text-sm text-text-secondary italic">
+                        Aguarde pela entrega do Briefing
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {deliveries.length === 0 ? (
                   <p className="text-sm text-text-secondary italic">Aguardando entregas serem configuradas.</p>
@@ -401,6 +428,30 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                             <p className="text-sm font-medium">Entrega {d.index}</p>
                             <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
                           </div>
+
+                          {multiBriefing && (() => {
+                            const b = briefingsByIndex.get(d.index);
+                            const hasB = !!b && (!!b.briefing?.trim() || !!b.briefingFileUrl);
+                            return hasB ? (
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() =>
+                                  setBriefingView({
+                                    label: `Entrega ${d.index}`,
+                                    text: b!.briefing,
+                                    fileUrl: b!.briefingFileUrl,
+                                  })
+                                }
+                              >
+                                Ver briefing
+                              </Button>
+                            ) : (
+                              <p className="text-sm text-text-secondary italic">
+                                Aguarde pelo briefing desta entrega
+                              </p>
+                            );
+                          })()}
 
                           {d.scheduledDate ? (
                             <div className="p-2 rounded-lg bg-background border border-border space-y-1.5">

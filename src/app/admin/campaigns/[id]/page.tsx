@@ -423,6 +423,11 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           initialBriefing={campaign.briefing}
           initialBriefingFileUrl={campaign.briefingFileUrl ?? null}
           deliveryCount={campaign.deliveryCount ?? 1}
+          participants={approved.map(r => ({
+            userId: r.application.userId,
+            fullName: r.profile?.fullName ?? null,
+            email: r.profile?.email ?? null,
+          }))}
           onSaved={load}
         />
       </CollapsibleSection>

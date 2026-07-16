@@ -42,8 +42,10 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedPubId, setSavedPubId] = useState<string | null>(null);
   const [savedRevisionId, setSavedRevisionId] = useState<string | null>(null);
-  const [briefingsByIndex, setBriefingsByIndex] = useState<Map<number, briefingsService.CampaignBriefing>>(new Map());
-  const [briefingView, setBriefingView] = useState<{ label: string; text: string | null; fileUrl: string | null } | null>(null);
+  const [optionsByIndex, setOptionsByIndex] = useState<Map<number, briefingsService.BriefingOption[]>>(new Map());
+  const [myChoices, setMyChoices] = useState<Map<number, number>>(new Map());
+  const [briefingModalIndex, setBriefingModalIndex] = useState<number | null>(null);
+  const [savingChoice, setSavingChoice] = useState(false);
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
 
@@ -80,11 +82,19 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     }
     setPubRevisionsByDelivery(pubMap);
 
-    // Briefing por entregável (só quando a campanha tem mais de 1 entrega).
-    if ((campaign.deliveryCount ?? 1) > 1) {
-      const bs = await briefingsService.getCampaignBriefings(campaign.id);
-      setBriefingsByIndex(new Map(bs.map(b => [b.index, b])));
+    // Opções (variações) de briefing por entregável + escolhas do criador.
+    const [opts, choices] = await Promise.all([
+      briefingsService.getBriefingOptions(campaign.id),
+      briefingsService.getMyChoices(campaign.id),
+    ]);
+    const optsMap = new Map<number, briefingsService.BriefingOption[]>();
+    for (const o of opts) {
+      const arr = optsMap.get(o.index) ?? [];
+      arr.push(o);
+      optsMap.set(o.index, arr);
     }
+    setOptionsByIndex(optsMap);
+    setMyChoices(choices);
   }, [campaign.id, campaign.deliveryCount, application.status, userId]);
 
   useLoadOnMount(load, [load]);
@@ -112,16 +122,35 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     load();
   };
 
-  const multiBriefing = (campaign.deliveryCount ?? 1) > 1;
-  const hasSingleBriefing = !!campaign.briefing?.trim() || !!campaign.briefingFileUrl;
+  // Opções COM conteúdo por entregável (opção "vazia" não conta). A posição
+  // ("Opção N") é calculada sobre TODAS as opções carregadas, para bater com o admin.
+  const contentOptions = (index: number) => {
+    const all = (optionsByIndex.get(index) ?? [])
+      .slice()
+      .sort((a, b) => a.optionNumber - b.optionNumber);
+    return all
+      .map((o, i) => ({ ...o, position: i + 1 }))
+      .filter(o => !!o.briefing?.trim() || !!o.briefingFileUrl);
+  };
 
-  const handleDownloadBriefing = () => {
-    if (!briefingView?.text) return;
-    const base = `${campaign.title} ${briefingView.label}`
+  const openBriefingFile = async (path: string) => {
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    const { data, error: sErr } = await supabase.storage
+      .from('campaign-briefings')
+      .createSignedUrl(path, 3600);
+    if (sErr || !data?.signedUrl) {
+      alert('Não foi possível abrir o briefing. Tente novamente.');
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const downloadBriefingText = (text: string, label: string) => {
+    const base = `${campaign.title} ${label}`
       .replace(/[^\w\s-]/g, '')
       .replace(/\s+/g, '-')
       .slice(0, 60);
-    const blob = new Blob([briefingView.text], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -130,17 +159,15 @@ export default function ParticipatingCard({ campaign, application, userId, notic
     URL.revokeObjectURL(url);
   };
 
-  const handleOpenBriefingFile = async () => {
-    if (!briefingView?.fileUrl) return;
-    const supabase = (await import('@/lib/supabase/client')).createClient();
-    const { data, error: sErr } = await supabase.storage
-      .from('campaign-briefings')
-      .createSignedUrl(briefingView.fileUrl, 3600);
-    if (sErr || !data?.signedUrl) {
-      alert('Não foi possível abrir o briefing. Tente novamente.');
+  const handleChooseOption = async (index: number, optionNumber: number) => {
+    setSavingChoice(true);
+    const res = await briefingsService.setChoice(campaign.id, userId, index, optionNumber);
+    setSavingChoice(false);
+    if (!res.ok) {
+      alert('Não foi possível salvar sua escolha. Tente novamente.');
       return;
     }
-    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+    setMyChoices(prev => new Map(prev).set(index, optionNumber));
   };
 
   const handleWithdraw = async () => {
@@ -245,46 +272,17 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         </Modal>
       )}
 
-      {briefingView && (
-        <Modal
-          isOpen
-          onClose={() => setBriefingView(null)}
-          title={`Briefing · ${briefingView.label}`}
-        >
-          <div className="space-y-4">
-            {briefingView.text?.trim() && (
-              <div className="max-h-96 overflow-y-auto p-4 rounded-xl bg-background border border-border">
-                <p className="text-sm whitespace-pre-line">{briefingView.text}</p>
-              </div>
-            )}
-            {briefingView.fileUrl && (
-              <div className="p-3 rounded-xl bg-popline-pink/10 border border-popline-pink/30 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">Arquivo do briefing</p>
-                  <p className="text-xs text-text-secondary truncate">
-                    {briefingView.fileUrl.split('/').pop()}
-                  </p>
-                </div>
-                <Button size="sm" variant="secondary" onClick={handleOpenBriefingFile}>
-                  Abrir arquivo
-                </Button>
-              </div>
-            )}
-            {!briefingView.text?.trim() && !briefingView.fileUrl && (
-              <p className="text-sm text-text-secondary italic">Briefing ainda não disponível.</p>
-            )}
-            <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => setBriefingView(null)}>
-                Fechar
-              </Button>
-              {briefingView.text?.trim() && (
-                <Button className="flex-1" onClick={handleDownloadBriefing}>
-                  Baixar texto
-                </Button>
-              )}
-            </div>
-          </div>
-        </Modal>
+      {briefingModalIndex != null && (
+        <BriefingOptionsModal
+          index={briefingModalIndex}
+          options={contentOptions(briefingModalIndex)}
+          currentChoice={myChoices.get(briefingModalIndex) ?? null}
+          saving={savingChoice}
+          onChoose={optNum => handleChooseOption(briefingModalIndex, optNum)}
+          onOpenFile={openBriefingFile}
+          onDownloadText={downloadBriefingText}
+          onClose={() => setBriefingModalIndex(null)}
+        />
       )}
 
       <div className={`grid transition-all duration-300 ${open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
@@ -378,32 +376,8 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
             {isActive ? (
               <>
-                {/* Briefing único (campanhas com 1 entregável). No modo múltiplo,
-                    o briefing aparece dentro de cada card de entrega abaixo. */}
-                {!multiBriefing && (
-                  <div>
-                    {hasSingleBriefing ? (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() =>
-                          setBriefingView({
-                            label: campaign.title,
-                            text: campaign.briefing ?? null,
-                            fileUrl: campaign.briefingFileUrl ?? null,
-                          })
-                        }
-                      >
-                        Ver briefing
-                      </Button>
-                    ) : (
-                      <p className="text-sm text-text-secondary italic">
-                        Aguarde pela entrega do Briefing
-                      </p>
-                    )}
-                  </div>
-                )}
-
+                {/* O briefing (e suas variações) aparece dentro de cada card de
+                    entrega abaixo — o criador escolhe qual opção seguir. */}
                 {deliveries.length === 0 ? (
                   <p className="text-sm text-text-secondary italic">Aguardando entregas serem configuradas.</p>
                 ) : (
@@ -429,27 +403,36 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                             <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
                           </div>
 
-                          {multiBriefing && (() => {
-                            const b = briefingsByIndex.get(d.index);
-                            const hasB = !!b && (!!b.briefing?.trim() || !!b.briefingFileUrl);
-                            return hasB ? (
-                              <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() =>
-                                  setBriefingView({
-                                    label: `Entrega ${d.index}`,
-                                    text: b!.briefing,
-                                    fileUrl: b!.briefingFileUrl,
-                                  })
-                                }
-                              >
-                                Ver briefing
-                              </Button>
-                            ) : (
-                              <p className="text-sm text-text-secondary italic">
-                                Aguarde pelo briefing desta entrega
-                              </p>
+                          {(() => {
+                            const opts = contentOptions(d.index);
+                            if (opts.length === 0) {
+                              return (
+                                <p className="text-sm text-text-secondary italic">
+                                  Aguarde pelo briefing desta entrega
+                                </p>
+                              );
+                            }
+                            const chosen = myChoices.get(d.index);
+                            const chosenPos = chosen != null
+                              ? opts.find(o => o.optionNumber === chosen)?.position ?? null
+                              : null;
+                            return (
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  onClick={() => setBriefingModalIndex(d.index)}
+                                >
+                                  {opts.length > 1 ? `Ver briefing (${opts.length} opções)` : 'Ver briefing'}
+                                </Button>
+                                {opts.length > 1 && (
+                                  <span className="text-xs text-text-secondary">
+                                    {chosenPos != null
+                                      ? `Sua escolha: Opção ${chosenPos}`
+                                      : 'Escolha uma opção'}
+                                  </span>
+                                )}
+                              </div>
                             );
                           })()}
 
@@ -588,6 +571,122 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         </div>
       </div>
     </Card>
+  );
+}
+
+type ContentOption = briefingsService.BriefingOption & { position: number };
+
+function BriefingOptionsModal({
+  index,
+  options,
+  currentChoice,
+  saving,
+  onChoose,
+  onOpenFile,
+  onDownloadText,
+  onClose,
+}: {
+  index: number;
+  options: ContentOption[];
+  currentChoice: number | null;
+  saving: boolean;
+  onChoose: (optionNumber: number) => void;
+  onOpenFile: (path: string) => void;
+  onDownloadText: (text: string, label: string) => void;
+  onClose: () => void;
+}) {
+  const initial =
+    (currentChoice != null && options.some(o => o.optionNumber === currentChoice)
+      ? currentChoice
+      : options[0]?.optionNumber) ?? null;
+  const [viewOption, setViewOption] = useState<number | null>(initial);
+  const multi = options.length > 1;
+  const current = options.find(o => o.optionNumber === viewOption) ?? options[0] ?? null;
+  const isChosen = current != null && currentChoice === current.optionNumber;
+
+  return (
+    <Modal isOpen onClose={onClose} title={`Briefing · Entrega ${index}`}>
+      <div className="space-y-4">
+        {multi && (
+          <div>
+            <p className="text-xs text-text-secondary mb-2">
+              Esta entrega tem {options.length} variações de briefing. Veja cada uma e escolha a que
+              melhor se encaixa para você.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {options.map(o => {
+                const active = o.optionNumber === viewOption;
+                const chosen = currentChoice === o.optionNumber;
+                return (
+                  <button
+                    key={o.optionNumber}
+                    type="button"
+                    onClick={() => setViewOption(o.optionNumber)}
+                    className={`px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+                      active
+                        ? 'bg-popline-pink text-white border-popline-pink'
+                        : 'bg-background text-text-secondary border-border hover:text-text-primary'
+                    }`}
+                  >
+                    Opção {o.position}
+                    {chosen ? ' ✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {current ? (
+          <>
+            {current.briefing?.trim() && (
+              <div className="max-h-80 overflow-y-auto p-4 rounded-xl bg-background border border-border">
+                <p className="text-sm whitespace-pre-line">{current.briefing}</p>
+              </div>
+            )}
+            {current.briefingFileUrl && (
+              <div className="p-3 rounded-xl bg-popline-pink/10 border border-popline-pink/30 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Arquivo do briefing</p>
+                  <p className="text-xs text-text-secondary truncate">
+                    {current.briefingFileUrl.split('/').pop()}
+                  </p>
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => onOpenFile(current.briefingFileUrl!)}>
+                  Abrir arquivo
+                </Button>
+              </div>
+            )}
+            {current.briefing?.trim() && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onDownloadText(current.briefing!, `Opcao-${current.position}`)}
+              >
+                Baixar texto
+              </Button>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-text-secondary italic">Briefing ainda não disponível.</p>
+        )}
+
+        <div className="flex gap-3 pt-2 border-t border-border">
+          <Button variant="secondary" className="flex-1" onClick={onClose}>
+            Fechar
+          </Button>
+          {multi && current && (
+            <Button
+              className="flex-1"
+              disabled={saving || isChosen}
+              onClick={() => onChoose(current.optionNumber)}
+            >
+              {isChosen ? 'Opção escolhida ✓' : saving ? 'Salvando...' : 'Escolher esta opção'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </Modal>
   );
 }
 

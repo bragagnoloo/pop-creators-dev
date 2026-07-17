@@ -2,13 +2,16 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
 import Sidebar, { useSidebarState } from '@/components/ui/Sidebar';
 import BottomNav from '@/components/ui/BottomNav';
 import MobileTopBar from '@/components/ui/MobileTopBar';
+import PromoBanner from '@/components/dashboard/PromoBanner';
 import { ROUTES } from '@/lib/constants';
 import { recordDailyLogin } from '@/services/ranking';
+import * as subService from '@/services/subscriptions';
 import { initPixelWithUser } from '@/lib/pixel';
 import { createClient } from '@/lib/supabase/client';
 
@@ -17,6 +20,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const { collapsed, toggle } = useSidebarState();
   const dailyLoginRecorded = useRef(false);
+
+  // Assinatura do usuário — usado só para exibir o banner promo a quem é free.
+  const { data: subscription } = useSWR(
+    user ? ['subscription', user.id] : null,
+    ([, uid]) => subService.getUserSubscription(uid),
+  );
+  // Só mostra depois de confirmar o plano, para o banner não "piscar" p/ pagantes.
+  const showPromoBanner = subscription != null && subscription.plan === 'free';
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -67,6 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <div className={`transition-[padding] duration-200 ${collapsed ? 'md:pl-16' : 'md:pl-60'}`}>
         <main className="pt-14 md:pt-8 pb-24 px-4 sm:px-6 lg:px-8 max-w-5xl mx-auto">
+          {showPromoBanner && <PromoBanner />}
           {children}
         </main>
 

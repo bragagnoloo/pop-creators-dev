@@ -26,8 +26,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     user ? ['subscription', user.id] : null,
     ([, uid]) => subService.getUserSubscription(uid),
   );
-  // Só mostra depois de confirmar o plano, para o banner não "piscar" p/ pagantes.
-  const showPromoBanner = subscription != null && subscription.plan === 'free';
+  // Só mostra depois de confirmar o plano (para não "piscar" p/ pagantes) e
+  // enquanto a promo 20 anos estiver no ar (some sozinho após o prazo).
+  const showPromoBanner =
+    subscription != null && subscription.plan === 'free' && subService.isPromoActive();
 
   useEffect(() => {
     if (!isLoading && !user) {

@@ -2,9 +2,10 @@
 
 import { useEffect } from 'react';
 import Button from './Button';
+import PromoCountdown from './PromoCountdown';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCheckout } from '@/hooks/useCheckout';
-import { PLANS, PLAN_ORDER } from '@/services/subscriptions';
+import { PLANS, PLAN_ORDER, isPromoActive, PROMO_PRICES } from '@/services/subscriptions';
 import { PAYWALL_TITLE, PAYWALL_PRESETS, type PaywallContext } from '@/lib/paywall-presets';
 import type { PlanId } from '@/types';
 
@@ -24,6 +25,7 @@ export default function Paywall({ isOpen, onClose, feature, description, context
   const { user } = useAuth();
   const { subscribeTo, busy } = useCheckout(user);
   const preset = PAYWALL_PRESETS[context];
+  const promo = isPromoActive();
 
   useEffect(() => {
     if (isOpen) document.body.style.overflow = 'hidden';
@@ -86,6 +88,7 @@ export default function Paywall({ isOpen, onClose, feature, description, context
 
             {paidPlans.map(planId => {
               const plan = PLANS[planId];
+              const pr = PROMO_PRICES[planId];
               const isHighlight = planId === 'yearly';
               return (
                 <div
@@ -110,21 +113,34 @@ export default function Paywall({ isOpen, onClose, feature, description, context
                     )}
                   </div>
                   <div className="mb-3">
-                    <span className="text-2xl font-bold">{formatBRL(plan.monthlyEquivalent)}</span>
+                    {promo && (
+                      <span className="mr-2 text-sm text-text-secondary line-through">
+                        {formatBRL(plan.monthlyEquivalent)}
+                      </span>
+                    )}
+                    <span className="text-2xl font-bold">
+                      {formatBRL(promo ? pr.monthlyEquivalent : plan.monthlyEquivalent)}
+                    </span>
                     <span className="text-sm text-text-secondary">/mês</span>
+                    {promo && (
+                      <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-popline-pink text-white">
+                        20% OFF
+                      </span>
+                    )}
                     {plan.durationMonths > 1 && (
                       <p className="text-[11px] text-text-secondary mt-0.5">
-                        Pago {formatBRL(plan.priceTotal)} a cada {plan.durationMonths} meses
+                        Pago {formatBRL(promo ? pr.priceTotal : plan.priceTotal)} a cada {plan.durationMonths} meses
                       </p>
                     )}
                   </div>
+                  {promo && <PromoCountdown className="mb-2" />}
                   <Button
                     className="w-full min-h-11"
                     variant={isHighlight ? 'primary' : 'secondary'}
                     onClick={() => subscribeTo(planId)}
                     disabled={busy}
                   >
-                    {busy ? 'Redirecionando...' : 'Assinar'}
+                    {busy ? 'Redirecionando...' : promo ? 'Aplicar Cupom Agora' : 'Assinar'}
                   </Button>
                 </div>
               );

@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react';
 import { pixelInitiateCheckout } from '@/lib/pixel';
 import { createClient } from '@/lib/supabase/client';
-import { PLANS, CHECKOUT_URLS } from '@/services/subscriptions';
+import { PLANS, getCheckoutUrl } from '@/services/subscriptions';
 import type { PlanId } from '@/types';
 
 function getCookie(name: string): string {
@@ -30,7 +30,7 @@ export function useCheckout(user: User | null | undefined): {
 
   const subscribeTo = useCallback(async (plan: PlanId) => {
     if (!user || plan === 'free' || busy) return;
-    const checkoutUrl = CHECKOUT_URLS[plan];
+    const checkoutUrl = getCheckoutUrl(plan);
     if (!checkoutUrl) {
       console.error('[checkout] URL de checkout não configurada para:', plan);
       return;

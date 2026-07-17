@@ -11,6 +11,7 @@ import * as subService from '@/services/subscriptions';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
+import PromoCountdown from '@/components/ui/PromoCountdown';
 
 export default function PlanosPage() {
   const { user } = useAuth();
@@ -149,6 +150,9 @@ function PlanCard({
 }) {
   const info = subService.PLANS[plan];
   const isCurrent = current === plan;
+  const promo = subService.isPromoActive();
+  const promoPrice = subService.PROMO_PRICES[plan];
+  const suffix = plan === 'monthly' ? '/mês' : plan === 'semester' ? '/6 meses' : '/ano';
 
   return (
     <div className={`relative rounded-3xl border p-6 flex flex-col gap-4 transition-all ${
@@ -166,15 +170,23 @@ function PlanCard({
         <p className="text-xs text-text-secondary mt-1">{info.tagline}</p>
       </div>
       <div>
+        {promo && (
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm text-text-secondary line-through">
+              {subService.formatBRL(info.priceTotal)}
+            </span>
+            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-popline-pink text-white">
+              20% OFF
+            </span>
+          </div>
+        )}
         <p className="text-3xl font-bold">
-          {subService.formatBRL(info.priceTotal)}
-          <span className="text-sm text-text-secondary font-normal">
-            {plan === 'monthly' ? '/mês' : plan === 'semester' ? '/6 meses' : '/ano'}
-          </span>
+          {subService.formatBRL(promo ? promoPrice.priceTotal : info.priceTotal)}
+          <span className="text-sm text-text-secondary font-normal">{suffix}</span>
         </p>
         {plan !== 'monthly' && (
           <p className="text-xs text-text-secondary mt-1">
-            equivale a {subService.formatBRL(info.monthlyEquivalent)}/mês
+            equivale a {subService.formatBRL(promo ? promoPrice.monthlyEquivalent : info.monthlyEquivalent)}/mês
           </p>
         )}
       </div>
@@ -186,8 +198,9 @@ function PlanCard({
         {info.prizes && <FeatureLine label="Oportunidades exclusivas" highlight />}
         {plan === 'yearly' && <FeatureLine label="Destaque VIP nas campanhas" highlight />}
       </ul>
+      {promo && <PromoCountdown />}
       <Button onClick={onSubscribe} disabled={isCurrent} className="w-full">
-        {isCurrent ? 'Plano atual' : 'Assinar'}
+        {isCurrent ? 'Plano atual' : promo ? 'Aplicar Cupom Agora' : 'Assinar'}
       </Button>
     </div>
   );

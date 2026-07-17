@@ -78,6 +78,45 @@ export const CHECKOUT_URLS: Record<PlanId, string> = {
   yearly:   process.env.NEXT_PUBLIC_HOTMART_CHECKOUT_YEARLY   || 'https://pay.hotmart.com/J106555340X?off=47tdmvul',
 };
 
+// ============================================================================
+// Promoção "POPline 20 anos" — 20% OFF.
+// Ativa até 19/07/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
+// prazo, isPromoActive() vira false e TODA a UI volta ao normal sozinha:
+// banner de topo, links de checkout, preços "de/por" e o texto do botão.
+// Para prorrogar/encerrar antes, basta mudar PROMO_DEADLINE_MS.
+// ⚠️ Os códigos de oferta dos links promo (qe0i73w3/pcg3ywkl/rxeqtcod) também
+// precisam estar mapeados no webhook (OFFER_MAP em api/webhooks/hotmart) para
+// que a compra via cupom libere o plano — senão a ativação é ignorada.
+// ============================================================================
+export const PROMO_DEADLINE_MS = new Date('2026-07-19T23:59:59-03:00').getTime();
+
+export function isPromoActive(now: number = Date.now()): boolean {
+  return now < PROMO_DEADLINE_MS;
+}
+
+// Preço "por" (com 20% OFF) por plano — exibido só enquanto a promo está ativa.
+export const PROMO_PRICES: Record<PlanId, { priceTotal: number; monthlyEquivalent: number }> = {
+  free:     { priceTotal: 0,      monthlyEquivalent: 0 },
+  monthly:  { priceTotal: 39.92,  monthlyEquivalent: 39.92 },
+  semester: { priceTotal: 191.52, monthlyEquivalent: 31.92 },
+  yearly:   { priceTotal: 287.04, monthlyEquivalent: 23.92 },
+};
+
+// Links de checkout com o cupom 20 anos aplicado (mesmo produto, ofertas novas).
+const CHECKOUT_URLS_PROMO: Record<PlanId, string> = {
+  free:     '',
+  monthly:  'https://pay.hotmart.com/J106555340X?off=qe0i73w3',
+  semester: 'https://pay.hotmart.com/J106555340X?off=pcg3ywkl',
+  yearly:   'https://pay.hotmart.com/J106555340X?off=rxeqtcod',
+};
+
+// Link vigente: com cupom enquanto a promo está ativa, normal depois.
+export function getCheckoutUrl(plan: PlanId): string {
+  return isPromoActive() && CHECKOUT_URLS_PROMO[plan]
+    ? CHECKOUT_URLS_PROMO[plan]
+    : CHECKOUT_URLS[plan];
+}
+
 type Row = {
   user_id: string;
   plan: PlanId;

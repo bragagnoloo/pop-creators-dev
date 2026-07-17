@@ -54,6 +54,13 @@ const OFFER_MAP: Record<string, PlanId> = {
   [process.env.HOTMART_OFFER_MONTHLY  || 'hp9j1u5w']: 'monthly',
   [process.env.HOTMART_OFFER_SEMESTER || '9fs5f41h']: 'semester',
   [process.env.HOTMART_OFFER_YEARLY   || '47tdmvul']: 'yearly',
+  // Ofertas da promo "20 anos" (cupom 20% OFF). Mantidas permanentemente para
+  // que compras via cupom liberem o plano correto — o preço com desconto NÃO
+  // casaria com o fallback de preço de tabela. Reconhecer códigos a mais é
+  // inofensivo mesmo após a promo terminar.
+  qe0i73w3: 'monthly',
+  pcg3ywkl: 'semester',
+  rxeqtcod: 'yearly',
 };
 
 function resolvePlan(payload: HotmartPayload): PlanId | null {

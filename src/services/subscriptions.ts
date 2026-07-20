@@ -80,7 +80,7 @@ export const CHECKOUT_URLS: Record<PlanId, string> = {
 
 // ============================================================================
 // Promoção "POPline 20 anos" — 20% OFF.
-// Ativa até 19/07/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
+// Ativa até 26/07/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
 // prazo, isPromoActive() vira false e TODA a UI volta ao normal sozinha:
 // banner de topo, links de checkout, preços "de/por" e o texto do botão.
 // Para prorrogar/encerrar antes, basta mudar PROMO_DEADLINE_MS.
@@ -88,7 +88,7 @@ export const CHECKOUT_URLS: Record<PlanId, string> = {
 // precisam estar mapeados no webhook (OFFER_MAP em api/webhooks/hotmart) para
 // que a compra via cupom libere o plano — senão a ativação é ignorada.
 // ============================================================================
-export const PROMO_DEADLINE_MS = new Date('2026-07-19T23:59:59-03:00').getTime();
+export const PROMO_DEADLINE_MS = new Date('2026-07-26T23:59:59-03:00').getTime();
 
 export function isPromoActive(now: number = Date.now()): boolean {
   return now < PROMO_DEADLINE_MS;

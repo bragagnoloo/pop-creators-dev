@@ -66,7 +66,15 @@ const OFFER_MAP: Record<string, PlanId> = {
 function resolvePlan(payload: HotmartPayload): PlanId | null {
   const purchase = payload.data?.purchase;
   const code = purchase?.offer?.code;
-  if (code && OFFER_MAP[code]) return OFFER_MAP[code];
+  if (code) {
+    if (OFFER_MAP[code]) return OFFER_MAP[code];
+    // A Hotmart pode enviar o código com sufixo (visto em produção:
+    // 'rxeqtcodJWT' para a oferta 'rxeqtcod'), o que derrubava a ativação —
+    // o preço com cupom também não casa com a tabela, então caía em null.
+    // Casar por prefixo cobre esse caso e sufixos futuros.
+    const byPrefix = Object.keys(OFFER_MAP).find(k => k && code.startsWith(k));
+    if (byPrefix) return OFFER_MAP[byPrefix];
+  }
   // Rede de segurança: casa pelo preço de tabela (os 3 planos têm valores
   // distintos), caso o offer.code real difira do configurado.
   const listValue = purchase?.full_price?.value ?? purchase?.price?.value;

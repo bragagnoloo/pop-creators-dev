@@ -19,6 +19,7 @@ type CampaignRow = {
   commission_percentage: number | null;
   commission_description: string | null;
   is_invite: boolean;
+  is_review: boolean;
   current_stage: number;
   whatsapp_group_link: string | null;
   briefing_file_url: string | null;
@@ -57,6 +58,7 @@ function toCampaign(r: CampaignRow): Campaign {
     commissionPercentage: r.commission_percentage === null ? null : Number(r.commission_percentage),
     commissionDescription: r.commission_description,
     isInvite: r.is_invite ?? false,
+    isReview: r.is_review ?? false,
     currentStage: (r.current_stage ?? 0) as CampaignStage,
     whatsappGroupLink: r.whatsapp_group_link,
     briefingFileUrl: r.briefing_file_url,
@@ -79,7 +81,7 @@ function toApp(r: AppRow): CampaignApplication {
   };
 }
 
-const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
+const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, is_review, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
 const A_SELECT = 'id, campaign_id, user_id, status, applied_at, joined_whatsapp_group, joined_at, disqualified_at, disqualification_reason';
 
 // Limite pragmático para evitar full-table scans acidentais em admin views.
@@ -125,6 +127,7 @@ export async function createCampaign(data: Omit<Campaign, 'id' | 'createdAt'>): 
       commission_description: data.hasCommission ? data.commissionDescription : null,
       // Tipo definido só na criação; imutável depois (não entra em updateCampaign).
       is_invite: data.isInvite ?? false,
+      is_review: data.isReview ?? false,
     })
     .select(C_SELECT)
     .single();

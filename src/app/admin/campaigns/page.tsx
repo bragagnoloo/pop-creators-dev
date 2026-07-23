@@ -44,8 +44,9 @@ export default function AdminCampaignsPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Campaign['status']>('open');
-  // Tipo Convite: definido só na criação, imutável na edição.
-  const [isInvite, setIsInvite] = useState(false);
+  // Tipo da campanha: definido só na criação, imutável na edição.
+  // 'standard' = pública tradicional · 'invite' = convite/oculta · 'review' = POPline Creators Review.
+  const [campaignType, setCampaignType] = useState<'standard' | 'invite' | 'review'>('standard');
   const [hasCache, setHasCache] = useState(true);
   const [cache, setCache] = useState<string>('0');
   const [hasPermuta, setHasPermuta] = useState(false);
@@ -104,7 +105,7 @@ export default function AdminCampaignsPage() {
     setTitle('');
     setDescription('');
     setStatus('open');
-    setIsInvite(false);
+    setCampaignType('standard');
     setHasCache(true);
     setCache('0');
     setHasPermuta(false);
@@ -126,7 +127,7 @@ export default function AdminCampaignsPage() {
     setTitle(campaign.title);
     setDescription(campaign.description);
     setStatus(campaign.status);
-    setIsInvite(campaign.isInvite);
+    setCampaignType(campaign.isReview ? 'review' : campaign.isInvite ? 'invite' : 'standard');
     setHasCache(campaign.hasCache);
     setCache(String(campaign.cache ?? 0));
     setHasPermuta(campaign.hasPermuta);
@@ -183,7 +184,8 @@ export default function AdminCampaignsPage() {
       title,
       description,
       status,
-      isInvite,
+      isInvite: campaignType === 'invite',
+      isReview: campaignType === 'review',
       deadline: null,
       cache: hasCache ? Number(cache) || 0 : 0,
       deliveryCount: Math.max(1, Number(deliveryCount) || 1),
@@ -319,25 +321,32 @@ export default function AdminCampaignsPage() {
               <label className="text-sm text-text-secondary font-medium">Tipo de campanha</label>
               {editing ? (
                 <div className="flex items-center gap-2">
-                  <Badge variant={editing.isInvite ? 'pink' : 'default'}>
-                    {editing.isInvite ? 'Convite (oculta)' : 'Padrão (pública)'}
+                  <Badge variant={editing.isReview ? 'purple' : editing.isInvite ? 'pink' : 'default'}>
+                    {editing.isReview ? 'Review' : editing.isInvite ? 'Convite (oculta)' : 'Padrão (pública)'}
                   </Badge>
                   <span className="text-xs text-text-secondary/70">O tipo não pode ser alterado após a criação.</span>
                 </div>
               ) : (
                 <>
                   <select
-                    value={isInvite ? 'invite' : 'standard'}
-                    onChange={e => setIsInvite(e.target.value === 'invite')}
+                    value={campaignType}
+                    onChange={e => setCampaignType(e.target.value as 'standard' | 'invite' | 'review')}
                     className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary focus:outline-none focus:border-popline-pink transition-colors"
                   >
                     <option value="standard">Padrão — pública, aberta a inscrições</option>
                     <option value="invite">Convite — confidencial, oculta dos usuários</option>
+                    <option value="review">Review — POPline Creators Review (pública, aba própria)</option>
                   </select>
-                  {isInvite && (
+                  {campaignType === 'invite' && (
                     <p className="text-xs text-popline-pink/90 mt-0.5">
                       Campanha oculta: não aparece para os usuários. Os participantes são adicionados
                       manualmente na Etapa 01 — Adicionar Convidados, dentro do painel da campanha.
+                    </p>
+                  )}
+                  {campaignType === 'review' && (
+                    <p className="text-xs text-popline-purple mt-0.5">
+                      Review pública: aparece na aba Reviews (borda roxa) e no dashboard dos assinantes,
+                      que se candidatam normalmente. Não aparece na aba Campanhas.
                     </p>
                   )}
                 </>
@@ -560,6 +569,7 @@ export default function AdminCampaignsPage() {
                       {statusLabel[campaign.status]}
                     </Badge>
                     {campaign.isInvite && <Badge variant="pink">Convite</Badge>}
+                    {campaign.isReview && <Badge variant="purple">Review</Badge>}
                   </div>
                   <p className="text-sm text-text-secondary line-clamp-2">{campaign.description}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">

@@ -21,6 +21,7 @@ export const ROUTES = {
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
   CAMPANHAS: '/dashboard/campanhas',
+  REVIEWS: '/dashboard/reviews',
   OFICINAS: '/dashboard/oficinas',
   OFICINA: '/dashboard/oficinas',
   ROTEIROS: '/dashboard/roteiros',

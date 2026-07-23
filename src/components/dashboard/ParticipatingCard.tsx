@@ -180,9 +180,11 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   return (
     <Card
       className={`!p-0 overflow-hidden${
-        campaign.isInvite
-          ? ' border-2 !border-popline-pink shadow-[0_0_16px_-2px_var(--color-popline-pink)]'
-          : ''
+        campaign.isReview
+          ? ' border-2 !border-popline-purple shadow-[0_0_22px_-3px_var(--color-popline-purple)]'
+          : campaign.isInvite
+            ? ' border-2 !border-popline-pink shadow-[0_0_16px_-2px_var(--color-popline-pink)]'
+            : ''
       }`}
     >
       <button
@@ -209,6 +211,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold truncate">{campaign.title}</h3>
             {campaign.isInvite && <Badge variant="pink">Convite</Badge>}
+            {campaign.isReview && <Badge variant="purple">Review</Badge>}
             <Badge variant={status.variant}>{status.label}</Badge>
             {noticeCounts && noticeCounts.unread > 0 && (
               <span

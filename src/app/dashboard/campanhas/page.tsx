@@ -43,9 +43,11 @@ export default function CampanhasPage() {
     if (filter === 'available') {
       // Campanhas convite (is_invite) nunca entram em "Disponíveis" — só aparecem
       // em "Participando" depois que o admin adiciona o usuário.
-      return campaigns.filter(c => c.status === 'open' && !c.isInvite && !appliedIds.has(c.id));
+      // Reviews (is_review) têm aba própria e não aparecem aqui.
+      return campaigns.filter(c => c.status === 'open' && !c.isInvite && !c.isReview && !appliedIds.has(c.id));
     }
-    return campaigns.filter(c => appliedIds.has(c.id));
+    // Reviews participando aparecem na aba Reviews, não aqui.
+    return campaigns.filter(c => appliedIds.has(c.id) && !c.isReview);
   }, [campaigns, appliedIds, filter]);
 
   const handleApply = async (campaignId: string) => {
@@ -72,8 +74,8 @@ export default function CampanhasPage() {
   };
 
   const counts = {
-    available: campaigns.filter(c => c.status === 'open' && !c.isInvite && !appliedIds.has(c.id)).length,
-    participating: campaigns.filter(c => appliedIds.has(c.id)).length,
+    available: campaigns.filter(c => c.status === 'open' && !c.isInvite && !c.isReview && !appliedIds.has(c.id)).length,
+    participating: campaigns.filter(c => appliedIds.has(c.id) && !c.isReview).length,
   };
 
   return (

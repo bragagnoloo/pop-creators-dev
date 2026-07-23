@@ -67,7 +67,13 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
   ) > 1;
 
   return (
-    <Card className="flex flex-col">
+    <Card
+      className={`flex flex-col${
+        campaign.isReview
+          ? ' border-2 !border-popline-purple shadow-[0_0_22px_-3px_var(--color-popline-purple)]'
+          : ''
+      }`}
+    >
       <div className="flex items-start gap-4 mb-3">
         {campaign.imageUrl ? (
           <Image
@@ -88,7 +94,10 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-lg">{campaign.title}</h3>
           <CompensationChips campaign={campaign} />
-          <Badge variant="success">Inscricoes Abertas</Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="success">Inscricoes Abertas</Badge>
+            {campaign.isReview && <Badge variant="purple">Review</Badge>}
+          </div>
         </div>
       </div>
 

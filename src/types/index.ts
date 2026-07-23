@@ -61,6 +61,9 @@ export interface Campaign {
   // Campanha Convite (migration 0026): oculta dos usuários; entrada só via admin.
   // Definido na criação e imutável depois.
   isInvite: boolean;
+  // Campanha Review (migration 0030): pública como a tradicional, mas categoria
+  // POPline Creators Review — aba própria + borda roxa. Imutável após a criação.
+  isReview: boolean;
   // Stages (migration 0015)
   currentStage?: CampaignStage;
   whatsappGroupLink?: string | null;

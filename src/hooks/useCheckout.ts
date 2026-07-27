@@ -23,14 +23,16 @@ interface User {
  * pelo Paywall e pela própria página de planos.
  */
 export function useCheckout(user: User | null | undefined): {
-  subscribeTo: (planId: PlanId) => Promise<void>;
+  subscribeTo: (planId: PlanId, eligibleForPromo?: boolean) => Promise<void>;
   busy: boolean;
 } {
   const [busy, setBusy] = useState(false);
 
-  const subscribeTo = useCallback(async (plan: PlanId) => {
+  // eligibleForPromo (default true): quando false, força o link de preço normal
+  // mesmo com a promo ativa — usado p/ assinantes na aba Planos.
+  const subscribeTo = useCallback(async (plan: PlanId, eligibleForPromo: boolean = true) => {
     if (!user || plan === 'free' || busy) return;
-    const checkoutUrl = getCheckoutUrl(plan);
+    const checkoutUrl = getCheckoutUrl(plan, eligibleForPromo);
     if (!checkoutUrl) {
       console.error('[checkout] URL de checkout não configurada para:', plan);
       return;

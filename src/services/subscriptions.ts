@@ -80,15 +80,17 @@ export const CHECKOUT_URLS: Record<PlanId, string> = {
 
 // ============================================================================
 // Promoção "POPline 20 anos" — 20% OFF.
-// Ativa até 26/07/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
+// Ativa até 02/08/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
 // prazo, isPromoActive() vira false e TODA a UI volta ao normal sozinha:
 // banner de topo, links de checkout, preços "de/por" e o texto do botão.
 // Para prorrogar/encerrar antes, basta mudar PROMO_DEADLINE_MS.
+// A promo só é exibida a quem NÃO tem assinatura ativa (plano free): o banner
+// já é gated no layout e a aba Planos passa `eligible` p/ preço/contador/link.
 // ⚠️ Os códigos de oferta dos links promo (qe0i73w3/pcg3ywkl/rxeqtcod) também
 // precisam estar mapeados no webhook (OFFER_MAP em api/webhooks/hotmart) para
 // que a compra via cupom libere o plano — senão a ativação é ignorada.
 // ============================================================================
-export const PROMO_DEADLINE_MS = new Date('2026-07-26T23:59:59-03:00').getTime();
+export const PROMO_DEADLINE_MS = new Date('2026-08-02T23:59:59-03:00').getTime();
 
 export function isPromoActive(now: number = Date.now()): boolean {
   return now < PROMO_DEADLINE_MS;
@@ -110,9 +112,12 @@ const CHECKOUT_URLS_PROMO: Record<PlanId, string> = {
   yearly:   'https://pay.hotmart.com/J106555340X?off=rxeqtcod',
 };
 
-// Link vigente: com cupom enquanto a promo está ativa, normal depois.
-export function getCheckoutUrl(plan: PlanId): string {
-  return isPromoActive() && CHECKOUT_URLS_PROMO[plan]
+// Link vigente: com cupom enquanto a promo está ativa E o usuário é elegível
+// (não-assinante). `eligible` default true preserva o comportamento de quem
+// chama sem contexto de plano (ex.: Paywall, que só aparece p/ free). A aba
+// Planos passa `eligible=false` para assinantes ativos, que veem o link normal.
+export function getCheckoutUrl(plan: PlanId, eligible: boolean = true): string {
+  return eligible && isPromoActive() && CHECKOUT_URLS_PROMO[plan]
     ? CHECKOUT_URLS_PROMO[plan]
     : CHECKOUT_URLS[plan];
 }

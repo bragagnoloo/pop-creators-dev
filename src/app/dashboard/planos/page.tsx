@@ -26,6 +26,7 @@ export default function PlanosPage() {
   );
 
   const currentPlan = sub?.plan ?? 'free';
+  const isFree = currentPlan === 'free'; // só free vê promo (de/por, contador, link c/ cupom)
   const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
 
   // Polling: quando voltar com ?payment=success, aguardar plano ativar
@@ -109,9 +110,9 @@ export default function PlanosPage() {
 
       {/* Grade de planos */}
       <div className="grid md:grid-cols-3 gap-5">
-        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => handleSubscribe('monthly')} />
-        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => handleSubscribe('semester')} highlighted />
-        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => handleSubscribe('yearly')} />
+        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => handleSubscribe('monthly', isFree)} />
+        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => handleSubscribe('semester', isFree)} highlighted />
+        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => handleSubscribe('yearly', isFree)} />
       </div>
 
       {/* Tabela comparativa */}
@@ -150,7 +151,9 @@ function PlanCard({
 }) {
   const info = subService.PLANS[plan];
   const isCurrent = current === plan;
-  const promo = subService.isPromoActive();
+  // Promo só aparece para quem não é assinante ativo (plano free). Assinantes
+  // veem preço padrão, sem contador e com o botão normal.
+  const promo = subService.isPromoActive() && current === 'free';
   const promoPrice = subService.PROMO_PRICES[plan];
   const suffix = plan === 'monthly' ? '/mês' : plan === 'semester' ? '/6 meses' : '/ano';
 

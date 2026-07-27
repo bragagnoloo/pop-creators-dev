@@ -384,4 +384,7 @@ export type UserRankingStats = {
   monthlyPoints: number;
   alltimeRank: number | null;
   alltimePoints: number;
+  fullName: string;
+  photoUrl: string | null;
+  plan: PlanId;
 };

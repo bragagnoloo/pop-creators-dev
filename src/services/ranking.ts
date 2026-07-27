@@ -15,6 +15,9 @@ type StatsRow = {
   monthly_points: number;
   alltime_rank: number | null;
   alltime_points: number;
+  full_name: string | null;
+  photo_url: string | null;
+  plan: PlanId | null;
 };
 
 function toEntry(r: RankingRow): RankingEntry {
@@ -46,7 +49,15 @@ export async function getUserRankingStats(): Promise<UserRankingStats> {
   const supabase = createClient();
   const { data } = await supabase.rpc('get_user_ranking_stats');
   if (!data || !data[0]) {
-    return { monthlyRank: null, monthlyPoints: 0, alltimeRank: null, alltimePoints: 0 };
+    return {
+      monthlyRank: null,
+      monthlyPoints: 0,
+      alltimeRank: null,
+      alltimePoints: 0,
+      fullName: '',
+      photoUrl: null,
+      plan: 'free',
+    };
   }
   const r = data[0] as StatsRow;
   return {
@@ -54,6 +65,9 @@ export async function getUserRankingStats(): Promise<UserRankingStats> {
     monthlyPoints: Number(r.monthly_points ?? 0),
     alltimeRank: r.alltime_rank ? Number(r.alltime_rank) : null,
     alltimePoints: Number(r.alltime_points ?? 0),
+    fullName: r.full_name ?? '',
+    photoUrl: r.photo_url,
+    plan: r.plan ?? 'free',
   };
 }
 

@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
 import Avatar from '@/components/ui/Avatar';
 import Badge from '@/components/ui/Badge';
-import { RankingEntry, UserRankingStats } from '@/types';
+import { RankingEntry } from '@/types';
 import { getMonthlyRanking, getAllTimeRanking, getUserRankingStats } from '@/services/ranking';
 import { ROUTES } from '@/lib/constants';
 
@@ -204,12 +204,17 @@ export default function RankingPage() {
           {/* Sua posição */}
           {myPoints > 0 && stats ? (
             <div className="bg-popline-pink/10 border border-popline-pink/30 rounded-2xl p-4 mb-6 flex items-center gap-4">
-              <Avatar src={null} name={user?.email ?? ''} size="md" />
+              <Avatar src={stats.photoUrl} name={stats.fullName || user?.email || ''} size="md" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-text-secondary">Sua posição</p>
-                <p className="font-bold text-text-primary">
-                  {myRank ? `#${myRank}` : 'Fora do top 50'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-text-primary">
+                    {myRank ? `#${myRank}` : 'Fora do top 50'}
+                  </p>
+                  <Badge variant={stats.plan === 'yearly' ? 'pink' : 'default'}>
+                    {PLAN_LABEL[stats.plan] ?? stats.plan}
+                  </Badge>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-xl font-black text-popline-pink">{myPoints.toLocaleString('pt-BR')}</p>
@@ -280,15 +285,15 @@ export default function RankingPage() {
               )}
 
               {/* Usuário fora do top 50 mas com pontos */}
-              {myRank && myRank > 50 && myPoints > 0 && (
+              {myRank && myRank > 50 && myPoints > 0 && stats && (
                 <div className="mt-2">
                   <RankRow
                     entry={{
                       rank: myRank,
                       userId: myUserId ?? '',
-                      fullName: user?.email?.split('@')[0] ?? 'Você',
-                      photoUrl: null,
-                      plan: 'free',
+                      fullName: stats.fullName || user?.email?.split('@')[0] || 'Você',
+                      photoUrl: stats.photoUrl,
+                      plan: stats.plan,
                       totalPoints: myPoints,
                     }}
                     isMe

@@ -40,6 +40,7 @@ export const ROUTES = {
   ADMIN_RANKING: '/admin/ranking',
   ADMIN_OPORTUNIDADES: '/admin/oportunidades',
   ADMIN_CAMPANHA_CONFIDENCIAL: '/admin/campanha-confidencial',
+  ADMIN_B2B: '/admin/b2b',
   OBRIGADO: '/obrigado',
 } as const;
 

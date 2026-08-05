@@ -388,3 +388,150 @@ export type UserRankingStats = {
   photoUrl: string | null;
   plan: PlanId;
 };
+
+// ---------------------------------------------------------------------------
+// B2B — controle financeiro das campanhas (migration 0032, aba /admin/b2b)
+// ---------------------------------------------------------------------------
+
+export type B2BFinanceStatus = 'em_aberto' | 'finalizada';
+export type B2BPaymentStatus = 'pendente' | 'parcial' | 'pago';
+export type B2BCampaignType = 'standard' | 'invite' | 'review';
+
+/** Origem da data de encerramento exibida na tabela. */
+export type B2BClosedSource = 'override' | 'stage' | 'status';
+
+/**
+ * Uma linha da view b2b_finance_overview, já convertida para camelCase e com
+ * todos os numéricos coeridos para number (o PostgREST devolve `numeric` como
+ * string).
+ */
+export interface B2BFinanceRow {
+  campaignId: string;
+  title: string;
+  campaignStatus: Campaign['status'];
+  currentStage: CampaignStage;
+  deliveryCount: number;
+  campaignType: B2BCampaignType;
+
+  // --- preenchidos pelo admin ---
+  payingCompany: string | null;
+  agreedValue: number | null;
+  /** Nº de creators combinado no contrato com a marca. Preenchido à mão. */
+  contractedCreators: number | null;
+  agreedPaymentDueDate: string | null;      // 'YYYY-MM-DD'
+  companyPaymentEstimate: string | null;    // 'YYYY-MM-DD'
+  companyPaymentStatus: B2BPaymentStatus;
+  companyPaidValue: number;
+  taxRate: number;                          // 0..100
+  closedAtOverride: string | null;          // 'YYYY-MM-DD'
+  financeStatus: B2BFinanceStatus;
+  notes: string | null;
+  financeUpdatedAt: string | null;
+
+  // --- derivados do banco ---
+  hasCache: boolean;
+  cache: number;
+  openedOn: string;                         // created_at no fuso de Brasília
+  closedOn: string | null;
+  closedSource: B2BClosedSource | null;
+  creatorPaymentDeadline: string | null;    // closedOn + 60 dias
+  eligibleParticipants: number;
+  /** contratados − aptos. Positivo = faltou gente; negativo = entregou mais. */
+  creatorsGap: number | null;
+  creditedTotal: number;
+  processingTotal: number;
+  walletTotal: number;
+  paidTotal: number;
+  totalDueCreators: number;
+  /** Cachê devido em campanha já concluída que ainda não virou crédito. */
+  pendingToGenerate: number;
+  netRevenue: number | null;
+  companyOutstanding: number;
+  marginValue: number | null;
+  marginPct: number | null;
+  companyPaidPct: number | null;
+  companyPaymentMismatch: boolean;
+
+  // --- insumos do termômetro de risco ---
+  daysToCreatorDeadline: number | null;
+  daysSinceClosed: number | null;
+  daysToCompanyEstimate: number | null;
+  daysToAgreedDue: number | null;
+}
+
+/** Campos editáveis. Só as chaves presentes são gravadas. */
+export interface B2BFinancePatch {
+  payingCompany?: string | null;
+  agreedValue?: number | null;
+  contractedCreators?: number | null;
+  agreedPaymentDueDate?: string | null;
+  companyPaymentEstimate?: string | null;
+  companyPaymentStatus?: B2BPaymentStatus;
+  companyPaidValue?: number | null;
+  taxRate?: number | null;
+  closedAtOverride?: string | null;
+  financeStatus?: B2BFinanceStatus;
+  notes?: string | null;
+}
+
+/** Reconciliação nível plataforma (view b2b_finance_platform). */
+export interface B2BPlatformMeta {
+  paidTotalAll: number;
+  paidAttributed: number;
+  /** Pago de verdade mas sem campanha de origem (crédito apagado após o saque). */
+  paidUnattributed: number;
+}
+
+export interface B2BFinanceTotals {
+  campaigns: number;
+  finalizadas: number;
+  emAberto: number;
+
+  creditedTotal: number;
+  processingTotal: number;
+  walletTotal: number;
+  paidTotal: number;
+
+  agreedTotal: number;
+  netRevenueTotal: number;
+  companyPaidTotal: number;
+  companyOutstandingTotal: number;
+  paymentPago: number;
+  paymentParcial: number;
+  paymentPendente: number;
+  paymentOverdue: number;
+
+  /** Campanhas com cachê já gerado e empresa ainda devendo: exposição de caixa. */
+  exposedRevenueTotal: number;
+  exposedCampaigns: number;
+  exposedCommittedTotal: number;
+
+  eligibleTotal: number;
+  contractedTotal: number;
+  dueCreatorsTotal: number;
+  /** Soma do cachê a gerar em campanhas concluídas, e quantas são. */
+  pendingToGenerateTotal: number;
+  pendingToGenerateCampaigns: number;
+
+  marginTotal: number;
+  marginPct: number | null;
+  companyPaidPct: number | null;
+
+  // --- Concretizado: só o que de fato entrou/saiu ---
+  /** Recebido das empresas já descontado o imposto de cada campanha. */
+  realizedNetRevenueTotal: number;
+  /** Recebido líquido menos o cachê já gerado (comprometido com os creators). */
+  realizedMarginTotal: number;
+  /** Margem concretizada sobre o que foi recebido. Null se nada entrou. */
+  realizedMarginPct: number | null;
+  /** Quanto do cachê previsto já virou crédito. Null se nada é devido. */
+  creditedPct: number | null;
+}
+
+export type B2BRiskBand = 'baixo' | 'atencao' | 'alto' | 'critico';
+
+export interface B2BRiskAssessment {
+  score: number;            // 0..100
+  band: B2BRiskBand;
+  reasons: string[];
+}

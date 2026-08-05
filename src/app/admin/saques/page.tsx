@@ -36,10 +36,15 @@ export default function AdminSaquesPage() {
   const load = async () => {
     const all = await walletService.getAllWithdrawals();
     setWithdrawals(all);
+
+    // Uma query só para todos os perfis. Antes era um getProfile por creator,
+    // em sequência (cada um esperando o anterior): com 25 creators eram 25
+    // idas e voltas, e durante todas elas os cards ficavam sem nome, sem email
+    // e sem foto — o que faz a lista parecer incompleta enquanto carrega.
+    const ids = [...new Set(all.map(w => w.userId))];
+    const byId = await userService.getProfilesByIds(ids);
     const map: Record<string, UserProfile | null> = {};
-    for (const w of all) {
-      if (!(w.userId in map)) map[w.userId] = await userService.getProfile(w.userId);
-    }
+    for (const id of ids) map[id] = byId.get(id) ?? null;
     setProfiles(map);
   };
 
@@ -117,6 +122,14 @@ export default function AdminSaquesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
+          <p className="text-xs text-text-secondary pb-1">
+            Exibindo <span className="text-text-primary font-medium">{visible.length}</span> de{' '}
+            {counts.all} saque{counts.all === 1 ? '' : 's'} ·{' '}
+            <span className="text-text-primary font-medium">
+              {walletService.formatBRL(visible.reduce((acc, w) => acc + w.amount, 0))}
+            </span>{' '}
+            · {new Set(visible.map(w => w.userId)).size} creators · sem paginação
+          </p>
           {visible.map(w => {
             const profile = profiles[w.userId];
             const informedName = w.pixHolderName ?? '—';

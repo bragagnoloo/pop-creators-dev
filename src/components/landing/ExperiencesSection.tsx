@@ -12,7 +12,6 @@ type Experiencia = {
   quando: string;
   /** Só existe quando a experiência veio de uma campanha da plataforma. */
   logoUrl?: string;
-  aberta?: boolean;
   descricao: string[];
   destaque: string;
   videoUrl?: string;
@@ -31,7 +30,6 @@ const EXPERIENCIAS: Experiencia[] = [
     marca: 'Festival Doce Maravilha',
     quando: 'Rio de Janeiro · 2026',
     logoUrl: `${LOGOS}/logo-1785289594948-ak2nfr.jpeg`,
-    aberta: true,
     descricao: [
       'Um festival que celebra a música e a cultura brasileira reunindo gerações no mesmo palco, com creators circulando por ele de credencial, não de ingresso.',
       'A experiência foi viver o Doce Maravilha por dentro e transformar isso em conteúdo enquanto a festa ainda acontecia.',
@@ -56,14 +54,13 @@ const EXPERIENCIAS: Experiencia[] = [
   {
     id: 'harry-styles',
     // Experiência avulsa: não passou por campanha, por isso não tem logo.
-    // TODO: descrição e destaque reais.
     marca: 'Harry Styles',
     quando: 'São Paulo',
     descricao: [
-      'Um dos maiores shows internacionais a passar por São Paulo, com um público que documenta cada segundo dele.',
-      'TODO: contar como os creators do POPline viveram esse show e o que produziram de lá.',
+      'Um dos maiores shows internacionais a passar por São Paulo, daqueles em que cada pessoa da plateia vira um cinegrafista.',
+      'Essa não saiu de uma campanha aberta na plataforma. Foi uma daquelas oportunidades que aparecem de última hora e vão para quem já está por perto, com a câmera na mão.',
     ],
-    destaque: 'TODO: o que tornou essa experiência única.',
+    destaque: 'Nem toda oportunidade nasce de um briefing.',
     videoUrl: `${VIDEOS}/harry-styles.mp4`,
   },
   {
@@ -193,12 +190,6 @@ export default function ExperiencesSection() {
                     {exp.marca}
                   </p>
                   <p className="text-sm text-text-secondary">{exp.quando}</p>
-                  {exp.aberta && (
-                    <span className="inline-flex items-center gap-1.5 mt-2 text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full gradient-bg text-white shadow-lg">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse-glow" />
-                      Inscrições abertas
-                    </span>
-                  )}
                 </div>
               </div>
 

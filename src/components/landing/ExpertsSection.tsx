@@ -2,37 +2,14 @@
 
 import { useRef, useState, useCallback, useEffect } from 'react';
 
-// ─── DADOS ESTÁTICOS ────────────────────────────────────────────────────────
-// Para alterar a dobra de experts na LP, edite a lista abaixo manualmente.
-// Mudanças no admin de oficinas NÃO afetam esta seção automaticamente.
-const EXPERTS = [
-  {
-    name: 'Flávio Sartunino',
-    title: 'O JOGO DO POP',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777393029067-0508sn.jpeg',
-  },
-  {
-    name: 'Myrella Marinho',
-    title: 'ARQUITETURA DE CONTEÚDO',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376206168-zjzyij.jpeg',
-  },
-  {
-    name: 'Alessandra Pitanga',
-    title: 'CONTEÚDO QUE VIRA DINHEIRO',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376386741-w23v8d.jpeg',
-  },
-  {
-    name: "Marcela D'arrochela",
-    title: 'MERCADO E MARCAS',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1777376459226-i53rlq.jpeg',
-  },
-  {
-    name: 'Kamilla Fialho',
-    title: 'CARREIRA E LONGO PRAZO',
-    thumbnail_url: 'https://xduxtovqwebteqhrffgh.supabase.co/storage/v1/object/public/lesson-thumbnails/thumb-1778101082810-y0458w.jpeg',
-  },
-];
-// ────────────────────────────────────────────────────────────────────────────
+// A lista vem do banco (tabela workshops) via page.tsx, então publicar uma
+// oficina nova no admin já reflete aqui. Só entram as oficinas com status
+// 'available' e que tenham expert preenchido.
+export type Expert = {
+  name: string;
+  title: string;
+  thumbnail_url: string | null;
+};
 
 const PLACEHOLDER_GRADIENTS = [
   'from-popline-magenta/40 via-popline-pink/20 to-popline-light/10',
@@ -41,7 +18,7 @@ const PLACEHOLDER_GRADIENTS = [
   'from-indigo-700/40 via-popline-magenta/20 to-purple-500/10',
 ];
 
-export default function ExpertsSection() {
+export default function ExpertsSection({ experts }: { experts: Expert[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -53,7 +30,7 @@ export default function ExpertsSection() {
     setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 8);
   }, []);
 
-  useEffect(() => { updateScrollState(); }, [updateScrollState]);
+  useEffect(() => { updateScrollState(); }, [updateScrollState, experts.length]);
 
   const scrollBy = (dir: 'left' | 'right') => {
     const el = scrollRef.current;
@@ -104,8 +81,8 @@ export default function ExpertsSection() {
         <div ref={scrollRef} onScroll={updateScrollState}
           className="flex gap-4 overflow-x-auto snap-x snap-mandatory"
           style={{ scrollbarWidth: 'none' }}>
-          {EXPERTS.map((expert, i) => (
-            <div key={expert.name} data-expert-card className="flex-none w-44 sm:w-52 md:w-56 lg:w-60 snap-start">
+          {experts.map((expert, i) => (
+            <div key={`${expert.name}-${expert.title}`} data-expert-card className="flex-none w-44 sm:w-52 md:w-56 lg:w-60 snap-start">
               <ExpertCard expert={expert} index={i} />
             </div>
           ))}
@@ -123,19 +100,19 @@ export default function ExpertsSection() {
   );
 }
 
-function ExpertCard({ expert, index }: { expert: typeof EXPERTS[0]; index: number }) {
+function ExpertCard({ expert, index }: { expert: Expert; index: number }) {
   const [imgError, setImgError] = useState(false);
   const gradient = PLACEHOLDER_GRADIENTS[index % PLACEHOLDER_GRADIENTS.length];
   const initials = expert.name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
-  const showImage = expert.thumbnail_url && !imgError;
+  const thumb = imgError ? null : expert.thumbnail_url;
 
   return (
     <div className="group relative rounded-2xl overflow-hidden bg-surface border border-border hover:border-popline-pink/30 transition-all duration-300 cursor-default"
       style={{ height: '280px' }}>
-      {showImage ? (
+      {thumb ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={expert.thumbnail_url} alt={expert.name}
+          <img src={thumb} alt={expert.name}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             loading="lazy" onError={() => setImgError(true)} />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
@@ -156,8 +133,8 @@ function ExpertCard({ expert, index }: { expert: typeof EXPERTS[0]; index: numbe
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 p-4 z-10">
-        <p className="text-[11px] text-popline-light font-medium mb-0.5 line-clamp-1">{expert.title}</p>
-        <h3 className="text-sm font-bold text-text-primary leading-tight">{expert.name}</h3>
+        <p className="text-[11px] text-popline-light font-medium mb-0.5 line-clamp-2">{expert.title}</p>
+        <h3 className="text-sm font-bold text-text-primary leading-tight line-clamp-2">{expert.name}</h3>
       </div>
 
       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none ring-1 ring-inset ring-popline-pink/20 rounded-2xl" />

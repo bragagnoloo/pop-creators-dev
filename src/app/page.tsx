@@ -20,6 +20,22 @@ export default async function Home() {
     .eq('status', 'open')
     .order('created_at', { ascending: false });
 
+  // Oficinas publicadas viram os cards de experts da LP. Fica dinâmico para a
+  // dobra não envelhecer toda vez que uma oficina nova entra no ar.
+  const { data: workshops } = await supabase
+    .from('workshops')
+    .select('title, expert, thumbnail_url')
+    .eq('status', 'available')
+    .not('expert', 'is', null)
+    .order('position');
+
+  const experts = (workshops ?? [])
+    .filter((w) => (w.expert as string | null)?.trim())
+    .map((w) => ({
+      name: (w.expert as string).trim(),
+      title: (w.title as string).trim(),
+      thumbnail_url: (w.thumbnail_url as string | null) ?? null,
+    }));
 
   return (
     <>
@@ -29,7 +45,7 @@ export default async function Home() {
         <CampaignsMarquee campaigns={(campaigns ?? []).map(c => ({ id: c.id as string, title: c.title as string }))} />
         <ExperiencesSection />
         <FeaturesSection />
-        <ExpertsSection />
+        <ExpertsSection experts={experts} />
         <HowItWorksSection />
         <PlansSection />
         <FaqSection />

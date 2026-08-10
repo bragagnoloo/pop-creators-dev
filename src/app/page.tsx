@@ -11,6 +11,11 @@ import FaqSection from '@/components/landing/FaqSection';
 import CTASection from '@/components/landing/CTASection';
 import Footer from '@/components/landing/Footer';
 
+// A home é pré-renderizada. Sem isto, as campanhas abertas e as oficinas
+// publicadas só mudariam na LP quando saísse um deploy novo. Com a
+// revalidação, uma alteração no admin aparece em no máximo 5 minutos.
+export const revalidate = 300;
+
 export default async function Home() {
   const supabase = createAdminClient();
 

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRef, useState, useCallback, useEffect } from 'react';
 
 // A lista vem do banco (tabela workshops) via page.tsx, então publicar uma
@@ -111,10 +112,17 @@ function ExpertCard({ expert, index }: { expert: Expert; index: number }) {
       style={{ height: '280px' }}>
       {thumb ? (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={thumb} alt={expert.name}
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-            loading="lazy" onError={() => setImgError(true)} />
+          {/* As thumbs originais têm até 1600px de largura para um card de 240px
+              e o Supabase as serve com cache-control no-cache. O otimizador do
+              Next redimensiona, converte para AVIF/WebP e serve com cache longo. */}
+          <Image
+            src={thumb}
+            alt={expert.name}
+            fill
+            sizes="(max-width: 640px) 176px, (max-width: 768px) 208px, (max-width: 1024px) 224px, 240px"
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            onError={() => setImgError(true)}
+          />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         </>
       ) : (

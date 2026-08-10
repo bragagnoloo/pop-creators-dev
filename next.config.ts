@@ -29,6 +29,10 @@ const nextConfig: NextConfig = {
 
   images: {
     formats: ['image/avif', 'image/webp'],
+    // O Storage do Supabase devolve `cache-control: no-cache`, o que faria o
+    // otimizador revalidar toda hora. Como as thumbs têm URL única por upload,
+    // dá para segurar o resultado otimizado por bastante tempo.
+    minimumCacheTTL: 60 * 60 * 24 * 31,
     remotePatterns: [
       ...(supabaseHost
         ? [

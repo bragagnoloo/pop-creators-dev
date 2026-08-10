@@ -79,10 +79,10 @@ const EXPERIENCIAS: Experiencia[] = [
   {
     id: 'seraqabre',
     marca: 'Festival SeráQAbre?',
-    quando: 'Village Superbet · 12 de junho de 2026',
+    quando: 'Village · 12 de junho de 2026',
     logoUrl: `${LOGOS}/logo-1779561852666-sg8qz7.png`,
     descricao: [
-      'Edição histórica no Village Superbet, dentro do Jockey Club Brasileiro: Pabllo Vittar e Luísa Sonza na véspera do primeiro jogo do Brasil, que ainda caiu no Dia dos Namorados.',
+      'Edição histórica no Village, dentro do Jockey Club Brasileiro: Pabllo Vittar e Luísa Sonza na véspera do primeiro jogo do Brasil, que ainda caiu no Dia dos Namorados.',
       'Data dessas não se repete. Nossos creators estavam no meio da festa para transformar o irrepetível em conteúdo.',
     ],
     destaque: 'Música, cultura pop e futebol no mesmo dia.',

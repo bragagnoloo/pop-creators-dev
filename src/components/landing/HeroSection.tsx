@@ -6,14 +6,14 @@ import { ROUTES } from '@/lib/constants';
 export default function HeroSection() {
   return (
     <section className="relative grid-bg overflow-x-clip">
-      {/* Background orbs — z-0 */}
+      {/* Background orbs: z-0 */}
       <div className="absolute top-1/4 -left-40 w-[500px] h-[500px] bg-popline-magenta/15 rounded-full blur-[120px] animate-pulse-glow pointer-events-none z-0" />
       <div className="absolute bottom-0 -right-20 w-[400px] h-[400px] bg-popline-pink/10 rounded-full blur-[100px] animate-pulse-glow pointer-events-none z-0" style={{ animationDelay: '2s' }} />
 
-      {/* SoundWaves — z-0, só client */}
+      {/* SoundWaves: z-0, só client */}
       <SoundWaves />
 
-      {/* Conteúdo — z-10, sempre acima */}
+      {/* Conteúdo: z-10, sempre acima */}
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 sm:pt-36 pb-16 sm:pb-24 text-center">
 
         {/* Eyebrow */}
@@ -46,8 +46,8 @@ export default function HeroSection() {
 
         {/* Description */}
         <p className="text-base sm:text-xl text-text-secondary max-w-2xl mx-auto mb-8 sm:mb-10 leading-relaxed">
-          Campanhas com cachê, aulas com experts e IA de roteiros —
-          tudo que você precisa para monetizar sua criatividade.
+          Campanhas com cachê, aulas com experts e IA de roteiros.
+          Tudo que você precisa para monetizar sua criatividade.
         </p>
 
         {/* CTAs */}
@@ -64,12 +64,12 @@ export default function HeroSection() {
         <div className="border-t border-white/5 pt-8 sm:pt-10">
           <div className="flex items-center justify-center gap-8 sm:gap-16">
             <div className="text-center">
-              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">100+</div>
+              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">2000+</div>
               <div className="text-[10px] sm:text-sm text-text-secondary uppercase tracking-wider font-medium">Criadores</div>
             </div>
             <div className="w-px h-8 bg-border shrink-0" />
             <div className="text-center">
-              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">10+</div>
+              <div className="text-2xl sm:text-4xl font-black shimmer-text mb-1">50+</div>
               <div className="text-[10px] sm:text-sm text-text-secondary uppercase tracking-wider font-medium">Campanhas</div>
             </div>
             <div className="w-px h-8 bg-border shrink-0" />

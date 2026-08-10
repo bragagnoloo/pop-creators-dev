@@ -76,7 +76,7 @@ export default function ExpertsSection() {
           <span className="gradient-text">entende do mercado</span>
         </h2>
         <p className="text-text-secondary text-base sm:text-lg max-w-xl mx-auto">
-          Experts do universo musical, criativo e de marketing digital — conteúdo exclusivo para você crescer.
+          Experts do universo musical, criativo e de marketing digital, com conteúdo exclusivo para você crescer.
         </p>
         <div className="flex items-center justify-center gap-2 mt-8">
           <button type="button" onClick={() => scrollBy('left')} disabled={!canScrollLeft} aria-label="Anterior"

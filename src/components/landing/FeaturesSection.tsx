@@ -14,7 +14,13 @@ type Feature = {
   /** drop-shadow na cor da categoria — o glow não é o mesmo para todas. */
   logoGlow?: string;
   novidade?: boolean;
+  /** Gradiente e glow do selo "Novidade recente", na cor da categoria. */
+  novidadeAccent?: string;
 };
+
+/** Cor padrão do selo, mantida para qualquer card que não escolha a sua. */
+const NOVIDADE_ACCENT_PADRAO =
+  'from-popline-purple to-popline-pink shadow-popline-purple/30';
 
 const features: Feature[] = [
   {
@@ -53,12 +59,13 @@ const features: Feature[] = [
     ),
     title: 'Radar de novos artistas',
     description:
-      'Apresente artistas em ascensão à sua comunidade. Você ouve o trabalho, conhece a trajetória e compartilha uma recomendação autêntica — remunerada.',
+      'Apresente artistas em ascensão à sua comunidade. Você ouve o trabalho, conhece a trajetória e compartilha uma recomendação autêntica e remunerada.',
     tag: 'Descoberta de talentos',
     logo: '/popline-radar-logo.png',
     logoAlt: 'POPline Creators Radar',
     logoGlow: 'drop-shadow-[0_0_18px_rgba(255,122,24,0.35)]',
     novidade: true,
+    novidadeAccent: 'from-popline-orange to-popline-pink shadow-popline-orange/30',
   },
   {
     icon: (
@@ -204,7 +211,11 @@ function FeatureRow({ feature, index }: { feature: (typeof features)[0]; index: 
           {(feature.novidade || feature.logo) && (
             <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
               {feature.novidade && (
-                <span className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-gradient-to-r from-popline-purple to-popline-pink px-2.5 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white shadow-lg shadow-popline-purple/30">
+                <span
+                  className={`inline-flex items-center gap-1.5 shrink-0 rounded-full bg-gradient-to-r px-2.5 sm:px-3 py-1.5 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white shadow-lg ${
+                    feature.novidadeAccent ?? NOVIDADE_ACCENT_PADRAO
+                  }`}
+                >
                   <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse-glow" />
                   Novidade recente
                 </span>

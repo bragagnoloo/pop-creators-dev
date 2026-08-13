@@ -52,7 +52,7 @@ const RADAR_PARAGRAPHS = [
   <>
     Mais do que divulgar uma música, o Radar é sobre despertar curiosidade: apresentar talentos
     em ascensão e mostrar por que aquele artista merece entrar no radar de mais gente. O
-    conteúdo é seu — sua opinião, sua linguagem, seu jeito de contar.
+    conteúdo é seu. Sua opinião, sua linguagem, seu jeito de contar.
   </>,
   <>
     É a oportunidade de ser um dos primeiros a apresentar o próximo grande nome da música ao seu

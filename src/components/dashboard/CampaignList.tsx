@@ -7,6 +7,7 @@ import * as userService from '@/services/users';
 import * as subService from '@/services/subscriptions';
 import { getProfileCompleteness } from '@/lib/profile';
 import { CURRENT_TERM_VERSION } from '@/lib/constants';
+import { isHiddenFromDiscovery } from '@/lib/campaign-categories';
 import { pixelCustom } from '@/lib/pixel';
 import { trackPaywallShown } from '@/lib/paywall-tracking';
 import CampaignCard from './CampaignCard';
@@ -34,8 +35,10 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
   useEffect(() => {
     (async () => {
       const all = await campaignService.getAllCampaigns();
-      // Campanhas convite (is_invite) não aparecem na descoberta pública.
-      setCampaigns(all.filter(c => c.status === 'open' && !c.isInvite));
+      // Campanhas convite não aparecem na descoberta pública. Review e Radar
+      // aparecem de propósito: é por aqui que o creator descobre as categorias,
+      // e este é o caminho que registra o aceite do termo.
+      setCampaigns(all.filter(c => c.status === 'open' && !isHiddenFromDiscovery(c)));
       setApplications(await campaignService.getUserApplications(userId));
     })();
   }, [userId]);

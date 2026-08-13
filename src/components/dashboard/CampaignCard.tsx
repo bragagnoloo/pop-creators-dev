@@ -5,8 +5,10 @@ import Image from 'next/image';
 import { Campaign, CampaignApplication } from '@/types';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { getCampaignCategoryDef } from '@/lib/campaign-categories';
 import { formatBRL } from '@/services/wallet';
 
 interface CampaignCardProps {
@@ -68,11 +70,7 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
 
   return (
     <Card
-      className={`flex flex-col${
-        campaign.isReview
-          ? ' border-2 !border-popline-purple shadow-[0_0_22px_-3px_var(--color-popline-purple)]'
-          : ''
-      }`}
+      className={`flex flex-col${getCampaignCategoryDef(campaign).theme.cardAccent}`}
     >
       <div className="flex items-start gap-4 mb-3">
         {campaign.imageUrl ? (
@@ -96,7 +94,7 @@ export default function CampaignCard({ campaign, application, onApply }: Campaig
           <CompensationChips campaign={campaign} />
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="success">Inscricoes Abertas</Badge>
-            {campaign.isReview && <Badge variant="purple">Review</Badge>}
+            <CampaignCategoryBadge campaign={campaign} />
           </div>
         </div>
       </div>

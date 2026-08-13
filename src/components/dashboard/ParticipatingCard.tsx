@@ -12,8 +12,10 @@ import * as pubRevisionsService from '@/services/publication-revisions';
 import * as briefingsService from '@/services/briefings';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
+import { getCampaignCategoryDef } from '@/lib/campaign-categories';
 import CampaignNotices from './CampaignNotices';
 import CreatorProgressBar from './CreatorProgressBar';
 
@@ -179,13 +181,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
 
   return (
     <Card
-      className={`!p-0 overflow-hidden${
-        campaign.isReview
-          ? ' border-2 !border-popline-purple shadow-[0_0_22px_-3px_var(--color-popline-purple)]'
-          : campaign.isInvite
-            ? ' border-2 !border-popline-pink shadow-[0_0_16px_-2px_var(--color-popline-pink)]'
-            : ''
-      }`}
+      className={`!p-0 overflow-hidden${getCampaignCategoryDef(campaign).theme.cardAccent}`}
     >
       <button
         onClick={() => setOpen(v => !v)}
@@ -210,8 +206,7 @@ export default function ParticipatingCard({ campaign, application, userId, notic
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold truncate">{campaign.title}</h3>
-            {campaign.isInvite && <Badge variant="pink">Convite</Badge>}
-            {campaign.isReview && <Badge variant="purple">Review</Badge>}
+            <CampaignCategoryBadge campaign={campaign} />
             <Badge variant={status.variant}>{status.label}</Badge>
             {noticeCounts && noticeCounts.unread > 0 && (
               <span

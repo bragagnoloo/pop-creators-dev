@@ -20,7 +20,12 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
+  // Campanhas e suas sub-abas por categoria. As categorias com sub-aba própria
+  // vivem sob /dashboard/campanhas para não inflar a sidebar (migration 0035).
   CAMPANHAS: '/dashboard/campanhas',
+  CAMPANHAS_REVIEWS: '/dashboard/campanhas/reviews',
+  CAMPANHAS_RADAR: '/dashboard/campanhas/radar',
+  /** @deprecated Rota antiga da aba Reviews; só existe como redirect. */
   REVIEWS: '/dashboard/reviews',
   OFICINAS: '/dashboard/oficinas',
   OFICINA: '/dashboard/oficinas',

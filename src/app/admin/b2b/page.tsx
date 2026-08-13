@@ -17,6 +17,7 @@ import { useRequireMasterAdmin } from '@/lib/hooks/useRequireMasterAdmin';
 import { assessRisk } from '@/lib/b2b-risk';
 import { matchesAlert, type B2BAlertKey } from '@/lib/b2b-alerts';
 import { formatBRDate } from '@/lib/date-br';
+import { CAMPAIGN_CATEGORIES, CAMPAIGN_CATEGORY_ORDER } from '@/lib/campaign-categories';
 import {
   B2B_LIST_KEY,
   b2bFetcher,
@@ -38,11 +39,10 @@ const SELECT_CLASS =
   'bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary ' +
   'focus:outline-none focus:border-popline-pink transition-colors';
 
-const TYPE_LABEL: Record<B2BCampaignType, string> = {
-  standard: 'Padrão',
-  review: 'Review',
-  invite: 'Convite',
-};
+// shortLabel, e não adminLabel: este rótulo vai para o CSV exportado (ver
+// handleExportCsv), então tem que continuar saindo 'Padrão'/'Convite'/'Review'
+// como sempre saiu — o rótulo longo é só do form de campanhas.
+const TYPE_LABEL = (type: B2BCampaignType) => CAMPAIGN_CATEGORIES[type].shortLabel;
 
 const CAMPAIGN_STATUS_LABEL: Record<Campaign['status'], string> = {
   open: 'Vagas Abertas',
@@ -161,7 +161,7 @@ export default function AdminB2BPage() {
     ];
     const lines = visible.map(r =>
       [
-        r.title, TYPE_LABEL[r.campaignType], CAMPAIGN_STATUS_LABEL[r.campaignStatus],
+        r.title, TYPE_LABEL(r.campaignType), CAMPAIGN_STATUS_LABEL[r.campaignStatus],
         r.payingCompany ?? '', r.agreedValue ?? '', r.agreedPaymentDueDate ?? '',
         r.companyPaymentEstimate ?? '', r.companyPaymentStatus,
         r.companyPaidValue, r.companyOutstanding,
@@ -264,9 +264,11 @@ export default function AdminB2BPage() {
           className={SELECT_CLASS}
         >
           <option value="">Todos os tipos</option>
-          <option value="standard">Padrão</option>
-          <option value="review">Review</option>
-          <option value="invite">Convite</option>
+          {CAMPAIGN_CATEGORY_ORDER.map(id => (
+            <option key={id} value={id}>
+              {CAMPAIGN_CATEGORIES[id].shortLabel}
+            </option>
+          ))}
         </select>
         <select
           value={statusFilter}

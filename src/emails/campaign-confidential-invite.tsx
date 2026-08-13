@@ -3,7 +3,13 @@ import EmailLayout, { MAGENTA, PINK } from './email-layout';
 
 const FORM_URL = 'https://poplinecreators.com.br/campanha-confidencial';
 
-export default function CampaignConfidentialInviteEmail() {
+interface Props {
+  /** Prazo para inscrição (ex.: "Quarta-feira, 15/07 — até 12h").
+   *  Quando omitido, o email sai sem card de prazo e sem menção a data. */
+  deadline?: string | null;
+}
+
+export default function CampaignConfidentialInviteEmail({ deadline }: Props = {}) {
   return (
     <EmailLayout
       preview="Você foi pré-selecionado(a) para uma oportunidade exclusiva da POPline Creators."
@@ -26,15 +32,18 @@ export default function CampaignConfidentialInviteEmail() {
         ação — incluindo escopo, entregas, cronograma e remuneração.
       </Text>
 
-      <Section style={card}>
-        <Text style={cardLabel}>Prazo para inscrição</Text>
-        <Text style={cardValue}>Quarta-feira, 15/07 — até 12h</Text>
-        <Text style={cardMeta}>Preencha o formulário antes do prazo</Text>
-      </Section>
+      {deadline && (
+        <Section style={card}>
+          <Text style={cardLabel}>Prazo para inscrição</Text>
+          <Text style={cardValue}>{deadline}</Text>
+          <Text style={cardMeta}>Preencha o formulário antes do prazo</Text>
+        </Section>
+      )}
 
       <Text style={body}>
-        Caso tenha interesse em fazer parte desta campanha, preencha o formulário abaixo até
-        quarta-feira, 15/07, às 12h:
+        {deadline
+          ? `Caso tenha interesse em fazer parte desta campanha, preencha o formulário abaixo até ${deadline}:`
+          : 'Caso tenha interesse em fazer parte desta campanha, preencha o formulário abaixo:'}
       </Text>
 
       <Button href={FORM_URL} style={button}>

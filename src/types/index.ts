@@ -62,8 +62,15 @@ export interface Campaign {
   // Definido na criação e imutável depois.
   isInvite: boolean;
   // Campanha Review (migration 0030): pública como a tradicional, mas categoria
-  // POPline Creators Review — aba própria + borda roxa. Imutável após a criação.
+  // POPline Creators Review — sub-aba própria + moldura roxa. Imutável após a criação.
   isReview: boolean;
+  // Campanha Radar (migration 0035): pública como a Review, categoria POPline
+  // Creators Radar — sub-aba própria + moldura laranja neon. Imutável após a criação.
+  //
+  // As três flags são a única verdade sobre categoria; o valor 'standard' | 'invite'
+  // | 'review' | 'radar' é DERIVADO delas por getCampaignCategory() em
+  // @/lib/campaign-categories. Não existe coluna de categoria no banco.
+  isRadar: boolean;
   // Stages (migration 0015)
   currentStage?: CampaignStage;
   whatsappGroupLink?: string | null;
@@ -395,7 +402,20 @@ export type UserRankingStats = {
 
 export type B2BFinanceStatus = 'em_aberto' | 'finalizada';
 export type B2BPaymentStatus = 'pendente' | 'parcial' | 'pago';
-export type B2BCampaignType = 'standard' | 'invite' | 'review';
+
+/**
+ * Categoria de campanha. Derivada das flags is_invite/is_review/is_radar por
+ * getCampaignCategory() em @/lib/campaign-categories — não existe como coluna.
+ *
+ * Os mesmos quatro valores são produzidos pelo `case` de campaign_type na view
+ * b2b_finance_overview (migration 0035), por isso o B2B usa este mesmo tipo:
+ * assim, acrescentar uma categoria quebra os Record anotados do B2B em
+ * compilação em vez de silenciosamente cair no fallback 'standard'.
+ */
+export type CampaignCategory = 'standard' | 'invite' | 'review' | 'radar';
+
+/** @deprecated Alias histórico — use CampaignCategory. */
+export type B2BCampaignType = CampaignCategory;
 
 /** Origem da data de encerramento exibida na tabela. */
 export type B2BClosedSource = 'override' | 'stage' | 'status';

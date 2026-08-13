@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import Badge from '@/components/ui/Badge';
+import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import RiskThermometer from './RiskThermometer';
 import type { RenderColumn } from './B2BTable';
 import {
@@ -29,12 +30,6 @@ interface Props {
   selected: boolean;
   onOpen: (campaignId: string) => void;
 }
-
-const TYPE_BADGE: Record<B2BFinanceRow['campaignType'], React.ReactNode> = {
-  standard: null,
-  review: <Badge variant="purple">Review</Badge>,
-  invite: <Badge variant="pink">Convite</Badge>,
-};
 
 const CAMPAIGN_STATUS_LABEL: Record<B2BFinanceRow['campaignStatus'], string> = {
   open: 'Vagas Abertas',
@@ -142,7 +137,7 @@ export default function B2BRow({ row, columns, selected, onOpen }: Props) {
               <span className="text-sm text-text-primary font-medium leading-tight">
                 {row.title}
               </span>
-              {TYPE_BADGE[row.campaignType]}
+              <CampaignCategoryBadge category={row.campaignType} />
             </div>
             {exposta && (
               <span className="block mt-0.5 text-[10px] font-medium text-red-400">

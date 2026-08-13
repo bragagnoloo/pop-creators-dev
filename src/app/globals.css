@@ -13,6 +13,12 @@
   /* Roxo escuro — categoria POPline Creators Review (migration 0030) */
   --color-popline-purple: #7c3aed;
   --color-popline-purple-light: #c4b5fd;
+  /* Laranja neon — categoria POPline Creators Radar (migration 0035).
+     Hex amostrado do wordmark do logo. O -light puxa pro salmão de propósito:
+     o badge `warning` usa text-amber-400 (#fbbf24) e os dois aparecem lado a
+     lado no card de "Participando" pendente. */
+  --color-popline-orange: #ff7a18;
+  --color-popline-orange-light: #ffab73;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

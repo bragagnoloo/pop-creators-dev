@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import Badge from '@/components/ui/Badge';
+import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import EditableCell from './EditableCell';
 import RiskThermometer from './RiskThermometer';
 import { assessRisk, pendingToRelease, daysOpenWithoutClosing } from '@/lib/b2b-risk';
@@ -16,12 +16,6 @@ interface Props {
   onClose: () => void;
   onPatch: (campaignId: string, patch: B2BFinancePatch) => Promise<string | null>;
 }
-
-const TYPE_BADGE: Record<B2BFinanceRow['campaignType'], React.ReactNode> = {
-  standard: null,
-  review: <Badge variant="purple">Review</Badge>,
-  invite: <Badge variant="pink">Convite</Badge>,
-};
 
 const CAMPAIGN_STATUS_LABEL: Record<B2BFinanceRow['campaignStatus'], string> = {
   open: 'Vagas Abertas',
@@ -132,7 +126,7 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
                 <h2 className="text-base font-semibold text-text-primary leading-tight">
                   {row.title}
                 </h2>
-                {TYPE_BADGE[row.campaignType]}
+                <CampaignCategoryBadge category={row.campaignType} />
               </div>
               <p className="text-xs text-text-secondary mt-0.5">
                 {CAMPAIGN_STATUS_LABEL[row.campaignStatus]} · etapa {row.currentStage} de 8

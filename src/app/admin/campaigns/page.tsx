@@ -3,7 +3,16 @@
 import Image from 'next/image';
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { Campaign, CampaignApplication, UserProfile } from '@/types';
+import { Campaign, CampaignApplication, CampaignCategory, UserProfile } from '@/types';
+import {
+  CAMPAIGN_CATEGORIES,
+  CAMPAIGN_CATEGORY_ORDER,
+  categoryFlags,
+  getCampaignCategory,
+  getCampaignCategoryDef,
+  parseCampaignCategory,
+} from '@/lib/campaign-categories';
+import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import { uploadImage, campaignLogoPath } from '@/lib/supabase/storage';
 import { createClient } from '@/lib/supabase/client';
 import * as campaignService from '@/services/campaigns';
@@ -45,8 +54,8 @@ export default function AdminCampaignsPage() {
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<Campaign['status']>('open');
   // Tipo da campanha: definido só na criação, imutável na edição.
-  // 'standard' = pública tradicional · 'invite' = convite/oculta · 'review' = POPline Creators Review.
-  const [campaignType, setCampaignType] = useState<'standard' | 'invite' | 'review'>('standard');
+  // Os rótulos e a copy de cada categoria vêm de @/lib/campaign-categories.
+  const [campaignType, setCampaignType] = useState<CampaignCategory>('standard');
   const [hasCache, setHasCache] = useState(true);
   const [cache, setCache] = useState<string>('0');
   const [hasPermuta, setHasPermuta] = useState(false);
@@ -127,7 +136,7 @@ export default function AdminCampaignsPage() {
     setTitle(campaign.title);
     setDescription(campaign.description);
     setStatus(campaign.status);
-    setCampaignType(campaign.isReview ? 'review' : campaign.isInvite ? 'invite' : 'standard');
+    setCampaignType(getCampaignCategory(campaign));
     setHasCache(campaign.hasCache);
     setCache(String(campaign.cache ?? 0));
     setHasPermuta(campaign.hasPermuta);
@@ -184,8 +193,7 @@ export default function AdminCampaignsPage() {
       title,
       description,
       status,
-      isInvite: campaignType === 'invite',
-      isReview: campaignType === 'review',
+      ...categoryFlags(campaignType),
       deadline: null,
       cache: hasCache ? Number(cache) || 0 : 0,
       deliveryCount: Math.max(1, Number(deliveryCount) || 1),
@@ -321,8 +329,8 @@ export default function AdminCampaignsPage() {
               <label className="text-sm text-text-secondary font-medium">Tipo de campanha</label>
               {editing ? (
                 <div className="flex items-center gap-2">
-                  <Badge variant={editing.isReview ? 'purple' : editing.isInvite ? 'pink' : 'default'}>
-                    {editing.isReview ? 'Review' : editing.isInvite ? 'Convite (oculta)' : 'Padrão (pública)'}
+                  <Badge variant={getCampaignCategoryDef(editing).badgeVariant ?? 'default'}>
+                    {getCampaignCategoryDef(editing).adminLabel}
                   </Badge>
                   <span className="text-xs text-text-secondary/70">O tipo não pode ser alterado após a criação.</span>
                 </div>
@@ -330,23 +338,23 @@ export default function AdminCampaignsPage() {
                 <>
                   <select
                     value={campaignType}
-                    onChange={e => setCampaignType(e.target.value as 'standard' | 'invite' | 'review')}
+                    onChange={e => {
+                      // Valida em vez de castar: um <option> novo com value errado
+                      // passaria silencioso num `as CampaignCategory`.
+                      const next = parseCampaignCategory(e.target.value);
+                      if (next) setCampaignType(next);
+                    }}
                     className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary focus:outline-none focus:border-popline-pink transition-colors"
                   >
-                    <option value="standard">Padrão — pública, aberta a inscrições</option>
-                    <option value="invite">Convite — confidencial, oculta dos usuários</option>
-                    <option value="review">Review — POPline Creators Review (pública, aba própria)</option>
+                    {CAMPAIGN_CATEGORY_ORDER.map(id => (
+                      <option key={id} value={id}>
+                        {CAMPAIGN_CATEGORIES[id].optionLabel}
+                      </option>
+                    ))}
                   </select>
-                  {campaignType === 'invite' && (
-                    <p className="text-xs text-popline-pink/90 mt-0.5">
-                      Campanha oculta: não aparece para os usuários. Os participantes são adicionados
-                      manualmente na Etapa 01 — Adicionar Convidados, dentro do painel da campanha.
-                    </p>
-                  )}
-                  {campaignType === 'review' && (
-                    <p className="text-xs text-popline-purple mt-0.5">
-                      Review pública: aparece na aba Reviews (borda roxa) e no dashboard dos assinantes,
-                      que se candidatam normalmente. Não aparece na aba Campanhas.
+                  {CAMPAIGN_CATEGORIES[campaignType].helpText && (
+                    <p className={CAMPAIGN_CATEGORIES[campaignType].theme.helpTextClass}>
+                      {CAMPAIGN_CATEGORIES[campaignType].helpText}
                     </p>
                   )}
                 </>
@@ -568,8 +576,7 @@ export default function AdminCampaignsPage() {
                     <Badge variant={statusVariant[campaign.status]}>
                       {statusLabel[campaign.status]}
                     </Badge>
-                    {campaign.isInvite && <Badge variant="pink">Convite</Badge>}
-                    {campaign.isReview && <Badge variant="purple">Review</Badge>}
+                    <CampaignCategoryBadge campaign={campaign} />
                   </div>
                   <p className="text-sm text-text-secondary line-clamp-2">{campaign.description}</p>
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">

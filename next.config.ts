@@ -55,6 +55,16 @@ const nextConfig: NextConfig = {
     return [
       { source: '/pre-venda', destination: '/', permanent: true },
       { source: '/pre-venda/obrigado', destination: '/', permanent: true },
+      // Reviews virou sub-aba de Campanhas (migration 0035). Aqui e nao numa
+      // page com redirect(): o layout do dashboard e client component, entao o
+      // redirect renderizado vira navegacao no cliente (com flash) em vez de
+      // 307 no documento. permanent: false de proposito — 308 e cacheado pelo
+      // browser e travaria a URL; nada externo aponta para ca.
+      {
+        source: '/dashboard/reviews',
+        destination: '/dashboard/campanhas/reviews',
+        permanent: false,
+      },
     ];
   },
 

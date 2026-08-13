@@ -25,8 +25,6 @@ export const ROUTES = {
   CAMPANHAS: '/dashboard/campanhas',
   CAMPANHAS_REVIEWS: '/dashboard/campanhas/reviews',
   CAMPANHAS_RADAR: '/dashboard/campanhas/radar',
-  /** @deprecated Rota antiga da aba Reviews; só existe como redirect. */
-  REVIEWS: '/dashboard/reviews',
   OFICINAS: '/dashboard/oficinas',
   OFICINA: '/dashboard/oficinas',
   ROTEIROS: '/dashboard/roteiros',

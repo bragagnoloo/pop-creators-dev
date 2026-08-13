@@ -1,9 +1,22 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-const features = [
+type Feature = {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  tag: string;
+  /** Wordmark da categoria, quando ela tem um. */
+  logo?: string;
+  logoAlt?: string;
+  /** drop-shadow na cor da categoria — o glow não é o mesmo para todas. */
+  logoGlow?: string;
+  novidade?: boolean;
+};
+
+const features: Feature[] = [
   {
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,6 +39,25 @@ const features = [
       'Álbuns, EPs e singles que acabaram de sair. Você ouve, forma sua opinião e publica o que realmente achou. Sem obrigação de elogiar, porque um review só convence quando é honesto.',
     tag: 'Review de lançamentos',
     logo: '/popline-review-logo.png',
+    logoAlt: 'POPline Creators Review',
+    logoGlow: 'drop-shadow-[0_0_18px_rgba(168,85,247,0.35)]',
+  },
+  {
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" strokeWidth={1.5} />
+        <circle cx="12" cy="12" r="5" strokeWidth={1.5} />
+        <circle cx="12" cy="12" r="1.5" strokeWidth={1.5} />
+        <path strokeLinecap="round" strokeWidth={1.5} d="M12 12l6.5-6.5" />
+      </svg>
+    ),
+    title: 'Radar de novos artistas',
+    description:
+      'Apresente artistas em ascensão à sua comunidade. Você ouve o trabalho, conhece a trajetória e compartilha uma recomendação autêntica — remunerada.',
+    tag: 'Descoberta de talentos',
+    logo: '/popline-radar-logo.png',
+    logoAlt: 'POPline Creators Radar',
+    logoGlow: 'drop-shadow-[0_0_18px_rgba(255,122,24,0.35)]',
     novidade: true,
   },
   {
@@ -180,10 +212,10 @@ function FeatureRow({ feature, index }: { feature: (typeof features)[0]; index: 
               {feature.logo && (
                 <Image
                   src={feature.logo}
-                  alt="POPline Creators Review"
+                  alt={feature.logoAlt ?? feature.title}
                   width={280}
                   height={146}
-                  className="ml-auto w-20 sm:w-32 h-auto shrink-0 drop-shadow-[0_0_18px_rgba(168,85,247,0.35)]"
+                  className={`ml-auto w-20 sm:w-32 h-auto shrink-0 ${feature.logoGlow ?? ''}`}
                 />
               )}
             </div>

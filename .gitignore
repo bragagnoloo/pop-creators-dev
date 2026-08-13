@@ -40,3 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 /Users/bragagnolo/POPline-Creators/.vercel
+
+# supabase cli — estado local da maquina, nao versionar
+supabase/.temp/

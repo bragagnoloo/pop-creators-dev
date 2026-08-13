@@ -126,10 +126,10 @@ export const CAMPAIGN_CATEGORIES: Record<CampaignCategory, CampaignCategoryDef> 
     theme: NEUTRAL_THEME,
     tabCopy: {
       pixelContentName: 'Campanhas POPline Creators',
-      emptyAvailable: 'Nenhuma campanha disponivel no momento.',
-      emptyParticipating: 'Voce ainda nao esta participando de nenhuma campanha.',
+      emptyAvailable: 'Nenhuma campanha disponível no momento.',
+      emptyParticipating: 'Você ainda não está participando de nenhuma campanha.',
       incompleteProfileIntro:
-        'Para se candidatar a uma campanha, voce precisa preencher todos os campos do seu perfil. Faltam:',
+        'Para se candidatar a uma campanha, você precisa preencher todos os campos do seu perfil. Faltam:',
     },
   },
 
@@ -293,6 +293,23 @@ export function hasOwnSubTab(c: CampaignCategoryFlags): boolean {
 /** Oculta da descoberta pública (só convite). */
 export function isHiddenFromDiscovery(c: CampaignCategoryFlags): boolean {
   return getCampaignCategoryDef(c).hiddenFromDiscovery;
+}
+
+/**
+ * A campanha pertence à sub-aba desta categoria?
+ *
+ * Não é igualdade estrita porque a sub-aba genérica de Campanhas hospeda mais de
+ * uma categoria: além das padrão, as convite aparecem lá em "Participando" (elas
+ * não têm sub-aba própria e o creator precisa achá-las em algum lugar). As
+ * categorias com sub-aba dedicada usam igualdade.
+ */
+export function belongsToSubTab(
+  c: CampaignCategoryFlags,
+  category: CampaignCategory
+): boolean {
+  return CAMPAIGN_CATEGORIES[category].route === ROUTES.CAMPANHAS
+    ? !hasOwnSubTab(c)
+    : getCampaignCategory(c) === category;
 }
 
 /** Converte string livre (ex.: value de <select>) em categoria válida. */

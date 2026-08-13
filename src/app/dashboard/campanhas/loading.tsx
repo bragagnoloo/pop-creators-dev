@@ -1,7 +1,10 @@
+/**
+ * Fallback do conteúdo das sub-abas. Não repete título nem barra de categorias:
+ * os dois vivem no layout e permanecem na tela enquanto isto aparece.
+ */
 export default function Loading() {
   return (
-    <div className="py-8 animate-pulse">
-      <div className="h-7 w-32 bg-white/5 rounded-lg mb-6" />
+    <div className="animate-pulse">
       <div className="h-10 w-64 bg-white/5 rounded-xl mb-6" />
       <div className="grid sm:grid-cols-2 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (

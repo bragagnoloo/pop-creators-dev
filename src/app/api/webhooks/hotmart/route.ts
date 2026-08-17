@@ -146,6 +146,34 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  /**
+   * Assinatura vigente do usuário, para decidir se o evento pode mexer no acesso.
+   *
+   * Contexto: `subscriptions` tem UMA linha por usuário, mas um assinante pode ter
+   * VÁRIAS assinaturas na Hotmart — quem compra um plano novo sem cancelar o antigo
+   * fica com duas. Sem comparar o subscriber code, um evento da assinatura antiga
+   * (renovação, cancelamento, estorno) atropela o plano que está valendo.
+   */
+  async function loadCurrentSubscription() {
+    if (!userId) return null;
+    const { data } = await supabase
+      .from('subscriptions')
+      .select('plan, expires_at, kiwify_subscription_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    return (data as {
+      plan: PlanId;
+      expires_at: string | null;
+      kiwify_subscription_id: string | null;
+    } | null) ?? null;
+  }
+
+  /** Há direito de acesso vigente? null ou data no passado = não. */
+  function coversNow(expiresAt: string | null | undefined): boolean {
+    if (!expiresAt) return false;
+    return new Date(expiresAt).getTime() > Date.now();
+  }
+
   // ------------------------------------------------------------------ APPROVED
   if (event === 'PURCHASE_APPROVED') {
     if (!plan) {
@@ -185,17 +213,43 @@ export async function POST(req: NextRequest) {
     const exp    = expiresAt(plan);
     const amount = purchase?.price?.value ?? PLANS[plan].priceTotal;
 
-    await supabase.from('subscriptions').upsert({
-      user_id:                userId,
-      plan,
-      started_at:             new Date().toISOString(),
-      expires_at:             exp,
-      assigned_by:            'payment',
-      subscription_status:    'active',
-      provider:               'hotmart',
-      kiwify_subscription_id: subscriberCode,
-      payment_method:         paymentMethod,
-    });
+    // Guarda contra rebaixamento: a cobrança de uma assinatura ANTIGA não pode
+    // sobrescrever um plano vigente melhor. Aplica quando (a) é a própria
+    // assinatura registrada renovando, ou (b) o novo vencimento realmente estende
+    // a cobertura — o que cobre primeira compra, renovação e upgrade de verdade.
+    const current         = await loadCurrentSubscription();
+    const sameSubscription = !!subscriberCode
+      && current?.kiwify_subscription_id === subscriberCode;
+    // `plan === 'free'` conta como sem cobertura mesmo que expires_at esteja no futuro.
+    const hasCoverage      = current?.plan !== 'free' && coversNow(current?.expires_at);
+    const extendsCoverage  = !hasCoverage
+      || new Date(exp).getTime() > new Date(current!.expires_at!).getTime();
+    const applyToSubscription = sameSubscription || extendsCoverage;
+
+    if (applyToSubscription) {
+      await supabase.from('subscriptions').upsert({
+        user_id:                userId,
+        plan,
+        started_at:             new Date().toISOString(),
+        expires_at:             exp,
+        assigned_by:            'payment',
+        subscription_status:    'active',
+        provider:               'hotmart',
+        kiwify_subscription_id: subscriberCode,
+        payment_method:         paymentMethod,
+      });
+    } else {
+      // O pagamento abaixo é registrado de qualquer forma: o dinheiro foi cobrado.
+      console.warn('[webhook/hotmart] compra nao aplicada ao acesso (nao estende a cobertura vigente)', {
+        userId,
+        eventSubscription:  subscriberCode,
+        storedSubscription: current?.kiwify_subscription_id,
+        incomingPlan:       plan,
+        incomingExpires:    exp,
+        currentPlan:        current?.plan,
+        currentExpires:     current?.expires_at,
+      });
+    }
 
     await supabase.from('payments').insert({
       user_id:         userId,
@@ -275,13 +329,17 @@ export async function POST(req: NextRequest) {
       .eq('id', userId)
       .is('first_subscribed_at', null);
 
-    fetch('https://poplinecreators.com.br/api/email/notify', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ event: 'plan-subscribed', data: { userId, planName: PLANS[plan].name, expiresAt: exp } }),
-    }).catch(() => {});
+    // Só avisa quando o plano realmente mudou. Mandar "seu plano mensal foi
+    // ativado" para quem segue no anual seria pior que não mandar nada.
+    if (applyToSubscription) {
+      fetch('https://poplinecreators.com.br/api/email/notify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ event: 'plan-subscribed', data: { userId, planName: PLANS[plan].name, expiresAt: exp } }),
+      }).catch(() => {});
+    }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, applied: applyToSubscription });
   }
 
   // ------------------------------------------------- REFUND / CHARGEBACK
@@ -291,20 +349,54 @@ export async function POST(req: NextRequest) {
 
     if (!userId) return NextResponse.json({ ok: true, skipped: 'user_not_found' });
 
-    await supabase.from('subscriptions').update({
-      plan:                   'free',
-      expires_at:             null,
-      subscription_status:    isChargeback ? 'chargeback' : 'refunded',
-      kiwify_subscription_id: null,
-    }).eq('user_id', userId);
+    // Guarda: só revoga o acesso se o estorno for da assinatura que o concede.
+    // Quem tem duas assinaturas na Hotmart (comprou plano novo sem cancelar o
+    // antigo) teria o plano vigente derrubado pelo estorno da assinatura antiga.
+    const current = await loadCurrentSubscription();
+    let revoke: boolean;
 
+    if (current?.kiwify_subscription_id && subscriberCode) {
+      revoke = current.kiwify_subscription_id === subscriberCode;
+    } else if (!current?.kiwify_subscription_id) {
+      // Sem código armazenado não há o que comparar (acontece depois de um
+      // cancelamento). Cai para o plano do pagamento estornado: se ele não é o
+      // plano vigente, o estorno é de outra assinatura e não deve revogar.
+      const { data: refunded } = transaction
+        ? await supabase.from('payments').select('plan').eq('kiwify_order_id', transaction).maybeSingle()
+        : { data: null };
+      revoke = !refunded || (refunded as { plan: PlanId }).plan === current?.plan;
+    } else {
+      // Há código armazenado, mas o evento veio sem código: não dá para atribuir.
+      // Mantém o comportamento anterior para não deixar estorno sem efeito.
+      revoke = true;
+    }
+
+    if (revoke) {
+      await supabase.from('subscriptions').update({
+        plan:                   'free',
+        expires_at:             null,
+        subscription_status:    isChargeback ? 'chargeback' : 'refunded',
+        kiwify_subscription_id: null,
+      }).eq('user_id', userId);
+    } else {
+      console.warn('[webhook/hotmart] estorno de outra assinatura: acesso preservado', {
+        userId,
+        eventSubscription:  subscriberCode,
+        storedSubscription: current?.kiwify_subscription_id,
+        currentPlan:        current?.plan,
+        transaction,
+      });
+    }
+
+    // Independente da decisão acima: o pagamento estornado é marcado como tal.
+    // Filtro por transação, então nunca atinge outro pagamento do mesmo usuário.
     if (transaction) {
       await supabase.from('payments')
         .update({ status: isChargeback ? 'CHARGEBACK' : 'REFUNDED' })
         .eq('kiwify_order_id', transaction);
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, revoked: revoke });
   }
 
   // ------------------------------------------------- CANCELAMENTO DE RENOVAÇÃO
@@ -313,9 +405,21 @@ export async function POST(req: NextRequest) {
     // Prioriza o usuário (PK, via email da conta em data.subscriber.email);
     // fallback pelo código da assinatura se o email não casar com um perfil.
     if (userId) {
-      await supabase.from('subscriptions')
-        .update({ kiwify_subscription_id: null })
-        .eq('user_id', userId);
+      // Guarda: só limpa se a assinatura cancelada for a registrada. Cancelar a
+      // assinatura ANTIGA de quem tem duas marcava o usuário como "Cancelando" no
+      // admin, mesmo com a renovação automática da vigente intacta.
+      const current = await loadCurrentSubscription();
+      if (!subscriberCode || current?.kiwify_subscription_id === subscriberCode) {
+        await supabase.from('subscriptions')
+          .update({ kiwify_subscription_id: null })
+          .eq('user_id', userId);
+      } else {
+        console.warn('[webhook/hotmart] cancelamento de outra assinatura: renovacao preservada', {
+          userId,
+          eventSubscription:  subscriberCode,
+          storedSubscription: current?.kiwify_subscription_id,
+        });
+      }
     } else if (subscriberCode) {
       await supabase.from('subscriptions')
         .update({ kiwify_subscription_id: null })

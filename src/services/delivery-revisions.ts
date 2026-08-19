@@ -60,18 +60,24 @@ export async function getRevisionsForCampaign(campaignId: string): Promise<Deliv
   return (data as Row[]).map(toRevision);
 }
 
+/**
+ * Devolve o erro em vez de engolir: sem isso a tela mostrava "Salvo ✓" mesmo
+ * quando o update falhava, e o criador ficava achando que tinha enviado.
+ */
 export async function setRevisedUrl(
   revisionId: string,
   url: string | null,
-): Promise<DeliveryRevision | null> {
+): Promise<{ success: true; revision: DeliveryRevision } | { success: false; error: string }> {
   const supabase = createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('campaign_delivery_revisions')
     .update({ revised_url: url })
     .eq('id', revisionId)
     .select(SELECT)
     .single();
-  return data ? toRevision(data as Row) : null;
+  if (error) return { success: false, error: error.message || 'Não foi possível salvar a URL.' };
+  if (!data) return { success: false, error: 'Não foi possível salvar a URL.' };
+  return { success: true, revision: toRevision(data as Row) };
 }
 
 export async function requestDeliveryRevision(

@@ -44,6 +44,8 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const [savedId, setSavedId] = useState<string | null>(null);
   const [savedPubId, setSavedPubId] = useState<string | null>(null);
   const [savedRevisionId, setSavedRevisionId] = useState<string | null>(null);
+  // Erro por revisão: falha ao salvar precisa aparecer, não virar "Salvo ✓".
+  const [revisionError, setRevisionError] = useState<Record<string, string | null>>({});
   const [optionsByIndex, setOptionsByIndex] = useState<Map<number, briefingsService.BriefingOption[]>>(new Map());
   const [myChoices, setMyChoices] = useState<Map<number, number>>(new Map());
   const [briefingModalIndex, setBriefingModalIndex] = useState<number | null>(null);
@@ -118,7 +120,12 @@ export default function ParticipatingCard({ campaign, application, userId, notic
   const handleSaveRevisionUrl = async (revisionId: string) => {
     const url = revisionUrlDrafts[revisionId]?.trim() || null;
     if (!url) return;
-    await revisionsService.setRevisedUrl(revisionId, url);
+    setRevisionError(prev => ({ ...prev, [revisionId]: null }));
+    const result = await revisionsService.setRevisedUrl(revisionId, url);
+    if (!result.success) {
+      setRevisionError(prev => ({ ...prev, [revisionId]: result.error }));
+      return;
+    }
     setSavedRevisionId(revisionId);
     setTimeout(() => setSavedRevisionId(null), 1500);
     load();
@@ -482,7 +489,11 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                             <div className="space-y-2">
                               {revs.map(rev => {
                                 const isLast = lastRev != null && rev.id === lastRev.id;
-                                const showInput = isLast && status === 'needs_revision';
+                                // A rodada está aberta enquanto não tem URL e não foi
+                                // aprovada — mesmo critério que o painel do admin usa.
+                                // Antes dependia de deliverable_status, que podia
+                                // dessincronizar e deixar o criador sem onde responder.
+                                const showInput = isLast && !rev.revisedUrl && !rev.approvedAt;
                                 return (
                                   <div
                                     key={rev.id}
@@ -532,6 +543,11 @@ export default function ParticipatingCard({ campaign, application, userId, notic
                                             {savedRevisionId === rev.id ? 'Salvo ✓' : 'Salvar URL'}
                                           </Button>
                                         </div>
+                                        {revisionError[rev.id] && (
+                                          <p className="mt-1.5 text-xs text-red-400">
+                                            {revisionError[rev.id]}
+                                          </p>
+                                        )}
                                       </div>
                                     )}
                                   </div>

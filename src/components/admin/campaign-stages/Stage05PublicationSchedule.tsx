@@ -18,7 +18,6 @@ interface RowItem {
 
 interface Props {
   rows: RowItem[];
-  campaignId: string;
   campaignTitle: string;
   onChanged: () => void;
 }
@@ -62,52 +61,8 @@ function toLocalDateTimeInput(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Agenda já existente do creator, para o admin não marcar em cima. */
-function ScheduleSummary({
-  schedule,
-  campaignId,
-}: {
-  schedule: scheduleService.ScheduledPublication[];
-  campaignId: string;
-}) {
-  if (schedule.length === 0) {
-    return (
-      <p className="text-xs text-text-secondary italic mb-2">
-        Nenhuma outra publicação agendada para este creator.
-      </p>
-    );
-  }
-  return (
-    <div className="mb-2 p-2 rounded-lg bg-surface/40 border border-border/60">
-      <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1.5">
-        Já agendado para este creator ({schedule.length})
-      </p>
-      <ul className="space-y-1">
-        {schedule.map(s => {
-          const daCampanha = s.campaignId === campaignId;
-          return (
-            <li key={s.deliveryId} className="flex items-baseline gap-2 text-xs flex-wrap">
-              <span className="font-medium text-text-primary tabular-nums">
-                {scheduleService.formatPublicationDate(s.publicationDate)}
-              </span>
-              {s.publicationPlatforms.length > 0 && (
-                <span className="text-text-secondary">{s.publicationPlatforms.join(', ')}</span>
-              )}
-              <span className={daCampanha ? 'text-popline-light' : 'text-text-secondary'}>
-                · {s.campaignTitle}
-                {daCampanha ? ' (esta campanha)' : ''}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
-
 export default function Stage05PublicationSchedule({
   rows,
-  campaignId,
   campaignTitle,
   onChanged,
 }: Props) {
@@ -163,11 +118,6 @@ export default function Stage05PublicationSchedule({
                   Desclassificar
                 </Button>
               </div>
-              <ScheduleSummary
-                schedule={scheduleByUser.get(row.application.userId) ?? []}
-                campaignId={campaignId}
-              />
-
               <div className="space-y-2">
                 {row.deliveries.map(d => (
                   <PublicationRow

@@ -483,7 +483,6 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
             profile: r.profile,
             deliveries: r.deliveries,
           }))}
-          campaignId={campaign.id}
           campaignTitle={campaign.title}
           onChanged={load}
         />

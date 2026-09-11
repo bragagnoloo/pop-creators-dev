@@ -16,6 +16,7 @@ import * as subService from '@/services/subscriptions';
 import * as stagesService from '@/services/campaign-stages';
 import * as revisionsService from '@/services/delivery-revisions';
 import * as pubRevisionsService from '@/services/publication-revisions';
+import * as badgesService from '@/services/creator-badges';
 import type { PlanId } from '@/types';
 import BarChart from '@/components/ui/BarChart';
 import PieChart from '@/components/ui/PieChart';
@@ -46,6 +47,8 @@ interface Row {
   credit: BalanceCredit | null;
   deliveries: CampaignDelivery[];
   plan: PlanId;
+  /** Selos internos de seleção. Só painel admin — ver services/creator-badges. */
+  badges: badgesService.CreatorBadgeData | null;
 }
 
 export default function CampaignControlPanel({ params }: { params: Promise<{ id: string }> }) {
@@ -85,12 +88,13 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     const apps = await campaignService.getCampaignApplications(id);
     const userIds = apps.map(a => a.userId);
 
-    // Carrega tudo em batch (4 queries em vez de 4 * N)
-    const [profilesMap, plansMap, allCredits, allDeliveries] = await Promise.all([
+    // Carrega tudo em batch (5 queries em vez de 5 * N)
+    const [profilesMap, plansMap, allCredits, allDeliveries, badgesMap] = await Promise.all([
       userService.getProfilesByIds(userIds),
       subService.getPlansForUsers(userIds),
       walletService.getCampaignCredits(id),
       deliveryService.getCampaignDeliveries(id),
+      badgesService.getBadgesForUsers(userIds),
     ]);
 
     // Indexa por userId
@@ -117,6 +121,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           credit: creditByUser.get(app.userId) ?? null,
           deliveries,
           plan: plansMap.get(app.userId) ?? 'free' as PlanId,
+          badges: badgesMap.get(app.userId) ?? null,
         };
       })
     );
@@ -167,6 +172,11 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   }
 
   const handleCreate = async (userId: string) => {
+    // Guarda de interface; quem barra de verdade é o trigger
+    // a_guard_credit_not_disqualified (migration 0037), porque o insert sai do
+    // navegador direto no PostgREST.
+    const target = rows.find(r => r.application.userId === userId);
+    if (target?.application.disqualifiedAt) return;
     await walletService.createCredit(userId, campaign.id, campaign.cache);
     fetch('/api/email/notify', {
       method: 'POST',
@@ -181,6 +191,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 
   const handleRelease = async (creditId: string) => {
     const matchRow = rows.find(r => r.credit?.id === creditId);
+    if (matchRow?.application.disqualifiedAt) return;
     await walletService.releaseCredit(creditId);
     if (matchRow) {
       fetch('/api/email/notify', {
@@ -403,10 +414,10 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           <Stage01Selection
             campaignId={campaign.id}
             whatsappLink={campaign.whatsappGroupLink ?? null}
-            approved={approved.map(r => ({ application: r.application, profile: r.profile }))}
+            approved={approved.map(r => ({ application: r.application, profile: r.profile, badges: r.badges }))}
             pending={rows
               .filter(r => r.application.status === 'pending')
-              .map(r => ({ application: r.application, profile: r.profile }))}
+              .map(r => ({ application: r.application, profile: r.profile, badges: r.badges }))}
             onChanged={load}
             onDecide={handleDecide}
           />
@@ -601,6 +612,10 @@ function ParticipantRow({
   onRelease?: () => void;
 }) {
   const { profile, credit } = row;
+  // Desclassificado não recebe saldo novo nem liberação. Um saldo que já exista
+  // (gerado antes da desclassificação) continua visível e sacável — o valor já
+  // era devido; o que se fecha aqui é gerar/liberar dali em diante.
+  const disqualified = !!row.application.disqualifiedAt;
 
   return (
     <div className="p-4 rounded-xl bg-background border border-border space-y-4">
@@ -629,20 +644,24 @@ function ParticipantRow({
             <>
               <Button
                 size="sm"
-                disabled={!!credit}
+                disabled={!!credit || disqualified}
                 onClick={onCreate}
                 variant={credit ? 'secondary' : 'primary'}
+                title={disqualified ? 'Participante desclassificado nesta campanha' : undefined}
               >
                 {credit ? 'Saldo gerado' : `Gerar saldo (${walletService.formatBRL(campaignCache)})`}
               </Button>
               {credit && credit.status === 'processing' && onRelease && (
-                <Button size="sm" onClick={onRelease}>Liberar saque</Button>
+                <Button size="sm" onClick={onRelease} disabled={disqualified}>Liberar saque</Button>
               )}
               {credit && credit.status === 'available' && <Badge variant="success">Liberado</Badge>}
               {credit && credit.status === 'withdrawn' && <Badge variant="default">Sacado</Badge>}
             </>
           ) : (
             <span className="text-xs text-text-secondary italic">Campanha sem cachê</span>
+          )}
+          {hasCache && disqualified && !credit && (
+            <span className="text-xs text-text-secondary italic">Desclassificado — sem saldo</span>
           )}
         </div>
       </div>

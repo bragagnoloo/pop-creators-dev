@@ -7,11 +7,15 @@ import Avatar from '@/components/ui/Avatar';
 import * as stagesService from '@/services/campaign-stages';
 import { createClient } from '@/lib/supabase/client';
 import DisqualifyModal from './DisqualifyModal';
+import CreatorBadges from '@/components/admin/CreatorBadges';
 import type { CampaignApplication, UserProfile } from '@/types';
+import type { CreatorBadgeData } from '@/services/creator-badges';
 
 interface ApprovedItem {
   application: CampaignApplication;
   profile: UserProfile | null;
+  /** Selos internos (histórico do creator). Só admin enxerga. */
+  badges?: CreatorBadgeData | null;
 }
 
 interface Props {
@@ -132,9 +136,12 @@ export default function Stage01Selection({
                         size="sm"
                       />
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">
-                          {item.profile?.fullName || 'Sem nome'}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">
+                            {item.profile?.fullName || 'Sem nome'}
+                          </p>
+                          <CreatorBadges badges={item.badges} />
+                        </div>
                         <p className="text-xs text-text-secondary truncate">
                           {item.profile?.email}
                         </p>
@@ -190,9 +197,12 @@ export default function Stage01Selection({
                         size="sm"
                       />
                       <div className="min-w-0">
-                        <p className="font-medium text-sm truncate">
-                          {item.profile?.fullName || 'Sem nome'}
-                        </p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-medium text-sm truncate">
+                            {item.profile?.fullName || 'Sem nome'}
+                          </p>
+                          <CreatorBadges badges={item.badges} />
+                        </div>
                         <p className="text-xs text-text-secondary truncate">
                           {item.profile?.email}
                         </p>

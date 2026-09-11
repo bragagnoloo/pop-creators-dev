@@ -5,6 +5,8 @@ import { useState, useEffect } from 'react';
 import { Campaign, CampaignApplication, UserProfile } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
+import * as badgesService from '@/services/creator-badges';
+import CreatorBadges from '@/components/admin/CreatorBadges';
 import { useAuth } from '@/providers/AuthProvider';
 import { createClient } from '@/lib/supabase/client';
 import Card from '@/components/ui/Card';
@@ -40,6 +42,11 @@ const appStatusVariant: Record<CampaignApplication['status'], 'warning' | 'succe
 
 interface EnrichedApplication extends CampaignApplication {
   profile: UserProfile | null;
+  /**
+   * Selos internos de seleção. Só painel admin — e de propósito fora do
+   * generateCsv abaixo: rótulo interno não sai em exportação.
+   */
+  badges: badgesService.CreatorBadgeData | null;
 }
 
 function generateCsv(campaign: Campaign, applications: EnrichedApplication[]): string {
@@ -141,10 +148,13 @@ export default function AdminCandidaturasPage() {
 
   const openCampaign = async (campaign: Campaign) => {
     const apps = await campaignService.getCampaignApplications(campaign.id);
+    // Selos em uma chamada batch, não uma por candidato como o profile acima.
+    const badgesMap = await badgesService.getBadgesForUsers(apps.map(a => a.userId));
     const enriched: EnrichedApplication[] = await Promise.all(
       apps.map(async app => ({
         ...app,
         profile: await userService.getProfile(app.userId),
+        badges: badgesMap.get(app.userId) ?? null,
       }))
     );
     setApplications(enriched);
@@ -279,7 +289,10 @@ export default function AdminCandidaturasPage() {
                             <div className="flex items-center gap-3">
                               <Avatar src={p?.photoUrl} name={p?.fullName || ''} size="sm" />
                               <div className="min-w-0">
-                                <p className="font-medium text-sm truncate">{p?.fullName || 'Sem nome'}</p>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium text-sm truncate">{p?.fullName || 'Sem nome'}</p>
+                                  <CreatorBadges badges={app.badges} />
+                                </div>
                                 <p className="text-xs text-text-secondary truncate">{p?.email}</p>
                               </div>
                             </div>
@@ -354,7 +367,10 @@ export default function AdminCandidaturasPage() {
                         <div className="flex items-center gap-3">
                           <Avatar src={p?.photoUrl} name={p?.fullName || ''} size="sm" />
                           <div>
-                            <p className="font-medium text-sm">{p?.fullName || 'Sem nome'}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="font-medium text-sm">{p?.fullName || 'Sem nome'}</p>
+                              <CreatorBadges badges={app.badges} />
+                            </div>
                             <p className="text-xs text-text-secondary">{p?.email}</p>
                           </div>
                         </div>

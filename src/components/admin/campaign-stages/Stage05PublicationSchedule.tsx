@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import * as stagesService from '@/services/campaign-stages';
+import * as scheduleService from '@/services/publication-schedule';
+import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import DisqualifyModal from './DisqualifyModal';
 import type { CampaignApplication, CampaignDelivery, UserProfile } from '@/types';
 
@@ -16,6 +18,7 @@ interface RowItem {
 
 interface Props {
   rows: RowItem[];
+  campaignId: string;
   campaignTitle: string;
   onChanged: () => void;
 }
@@ -59,8 +62,69 @@ function toLocalDateTimeInput(iso: string | null | undefined): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export default function Stage05PublicationSchedule({ rows, campaignTitle, onChanged }: Props) {
+/** Agenda já existente do creator, para o admin não marcar em cima. */
+function ScheduleSummary({
+  schedule,
+  campaignId,
+}: {
+  schedule: scheduleService.ScheduledPublication[];
+  campaignId: string;
+}) {
+  if (schedule.length === 0) {
+    return (
+      <p className="text-xs text-text-secondary italic mb-2">
+        Nenhuma outra publicação agendada para este creator.
+      </p>
+    );
+  }
+  return (
+    <div className="mb-2 p-2 rounded-lg bg-surface/40 border border-border/60">
+      <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1.5">
+        Já agendado para este creator ({schedule.length})
+      </p>
+      <ul className="space-y-1">
+        {schedule.map(s => {
+          const daCampanha = s.campaignId === campaignId;
+          return (
+            <li key={s.deliveryId} className="flex items-baseline gap-2 text-xs flex-wrap">
+              <span className="font-medium text-text-primary tabular-nums">
+                {scheduleService.formatPublicationDate(s.publicationDate)}
+              </span>
+              {s.publicationPlatforms.length > 0 && (
+                <span className="text-text-secondary">{s.publicationPlatforms.join(', ')}</span>
+              )}
+              <span className={daCampanha ? 'text-popline-light' : 'text-text-secondary'}>
+                · {s.campaignTitle}
+                {daCampanha ? ' (esta campanha)' : ''}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+export default function Stage05PublicationSchedule({
+  rows,
+  campaignId,
+  campaignTitle,
+  onChanged,
+}: Props) {
   const [disqualifyFor, setDisqualifyFor] = useState<RowItem | null>(null);
+  const [scheduleByUser, setScheduleByUser] = useState<
+    Map<string, scheduleService.ScheduledPublication[]>
+  >(new Map());
+
+  const userIds = rows.map(r => r.application.userId);
+  const userIdsKey = userIds.join(',');
+
+  const loadSchedule = useCallback(async () => {
+    setScheduleByUser(await scheduleService.getScheduleForUsers(userIdsKey ? userIdsKey.split(',') : []));
+    // userIdsKey é string estável; usar o array direto re-dispararia a cada render.
+  }, [userIdsKey]);
+
+  useLoadOnMount(loadSchedule, [loadSchedule]);
 
   const eligibleRows = rows
     .filter(r => !r.application.disqualifiedAt)
@@ -99,6 +163,11 @@ export default function Stage05PublicationSchedule({ rows, campaignTitle, onChan
                   Desclassificar
                 </Button>
               </div>
+              <ScheduleSummary
+                schedule={scheduleByUser.get(row.application.userId) ?? []}
+                campaignId={campaignId}
+              />
+
               <div className="space-y-2">
                 {row.deliveries.map(d => (
                   <PublicationRow
@@ -106,7 +175,11 @@ export default function Stage05PublicationSchedule({ rows, campaignTitle, onChan
                     delivery={d}
                     userId={row.application.userId}
                     campaignTitle={campaignTitle}
-                    onSaved={onChanged}
+                    schedule={scheduleByUser.get(row.application.userId) ?? []}
+                    onSaved={() => {
+                      onChanged();
+                      loadSchedule();
+                    }}
                   />
                 ))}
               </div>
@@ -134,11 +207,13 @@ function PublicationRow({
   delivery,
   userId,
   campaignTitle,
+  schedule,
   onSaved,
 }: {
   delivery: CampaignDelivery;
   userId: string;
   campaignTitle: string;
+  schedule: scheduleService.ScheduledPublication[];
   onSaved: () => void;
 }) {
   const initialDate = toLocalDateTimeInput(delivery.publicationDate);
@@ -162,6 +237,12 @@ function PublicationRow({
   const togglePlatform = (p: string) => {
     setPlatforms(prev => (prev.includes(p) ? prev.filter(x => x !== p) : [...prev, p]));
   };
+
+  // Conflito recalculado a cada digitação, sem ir ao banco: a agenda do creator
+  // já veio carregada. A própria entrega sai da conta, senão conflitaria consigo.
+  const conflito = date
+    ? scheduleService.findConflicts(new Date(date), schedule, delivery.id)
+    : { level: 'none' as const, items: [] };
 
   const handleSave = async () => {
     setError(null);
@@ -199,8 +280,39 @@ function PublicationRow({
           type="datetime-local"
           value={date}
           onChange={e => setDate(e.target.value)}
-          className="bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
+          className={`bg-background border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink ${
+            conflito.level === 'severe'
+              ? 'border-red-500/60'
+              : conflito.level === 'warn'
+                ? 'border-amber-500/60'
+                : 'border-border'
+          }`}
         />
+
+        {conflito.level !== 'none' && (
+          <div
+            className={`mt-1.5 p-2 rounded-lg border text-xs ${
+              conflito.level === 'severe'
+                ? 'bg-red-500/10 border-red-500/40 text-red-300'
+                : 'bg-amber-500/10 border-amber-500/40 text-amber-300'
+            }`}
+          >
+            <p className="font-semibold">
+              {conflito.level === 'severe'
+                ? 'Conflito de horário'
+                : 'Outra publicação no mesmo dia'}
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {conflito.items.map(({ item, diffHours }) => (
+                <li key={item.deliveryId}>
+                  {scheduleService.formatPublicationDate(item.publicationDate)} · {item.campaignTitle}
+                  {' — '}
+                  <strong>{scheduleService.formatInterval(diffHours)}</strong> de intervalo
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div>

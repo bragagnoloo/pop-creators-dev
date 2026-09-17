@@ -139,9 +139,11 @@ export default function AdminCandidaturasPage() {
       }
 
       setCampaigns(list);
-      const all = await campaignService.getAllApplications();
+      // Agregado no Postgres (migration 0039) — contar sobre getAllApplications()
+      // truncava em 500 e zerava a contagem das campanhas mais antigas.
+      const byCampaign = await campaignService.getApplicationCountsByCampaign();
       const counts: Record<string, number> = {};
-      for (const a of all) counts[a.campaignId] = (counts[a.campaignId] || 0) + 1;
+      for (const [campaignId, c] of Object.entries(byCampaign)) counts[campaignId] = c.total;
       setAppCountsState(counts);
     })();
   }, [user?.id]);

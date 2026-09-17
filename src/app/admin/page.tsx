@@ -28,7 +28,9 @@ export default function AdminDashboard() {
     const users = analyticsService.nonAdminUsers(allUsers);
     const totalUsers = await authService.countUsers();
     const campaigns = await campaignService.getAllCampaigns();
-    const applications = await campaignService.getAllApplications();
+    // Agregado no Postgres (migration 0039). Contar em cima de getAllApplications()
+    // truncava tudo em 500 de 3.685 — o dashboard inteiro ficava calculado sobre 14%.
+    const stats = await campaignService.getAdminApplicationStats(14);
     const withdrawals = await walletService.getAllWithdrawals();
     const credits = await walletService.getAllCredits();
 
@@ -41,17 +43,19 @@ export default function AdminDashboard() {
     setData({
       totalUsers,
       activeCampaigns: campaigns.filter(c => c.status === 'open').length,
-      totalApplications: applications.length,
-      approvedApplications: applications.filter(a => a.status === 'approved').length,
+      totalApplications: stats?.total ?? 0,
+      approvedApplications: stats?.approved ?? 0,
       totalDistributed,
       pendingWithdrawals,
       usersByDay: analyticsService
         .bucketizeByDay(users, u => u.createdAt, 14)
         .map(({ label, value }) => ({ label, value })),
-      applicationsByDay: analyticsService
-        .bucketizeByDay(applications, a => a.appliedAt, 14)
-        .map(({ label, value }) => ({ label, value })),
-      approvalCounts: analyticsService.applicationStatusCounts(applications),
+      applicationsByDay: stats?.byDay ?? [],
+      approvalCounts: {
+        approved: stats?.approved ?? 0,
+        pending: stats?.pending ?? 0,
+        rejected: stats?.rejected ?? 0,
+      },
     });
     })();
   }, []);

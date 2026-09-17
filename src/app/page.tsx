@@ -19,10 +19,13 @@ export const revalidate = 300;
 export default async function Home() {
   const supabase = createAdminClient();
 
+  // O filtro de arquivadas é explícito porque createAdminClient usa a service
+  // role, que ignora RLS — a policy "campaigns: hide archived" (0040) não vale aqui.
   const { data: campaigns } = await supabase
     .from('campaigns')
     .select('id, title')
     .eq('status', 'open')
+    .is('deleted_at', null)
     .order('created_at', { ascending: false });
 
   // Oficinas publicadas viram os cards de experts da LP. Fica dinâmico para a

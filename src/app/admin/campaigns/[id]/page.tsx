@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import { createClient } from '@/lib/supabase/client';
-import { Campaign, CampaignApplication, UserProfile, BalanceCredit, CampaignDelivery, StageReadiness, CampaignStage, DeliveryRevision, PublicationRevision } from '@/types';
+import { Campaign, CampaignApplication, CampaignArchiveImpact, UserProfile, BalanceCredit, CampaignDelivery, StageReadiness, CampaignStage, DeliveryRevision, PublicationRevision } from '@/types';
 import * as campaignService from '@/services/campaigns';
 import * as userService from '@/services/users';
 import * as walletService from '@/services/wallet';
@@ -24,6 +24,8 @@ import Card from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
+import Modal from '@/components/ui/Modal';
+import Input from '@/components/ui/Input';
 import CollapsibleSection from '@/components/ui/CollapsibleSection';
 import CampaignNoticesSection from '@/components/admin/CampaignNoticesSection';
 import CampaignSchedule from '@/components/admin/campaign-stages/CampaignSchedule';
@@ -61,6 +63,12 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const [revisionsByDelivery, setRevisionsByDelivery] = useState<Map<string, DeliveryRevision[]>>(new Map());
   const [publicationRevisionsByDelivery, setPublicationRevisionsByDelivery] = useState<Map<string, PublicationRevision[]>>(new Map());
   const [loaded, setLoaded] = useState(false);
+  // Zona de perigo: arquivamento da campanha
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiveImpact, setArchiveImpact] = useState<CampaignArchiveImpact | null>(null);
+  const [archiveText, setArchiveText] = useState('');
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   const load = useCallback(async () => {
     if (user?.role === 'campaign_admin') {
@@ -293,6 +301,25 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const others = rows.filter(r => r.application.status === 'rejected').sort(byPlanDesc);
   const canManage = true; // página já é protegida pelo redirect inicial
   const currentStage = (campaign.currentStage ?? 0) as CampaignStage;
+  const isMasterAdmin = user?.role === 'admin';
+
+  const openArchive = async () => {
+    setArchiveText('');
+    setArchiveError(null);
+    setArchiveOpen(true);
+    setArchiveImpact(await campaignService.getCampaignArchiveImpact(id));
+  };
+
+  const handleArchive = async () => {
+    setArchiving(true);
+    const result = await campaignService.archiveCampaign(id);
+    setArchiving(false);
+    if (!result.success) {
+      setArchiveError(result.error);
+      return;
+    }
+    router.replace(ROUTES.ADMIN_CAMPAIGNS);
+  };
 
   return (
     <div className="space-y-6">
@@ -593,6 +620,72 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
             ))}
           </div>
         </Card>
+      )}
+
+      {/*
+        Zona de perigo. Antes o "Excluir" ficava na listagem, colado no "Editar",
+        e o modal não dizia sequer o nome da campanha — era um toque errado de
+        distância de apagar campanha, inscrições, entregas e financeiro.
+        Agora: fica aqui no fundo do painel, exige digitar o título, mostra o que
+        será arquivado e é reversível (migration 0040).
+      */}
+      {isMasterAdmin && (
+        <Card className="border-red-500/30">
+          <h2 className="text-lg font-semibold mb-1 text-red-400">Zona de perigo</h2>
+          <p className="text-sm text-text-secondary mb-4">
+            Arquivar tira a campanha da plataforma. Nada é apagado: candidaturas, entregas e
+            financeiro ficam preservados e a campanha pode ser restaurada na lista de campanhas.
+          </p>
+          <Button variant="danger" size="sm" onClick={openArchive}>
+            Arquivar campanha
+          </Button>
+        </Card>
+      )}
+
+      {archiveOpen && (
+        <Modal isOpen onClose={() => setArchiveOpen(false)} title="Arquivar campanha">
+          <p className="text-sm text-text-secondary mb-4">
+            Você está arquivando <strong className="text-white">{campaign.title}</strong>. A campanha
+            sai da plataforma, mas continua restaurável — nada é destruído.
+          </p>
+
+          {archiveImpact && (
+            <div className="rounded-xl bg-background border border-border p-3 mb-4 text-sm space-y-1">
+              <p className="text-text-secondary">Ficam preservados e voltam na restauração:</p>
+              <ul className="text-text-secondary">
+                <li>· {archiveImpact.applications} candidatura(s), {archiveImpact.approved} aprovada(s)</li>
+                <li>· {archiveImpact.deliveries} entrega(s)</li>
+                <li>· {archiveImpact.credits} crédito(s) de saldo liberado(s)</li>
+              </ul>
+            </div>
+          )}
+
+          <label className="text-sm text-text-secondary font-medium">
+            Para confirmar, digite o título da campanha:
+          </label>
+          <Input
+            value={archiveText}
+            onChange={e => setArchiveText(e.target.value)}
+            placeholder={campaign.title}
+            className="mt-1.5"
+          />
+
+          {archiveError && <p className="text-sm text-red-400 mt-3">{archiveError}</p>}
+
+          <div className="flex gap-3 mt-6">
+            <Button variant="secondary" className="flex-1" onClick={() => setArchiveOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              disabled={archiving || archiveText.trim() !== campaign.title.trim()}
+              onClick={handleArchive}
+            >
+              {archiving ? 'Arquivando...' : 'Arquivar'}
+            </Button>
+          </div>
+        </Modal>
       )}
     </div>
   );

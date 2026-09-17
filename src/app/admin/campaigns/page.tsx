@@ -44,7 +44,9 @@ export default function AdminCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Campaign | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [archived, setArchived] = useState<Campaign[]>([]);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [viewingApplications, setViewingApplications] = useState<string | null>(null);
   const [applications, setApplications] = useState<(CampaignApplication & { profile: UserProfile | null })[]>([]);
   const [appCounts, setAppCounts] = useState<Record<string, number>>({});
@@ -73,7 +75,12 @@ export default function AdminCampaignsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadCampaigns = async () => {
-    let list = await campaignService.getAllCampaigns();
+    // listCampaigns distingue "não há campanhas" de "não deu para carregar" —
+    // antes qualquer falha virava lista vazia e a tela dizia que não havia
+    // campanha nenhuma, que é como uma campanha "some" sem ter sumido.
+    const { campaigns: loaded, error } = await campaignService.listCampaigns();
+    setLoadError(error);
+    let list = loaded;
 
     if (user?.role === 'campaign_admin') {
       const supabase = createClient();
@@ -86,10 +93,29 @@ export default function AdminCampaignsPage() {
     }
 
     setCampaigns(list);
-    const allApps = await campaignService.getAllApplications();
+    // Contagem agregada no Postgres (migration 0039). Antes era feita em cima de
+    // getAllApplications(), que traz no máximo 500 linhas: 16 campanhas exibiam
+    // "Inscrições: 0" tendo inscritos de verdade.
+    const byCampaign = await campaignService.getApplicationCountsByCampaign();
     const counts: Record<string, number> = {};
-    for (const a of allApps) counts[a.campaignId] = (counts[a.campaignId] || 0) + 1;
+    for (const [campaignId, c] of Object.entries(byCampaign)) counts[campaignId] = c.total;
     setAppCounts(counts);
+
+    // Lixeira: só o master admin enxerga campanha arquivada (policy da 0040).
+    if (!isCampaignAdmin) {
+      setArchived(await campaignService.getArchivedCampaigns());
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    setRestoringId(id);
+    const result = await campaignService.restoreCampaign(id);
+    setRestoringId(null);
+    if (!result.success) {
+      setLoadError(result.error);
+      return;
+    }
+    loadCampaigns();
   };
 
   useEffect(() => {
@@ -235,12 +261,6 @@ export default function AdminCampaignsPage() {
     if (viewingApplications) openApplications(viewingApplications);
   };
 
-  const handleDelete = async (id: string) => {
-    await campaignService.deleteCampaign(id);
-    setConfirmDelete(null);
-    loadCampaigns();
-  };
-
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -322,6 +342,17 @@ export default function AdminCampaignsPage() {
                 <option value="in_progress">Em Andamento</option>
                 <option value="completed">Finalizada</option>
               </select>
+              {/*
+                A vitrine do creator lista só status 'open'. Trocar para outro
+                status tira a campanha da vitrine na hora — foi o que fez o San
+                Island "sumir" sem nunca ter sido apagado. Agora está escrito.
+              */}
+              {status !== 'open' && (
+                <p className="text-xs text-amber-400">
+                  Com este status a campanha sai da vitrine dos creators. Ela continua no painel e
+                  volta a aparecer se o status voltar para &quot;Inscricoes Abertas&quot;.
+                </p>
+              )}
             </div>
 
             {/* Tipo de campanha — só editável na criação; imutável na edição */}
@@ -482,21 +513,6 @@ export default function AdminCampaignsPage() {
         </Modal>
       )}
 
-      {/* Delete Confirmation */}
-      {confirmDelete && (
-        <Modal isOpen onClose={() => setConfirmDelete(null)} title="Confirmar Exclusao">
-          <p className="text-text-secondary mb-6">Tem certeza que deseja excluir esta campanha? Esta acao nao pode ser desfeita.</p>
-          <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={() => setConfirmDelete(null)}>
-              Cancelar
-            </Button>
-            <Button variant="danger" className="flex-1" onClick={() => handleDelete(confirmDelete)}>
-              Excluir
-            </Button>
-          </div>
-        </Modal>
-      )}
-
       {/* Applications Modal */}
       {viewingApplications && (
         <Modal isOpen onClose={() => setViewingApplications(null)} title="Inscricoes da Campanha">
@@ -596,17 +612,34 @@ export default function AdminCampaignsPage() {
                 <Button variant="secondary" size="sm" onClick={() => openEdit(campaign)}>
                   Editar
                 </Button>
-                {!isCampaignAdmin && (
-                  <Button variant="danger" size="sm" onClick={() => setConfirmDelete(campaign.id)}>
-                    Excluir
-                  </Button>
-                )}
+                {/*
+                  Arquivar não fica mais aqui. Ficava colado no "Editar", num
+                  flex-wrap mobile, e o modal nem dizia o nome da campanha —
+                  um toque errado apagava campanha, inscrições e financeiro.
+                  Agora mora na zona de perigo, dentro do painel da campanha.
+                */}
               </div>
             </div>
           </Card>
         ))}
 
-        {campaigns.length === 0 && (
+        {/*
+          "Não carregou" nunca mais é exibido como "não existe". Enquanto houver
+          erro a mensagem de lista vazia não aparece.
+        */}
+        {loadError && (
+          <Card className="border-amber-500/40">
+            <p className="text-sm text-amber-400 font-medium">Não foi possível carregar as campanhas.</p>
+            <p className="text-xs text-text-secondary mt-1">
+              Isto é uma falha de carregamento, não significa que as campanhas foram removidas. Detalhe: {loadError}
+            </p>
+            <Button size="sm" variant="secondary" className="mt-3" onClick={loadCampaigns}>
+              Tentar de novo
+            </Button>
+          </Card>
+        )}
+
+        {!loadError && campaigns.length === 0 && (
           <Card>
             <p className="text-center text-text-secondary">
               Nenhuma campanha criada. Clique em &quot;Nova Campanha&quot; para comecar.
@@ -614,6 +647,46 @@ export default function AdminCampaignsPage() {
           </Card>
         )}
       </div>
+
+      {/* Lixeira — campanhas arquivadas, restauráveis a qualquer momento */}
+      {!isCampaignAdmin && archived.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-3">
+            Arquivadas ({archived.length})
+          </h2>
+          <div className="space-y-3">
+            {archived.map(campaign => (
+              <Card key={campaign.id} className="opacity-70">
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold truncate">{campaign.title}</h3>
+                    <p className="text-xs text-text-secondary mt-1">
+                      Arquivada em{' '}
+                      {campaign.deletedAt
+                        ? new Date(campaign.deletedAt).toLocaleDateString('pt-BR', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })
+                        : '—'}
+                      {' · '}
+                      {appCounts[campaign.id] || 0} inscricoes preservadas
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={restoringId === campaign.id}
+                    onClick={() => handleRestore(campaign.id)}
+                  >
+                    {restoringId === campaign.id ? 'Restaurando...' : 'Restaurar'}
+                  </Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -31,10 +31,12 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
   const [termForCampaignId, setTermForCampaignId] = useState<string | null>(null);
   const [termLoading, setTermLoading] = useState(false);
   const [termError, setTermError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const all = await campaignService.getAllCampaigns();
+      const { campaigns: all, error } = await campaignService.listCampaigns();
+      setLoadError(error);
       // Campanhas convite não aparecem na descoberta pública. Review e Radar
       // aparecem de propósito: é por aqui que o creator descobre as categorias,
       // e este é o caminho que registra o aceite do termo.
@@ -84,6 +86,19 @@ export default function CampaignList({ userId, onEditProfile }: CampaignListProp
     setTermForCampaignId(null);
     setApplications(await campaignService.getUserApplications(userId));
   };
+
+  // Falha de carregamento não pode ser exibida como "não há campanha": é
+  // exatamente assim que uma campanha parece ter sumido sem ter saído do banco.
+  if (loadError) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-text-secondary">Não foi possível carregar as campanhas agora.</p>
+        <p className="text-sm text-text-secondary mt-2">
+          É uma falha de conexão — nenhuma campanha foi removida. Tente de novo em instantes.
+        </p>
+      </div>
+    );
+  }
 
   if (campaigns.length === 0) {
     return (

@@ -77,6 +77,36 @@ export interface Campaign {
   briefingFileUrl?: string | null;
   stageHistory?: StageHistoryEntry[];
   stageUpdatedAt?: string;
+  // Arquivamento (migration 0040): substitui o DELETE físico, que levava junto
+  // candidaturas, entregas e financeiro via cascade. Só o master admin enxerga
+  // campanha arquivada — para todo mundo mais ela some, como sumia antes.
+  deletedAt?: string | null;
+}
+
+/** Quanta coisa uma campanha leva junto se for arquivada (RPC get_campaign_archive_impact). */
+export interface CampaignArchiveImpact {
+  title: string | null;
+  applications: number;
+  approved: number;
+  deliveries: number;
+  credits: number;
+}
+
+/** Contagem de candidaturas por campanha, agregada no Postgres (migration 0039). */
+export interface CampaignApplicationCounts {
+  total: number;
+  approved: number;
+  pending: number;
+  rejected: number;
+}
+
+/** Estatísticas do dashboard admin, agregadas no Postgres (migration 0039). */
+export interface AdminApplicationStats {
+  total: number;
+  approved: number;
+  pending: number;
+  rejected: number;
+  byDay: { label: string; value: number }[];
 }
 
 export type CampaignStage = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;

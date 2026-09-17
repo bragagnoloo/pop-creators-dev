@@ -1,4 +1,12 @@
-import { Campaign, CampaignApplication, CampaignStage, StageHistoryEntry } from '@/types';
+import {
+  AdminApplicationStats,
+  Campaign,
+  CampaignApplication,
+  CampaignApplicationCounts,
+  CampaignArchiveImpact,
+  CampaignStage,
+  StageHistoryEntry,
+} from '@/types';
 import { createClient } from '@/lib/supabase/client';
 
 type CampaignRow = {
@@ -26,6 +34,7 @@ type CampaignRow = {
   briefing_file_url: string | null;
   stage_history: StageHistoryEntry[];
   stage_updated_at: string;
+  deleted_at: string | null;
 };
 
 type AppRow = {
@@ -66,6 +75,7 @@ function toCampaign(r: CampaignRow): Campaign {
     briefingFileUrl: r.briefing_file_url,
     stageHistory: r.stage_history ?? [],
     stageUpdatedAt: r.stage_updated_at,
+    deletedAt: r.deleted_at ?? null,
   };
 }
 
@@ -87,7 +97,7 @@ function toApp(r: AppRow): CampaignApplication {
 // listada aqui não existir no banco, o PostgREST retorna 42703, `data` vem null
 // e as listas ficam vazias SEM mensagem de erro. Só acrescentar coluna aqui
 // depois que a migration correspondente estiver aplicada.
-const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, is_review, is_radar, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at';
+const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, is_review, is_radar, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at, deleted_at';
 const A_SELECT = 'id, campaign_id, user_id, status, applied_at, joined_whatsapp_group, joined_at, disqualified_at, disqualification_reason';
 
 // Limite pragmático para evitar full-table scans acidentais em admin views.
@@ -95,12 +105,47 @@ const DEFAULT_LIST_LIMIT = 500;
 
 // ---------- Campaigns ----------
 
+/**
+ * Listagem de campanhas ativas, distinguindo "não há campanhas" de "não deu
+ * para carregar".
+ *
+ * Por que existe: o resto deste arquivo descarta o `error` e devolve lista
+ * vazia em qualquer falha — RLS, token expirado, rede, coluna faltando. A tela
+ * então escreve "Nenhuma campanha", que é indistinguível de realmente não haver
+ * nenhuma. Foi essa confusão que fez uma campanha parecer "sumida" sem nunca ter
+ * saído do banco. Quem monta lista deve usar esta função e tratar o erro.
+ */
+export async function listCampaigns(): Promise<{ campaigns: Campaign[]; error: string | null }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from('campaigns')
+    .select(C_SELECT)
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
+    .limit(DEFAULT_LIST_LIMIT);
+
+  if (error) {
+    return { campaigns: [], error: error.message || 'Não foi possível carregar as campanhas.' };
+  }
+  return { campaigns: (data ?? []).map(r => toCampaign(r as CampaignRow)), error: null };
+}
+
 export async function getAllCampaigns(): Promise<Campaign[]> {
+  const { campaigns } = await listCampaigns();
+  return campaigns;
+}
+
+/**
+ * Campanhas arquivadas (a "lixeira"). Só o master admin enxerga — para os
+ * demais a policy restritiva da migration 0040 já filtra as linhas.
+ */
+export async function getArchivedCampaigns(): Promise<Campaign[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from('campaigns')
     .select(C_SELECT)
-    .order('created_at', { ascending: false })
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
     .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as CampaignRow[]).map(toCampaign);
@@ -175,9 +220,53 @@ export async function updateCampaign(id: string, data: Partial<Campaign>): Promi
   return updated ? toCampaign(updated as CampaignRow) : null;
 }
 
-export async function deleteCampaign(id: string): Promise<void> {
+/**
+ * Arquiva a campanha (soft delete da migration 0040).
+ *
+ * Substitui o antigo deleteCampaign, que fazia DELETE físico — e como as 11
+ * tabelas filhas têm ON DELETE CASCADE, levava junto candidaturas, entregas,
+ * financeiro, créditos e aceites de termo, sem volta. Foi assim que a
+ * RÉVEILLON CHEERS 2027 e outras 8 campanhas se perderam.
+ *
+ * A RPC recusa o arquivamento se houver creator aprovado ou crédito liberado, e
+ * o privilégio de DELETE na tabela foi revogado — não existe mais caminho no app
+ * que destrua a linha.
+ */
+export async function archiveCampaign(
+  id: string
+): Promise<{ success: true; title: string | null } | { success: false; error: string }> {
   const supabase = createClient();
-  await supabase.from('campaigns').delete().eq('id', id);
+  const { data, error } = await supabase.rpc('soft_delete_campaign', { p_campaign_id: id });
+  if (error) {
+    return { success: false, error: error.message || 'Falha ao arquivar a campanha.' };
+  }
+  const result = data as { success: boolean; error?: string; title?: string } | null;
+  if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
+  if (!result.success) return { success: false, error: result.error || 'Falha ao arquivar a campanha.' };
+  return { success: true, title: result.title ?? null };
+}
+
+/** Tira a campanha da lixeira e devolve ela à plataforma. */
+export async function restoreCampaign(
+  id: string
+): Promise<{ success: true; title: string | null } | { success: false; error: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('restore_campaign', { p_campaign_id: id });
+  if (error) {
+    return { success: false, error: error.message || 'Falha ao restaurar a campanha.' };
+  }
+  const result = data as { success: boolean; error?: string; title?: string } | null;
+  if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
+  if (!result.success) return { success: false, error: result.error || 'Falha ao restaurar a campanha.' };
+  return { success: true, title: result.title ?? null };
+}
+
+/** O que a campanha leva junto se for arquivada — alimenta o modal de confirmação. */
+export async function getCampaignArchiveImpact(id: string): Promise<CampaignArchiveImpact | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_campaign_archive_impact', { p_campaign_id: id });
+  if (error || !data) return null;
+  return data as CampaignArchiveImpact;
 }
 
 // ---------- Applications ----------
@@ -283,6 +372,13 @@ export async function getCampaignApplications(campaignId: string): Promise<Campa
   return (data as AppRow[]).map(toApp);
 }
 
+/**
+ * ATENÇÃO: devolve no máximo DEFAULT_LIST_LIMIT candidaturas, as mais recentes.
+ * NÃO serve para contar nada — com 3.685 candidaturas na base, contar em cima
+ * disto fazia o painel exibir 500 e mostrar "Inscrições: 0" em 16 campanhas que
+ * tinham inscritos. Para contagem use getApplicationCountsByCampaign() ou
+ * getAdminApplicationStats(), que agregam no Postgres (migration 0039).
+ */
 export async function getAllApplications(): Promise<CampaignApplication[]> {
   const supabase = createClient();
   const { data } = await supabase
@@ -292,6 +388,54 @@ export async function getAllApplications(): Promise<CampaignApplication[]> {
     .limit(DEFAULT_LIST_LIMIT);
   if (!data) return [];
   return (data as AppRow[]).map(toApp);
+}
+
+/** Contagem real de candidaturas por campanha, agregada no servidor. Sem teto. */
+export async function getApplicationCountsByCampaign(): Promise<Record<string, CampaignApplicationCounts>> {
+  const supabase = createClient();
+  const { data } = await supabase
+    .from('campaign_application_counts')
+    .select('campaign_id, total, approved, pending, rejected');
+  if (!data) return {};
+
+  const counts: Record<string, CampaignApplicationCounts> = {};
+  for (const row of data as {
+    campaign_id: string;
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+  }[]) {
+    counts[row.campaign_id] = {
+      total: Number(row.total),
+      approved: Number(row.approved),
+      pending: Number(row.pending),
+      rejected: Number(row.rejected),
+    };
+  }
+  return counts;
+}
+
+/** Totais e série por dia do dashboard admin, agregados no servidor. Sem teto. */
+export async function getAdminApplicationStats(days = 14): Promise<AdminApplicationStats | null> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('get_admin_application_stats', { p_days: days });
+  if (error || !data) return null;
+
+  const raw = data as {
+    total: number;
+    approved: number;
+    pending: number;
+    rejected: number;
+    by_day: { label: string; value: number }[];
+  };
+  return {
+    total: Number(raw.total),
+    approved: Number(raw.approved),
+    pending: Number(raw.pending),
+    rejected: Number(raw.rejected),
+    byDay: (raw.by_day ?? []).map(d => ({ label: d.label, value: Number(d.value) })),
+  };
 }
 
 export async function updateApplicationStatus(

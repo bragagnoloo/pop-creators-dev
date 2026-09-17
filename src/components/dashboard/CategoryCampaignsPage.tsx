@@ -64,10 +64,16 @@ export default function CategoryCampaignsPage({
   }, [copy]);
 
   // Mesma chave global de sempre: as sub-abas compartilham o cache do SWR.
-  const { data: campaigns = [], error, isLoading } = useSWR(
-    'campaigns',
-    campaignService.getAllCampaigns
-  );
+  //
+  // O fetcher precisa LANÇAR para o `error` do SWR existir. Com
+  // getAllCampaigns o erro era engolido e devolvido como [], então o guard de
+  // error logo abaixo nunca disparava e uma falha de rede era renderizada como
+  // "categoria vazia" — do lado do creator, campanha sumida.
+  const { data: campaigns = [], error, isLoading } = useSWR('campaigns', async () => {
+    const { campaigns: loaded, error: loadError } = await campaignService.listCampaigns();
+    if (loadError) throw new Error(loadError);
+    return loaded;
+  });
   const { data: applications = [], mutate: mutateApplications } = useSWR(
     user ? ['applications', user.id] : null,
     ([, uid]) => campaignService.getUserApplications(uid)
@@ -186,7 +192,14 @@ export default function CategoryCampaignsPage({
             ]}
           />
 
-          {visible.length === 0 ? (
+          {error ? (
+            <div className="text-center py-12">
+              <p className="text-text-secondary">Não foi possível carregar as campanhas agora.</p>
+              <p className="text-sm text-text-secondary mt-2">
+                É uma falha de conexão — nenhuma campanha foi removida. Tente de novo em instantes.
+              </p>
+            </div>
+          ) : visible.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-text-secondary">
                 {filter === 'available' ? copy?.emptyAvailable : copy?.emptyParticipating}

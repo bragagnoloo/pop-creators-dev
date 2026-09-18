@@ -54,6 +54,8 @@ export default function AdminCampaignsPage() {
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  // Etiqueta de controle interno (migration 0041). Texto livre, opcional.
+  const [assignedAdminName, setAssignedAdminName] = useState('');
   const [status, setStatus] = useState<Campaign['status']>('open');
   // Tipo da campanha: definido só na criação, imutável na edição.
   // Os rótulos e a copy de cada categoria vêm de @/lib/campaign-categories.
@@ -124,6 +126,17 @@ export default function AdminCampaignsPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Sugestões do campo de admin designado: nomes que já estão em uso. Evita que
+  // grafias diferentes da mesma pessoa virem barras separadas no dashboard, sem
+  // impedir digitar um nome novo.
+  const adminNameSuggestions = Array.from(
+    new Set(
+      [...campaigns, ...archived]
+        .map(c => c.assignedAdminName?.trim())
+        .filter((n): n is string => Boolean(n))
+    )
+  ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -139,6 +152,7 @@ export default function AdminCampaignsPage() {
     setEditing(null);
     setTitle('');
     setDescription('');
+    setAssignedAdminName('');
     setStatus('open');
     setCampaignType('standard');
     setHasCache(true);
@@ -161,6 +175,7 @@ export default function AdminCampaignsPage() {
     setEditing(campaign);
     setTitle(campaign.title);
     setDescription(campaign.description);
+    setAssignedAdminName(campaign.assignedAdminName ?? '');
     setStatus(campaign.status);
     setCampaignType(getCampaignCategory(campaign));
     setHasCache(campaign.hasCache);
@@ -231,6 +246,7 @@ export default function AdminCampaignsPage() {
       hasCommission,
       commissionPercentage: hasCommission ? Number(commissionPercentage) : null,
       commissionDescription: hasCommission ? commissionDescription.trim() || null : null,
+      assignedAdminName: assignedAdminName.trim() || null,
     };
 
     if (editing) {
@@ -354,6 +370,34 @@ export default function AdminCampaignsPage() {
                 </p>
               )}
             </div>
+
+            {/*
+              Admin designado — etiqueta de controle interno, só master admin.
+              Texto livre de propósito: não concede permissão nenhuma e a pessoa
+              designada pode nem ter conta. Quem controla acesso de verdade é a
+              aba Admins (admin_campaign_assignments).
+            */}
+            {!isCampaignAdmin && (
+              <div>
+                <Input
+                  label="Admin designado (opcional)"
+                  value={assignedAdminName}
+                  onChange={e => setAssignedAdminName(e.target.value)}
+                  placeholder="Nome do admin responsavel"
+                  maxLength={80}
+                  list="admins-designados"
+                />
+                <datalist id="admins-designados">
+                  {adminNameSuggestions.map(name => (
+                    <option key={name} value={name} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-text-secondary mt-1.5">
+                  Só para controle interno da equipe. Nao altera a campanha nem da acesso a nada.
+                  Deixe em branco para nao designar ninguem.
+                </p>
+              </div>
+            )}
 
             {/* Tipo de campanha — só editável na criação; imutável na edição */}
             <div className="flex flex-col gap-1.5">
@@ -592,6 +636,10 @@ export default function AdminCampaignsPage() {
                     <Badge variant={statusVariant[campaign.status]}>
                       {statusLabel[campaign.status]}
                     </Badge>
+                    {/* Etiqueta de controle interno — some quando nao ha designado */}
+                    {campaign.assignedAdminName && (
+                      <Badge variant="slate">Adm: {campaign.assignedAdminName}</Badge>
+                    )}
                     <CampaignCategoryBadge campaign={campaign} />
                   </div>
                   <p className="text-sm text-text-secondary line-clamp-2">{campaign.description}</p>

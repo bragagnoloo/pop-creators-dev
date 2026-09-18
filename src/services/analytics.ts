@@ -1,4 +1,4 @@
-import { CampaignApplication, AuthUser } from '@/types';
+import { Campaign, CampaignApplication, AuthUser } from '@/types';
 
 export interface DayBucket {
   label: string;
@@ -64,4 +64,35 @@ export function applicationStatusCounts(apps: CampaignApplication[]) {
 
 export function nonAdminUsers(users: AuthUser[]): AuthUser[] {
   return users.filter(u => u.role !== 'admin');
+}
+
+/**
+ * Carga de campanhas por admin designado (etiqueta interna da migration 0041).
+ *
+ * Campanha sem designado fica de fora — não vira uma barra "sem responsável",
+ * que só poluiria o gráfico: hoje a maioria não tem designado.
+ *
+ * `finished` junta 'completed' e 'in_progress'. O gráfico tem duas cores (rosa
+ * para inscrições abertas, cinza para o resto) e o total da barra precisa ser o
+ * total de campanhas que a pessoa gerencia — se 'in_progress' ficasse de fora,
+ * a soma não fecharia. Na prática hoje não há nenhuma campanha nesse status.
+ */
+export function campaignsByAssignedAdmin(
+  campaigns: Campaign[]
+): { label: string; active: number; finished: number }[] {
+  const porAdmin = new Map<string, { label: string; active: number; finished: number }>();
+
+  for (const c of campaigns) {
+    const nome = c.assignedAdminName?.trim();
+    if (!nome) continue;
+
+    const linha = porAdmin.get(nome) ?? { label: nome, active: 0, finished: 0 };
+    if (c.status === 'open') linha.active += 1;
+    else linha.finished += 1;
+    porAdmin.set(nome, linha);
+  }
+
+  return Array.from(porAdmin.values()).sort(
+    (a, b) => b.active + b.finished - (a.active + a.finished)
+  );
 }

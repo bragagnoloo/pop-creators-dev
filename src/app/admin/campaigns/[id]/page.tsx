@@ -69,6 +69,11 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const [archiveText, setArchiveText] = useState('');
   const [archiveError, setArchiveError] = useState<string | null>(null);
   const [archiving, setArchiving] = useState(false);
+  // Admin designado (etiqueta interna)
+  const [editingAssigned, setEditingAssigned] = useState(false);
+  const [assignedInput, setAssignedInput] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignedError, setAssignedError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (user?.role === 'campaign_admin') {
@@ -303,6 +308,19 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
   const currentStage = (campaign.currentStage ?? 0) as CampaignStage;
   const isMasterAdmin = user?.role === 'admin';
 
+  const handleAssignAdmin = async () => {
+    setAssigning(true);
+    setAssignedError(null);
+    const result = await campaignService.setCampaignAssignedAdmin(id, assignedInput);
+    setAssigning(false);
+    if (!result.success) {
+      setAssignedError(result.error);
+      return;
+    }
+    setEditingAssigned(false);
+    load();
+  };
+
   const openArchive = async () => {
     setArchiveText('');
     setArchiveError(null);
@@ -349,6 +367,77 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
           {campaign.deliveryCount ?? 1} entrega{(campaign.deliveryCount ?? 1) > 1 ? 's' : ''} por criador
         </p>
       </div>
+
+      {/*
+        Admin designado — etiqueta de controle interno da equipe (migration 0041).
+        Não concede permissão nenhuma: quem gerencia a campanha de fato continua
+        sendo definido na aba Admins. Só o master admin vê e edita este bloco.
+      */}
+      {isMasterAdmin && (
+        <Card>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">
+                Admin designado
+              </h2>
+              {editingAssigned ? (
+                <p className="text-xs text-text-secondary mt-1">
+                  Digite o nome e clique em atribuir. Em branco remove a designação.
+                </p>
+              ) : campaign.assignedAdminName ? (
+                <div className="mt-2">
+                  <Badge variant="slate">{campaign.assignedAdminName}</Badge>
+                </div>
+              ) : (
+                <p className="text-sm text-text-secondary mt-1">Nenhum admin designado.</p>
+              )}
+            </div>
+
+            {editingAssigned ? (
+              <div className="flex items-end gap-2 flex-wrap">
+                <Input
+                  value={assignedInput}
+                  onChange={e => setAssignedInput(e.target.value)}
+                  placeholder="Nome do admin responsavel"
+                  maxLength={80}
+                  className="w-56"
+                />
+                <Button size="sm" disabled={assigning} onClick={handleAssignAdmin}>
+                  {assigning ? 'Atribuindo...' : 'Atribuir'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setEditingAssigned(false);
+                    setAssignedError(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setAssignedInput(campaign.assignedAdminName ?? '');
+                  setAssignedError(null);
+                  setEditingAssigned(true);
+                }}
+              >
+                {campaign.assignedAdminName ? 'Editar' : 'Designar'}
+              </Button>
+            )}
+          </div>
+
+          {assignedError && <p className="text-sm text-red-400 mt-3">{assignedError}</p>}
+
+          <p className="text-xs text-text-secondary mt-3">
+            Controle interno. Não altera a campanha, não aparece para creators e não da acesso a nada.
+          </p>
+        </Card>
+      )}
 
       {/* 1. Métricas no topo */}
       <div className="grid lg:grid-cols-2 gap-4">

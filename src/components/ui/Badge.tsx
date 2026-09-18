@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 
 export type BadgeVariant =
-  | 'success' | 'warning' | 'danger' | 'default' | 'pink' | 'purple' | 'orange';
+  | 'success' | 'warning' | 'danger' | 'default' | 'pink' | 'purple' | 'orange' | 'slate';
 
 interface BadgeProps {
   variant?: BadgeVariant;
@@ -18,6 +18,9 @@ const variants: Record<BadgeVariant, string> = {
   pink: 'bg-popline-pink/20 text-popline-light border-popline-pink/30',
   purple: 'bg-popline-purple/20 text-popline-purple-light border-popline-purple/40',
   orange: 'bg-popline-orange/20 text-popline-orange-light border-popline-orange/40',
+  // Uso interno (ex.: admin designado). Fica fora da paleta de status e de
+  // categoria de propósito, para não ser lido como estado da campanha.
+  slate: 'bg-slate-500/20 text-slate-300 border-slate-400/30',
 };
 
 export default function Badge({ variant = 'default', children }: BadgeProps) {

@@ -81,6 +81,10 @@ export interface Campaign {
   // candidaturas, entregas e financeiro via cascade. Só o master admin enxerga
   // campanha arquivada — para todo mundo mais ela some, como sumia antes.
   deletedAt?: string | null;
+  // Admin designado (migration 0041): etiqueta de controle interno, texto livre
+  // escrito pelo master admin. NÃO é permissão — quem controla acesso é
+  // admin_campaign_assignments/can_manage_campaign. Null = sem designado.
+  assignedAdminName?: string | null;
 }
 
 /** Quanta coisa uma campanha leva junto se for arquivada (RPC get_campaign_archive_impact). */

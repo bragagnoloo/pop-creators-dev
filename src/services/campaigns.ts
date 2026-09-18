@@ -35,6 +35,7 @@ type CampaignRow = {
   stage_history: StageHistoryEntry[];
   stage_updated_at: string;
   deleted_at: string | null;
+  assigned_admin_name: string | null;
 };
 
 type AppRow = {
@@ -76,6 +77,7 @@ function toCampaign(r: CampaignRow): Campaign {
     stageHistory: r.stage_history ?? [],
     stageUpdatedAt: r.stage_updated_at,
     deletedAt: r.deleted_at ?? null,
+    assignedAdminName: r.assigned_admin_name ?? null,
   };
 }
 
@@ -97,7 +99,7 @@ function toApp(r: AppRow): CampaignApplication {
 // listada aqui não existir no banco, o PostgREST retorna 42703, `data` vem null
 // e as listas ficam vazias SEM mensagem de erro. Só acrescentar coluna aqui
 // depois que a migration correspondente estiver aplicada.
-const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, is_review, is_radar, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at, deleted_at';
+const C_SELECT = 'id, title, description, status, deadline, image_url, briefing, cache, delivery_count, created_at, has_cache, has_permuta, permuta_description, has_commission, commission_percentage, commission_description, is_invite, is_review, is_radar, current_stage, whatsapp_group_link, briefing_file_url, stage_history, stage_updated_at, deleted_at, assigned_admin_name';
 const A_SELECT = 'id, campaign_id, user_id, status, applied_at, joined_whatsapp_group, joined_at, disqualified_at, disqualification_reason';
 
 // Limite pragmático para evitar full-table scans acidentais em admin views.
@@ -180,6 +182,9 @@ export async function createCampaign(data: Omit<Campaign, 'id' | 'createdAt'>): 
       is_invite: data.isInvite ?? false,
       is_review: data.isReview ?? false,
       is_radar: data.isRadar ?? false,
+      // Etiqueta interna, opcional. O INSERT já é master-only pela policy, então
+      // não precisa de guarda extra aqui.
+      assigned_admin_name: data.assignedAdminName?.trim() || null,
     })
     .select(C_SELECT)
     .single();
@@ -203,6 +208,11 @@ export async function updateCampaign(id: string, data: Partial<Campaign>): Promi
   if (data.commissionPercentage !== undefined) patch.commission_percentage = data.commissionPercentage;
   if (data.commissionDescription !== undefined) patch.commission_description = data.commissionDescription;
   if (data.whatsappGroupLink !== undefined) patch.whatsapp_group_link = data.whatsappGroupLink;
+  // Só o master admin consegue gravar — o trigger da migration 0041 recusa os
+  // demais, mesmo que a chamada venha direto do PostgREST.
+  if (data.assignedAdminName !== undefined) {
+    patch.assigned_admin_name = data.assignedAdminName?.trim() || null;
+  }
   if (data.briefingFileUrl !== undefined) patch.briefing_file_url = data.briefingFileUrl;
   // cache numérico: se hasCache for explicitamente false, zera; senão usa valor passado.
   if (data.cache !== undefined) {
@@ -259,6 +269,31 @@ export async function restoreCampaign(
   if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
   if (!result.success) return { success: false, error: result.error || 'Falha ao restaurar a campanha.' };
   return { success: true, title: result.title ?? null };
+}
+
+/**
+ * Designa (ou troca, ou remove) o admin responsável pela campanha.
+ *
+ * Etiqueta de controle interno: texto livre, não concede nem retira permissão
+ * nenhuma. Nome vazio remove a designação. Só o master admin consegue — a RPC
+ * devolve o erro em vez de estourar, para a tela poder exibir a mensagem.
+ */
+export async function setCampaignAssignedAdmin(
+  id: string,
+  name: string
+): Promise<{ success: true; assignedAdminName: string | null } | { success: false; error: string }> {
+  const supabase = createClient();
+  const { data, error } = await supabase.rpc('set_campaign_assigned_admin', {
+    p_campaign_id: id,
+    p_name: name,
+  });
+  if (error) {
+    return { success: false, error: error.message || 'Falha ao designar o admin.' };
+  }
+  const result = data as { success: boolean; error?: string; assignedAdminName?: string | null } | null;
+  if (!result) return { success: false, error: 'Resposta inesperada do servidor.' };
+  if (!result.success) return { success: false, error: result.error || 'Falha ao designar o admin.' };
+  return { success: true, assignedAdminName: result.assignedAdminName ?? null };
 }
 
 /** O que a campanha leva junto se for arquivada — alimenta o modal de confirmação. */

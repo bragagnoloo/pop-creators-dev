@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Card from '@/components/ui/Card';
 import BarChart from '@/components/ui/BarChart';
+import HorizontalBarChart, { type HorizontalBarRow } from '@/components/ui/HorizontalBarChart';
 import PieChart from '@/components/ui/PieChart';
 import * as authService from '@/services/auth';
 import * as campaignService from '@/services/campaigns';
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
     usersByDay: [] as { label: string; value: number }[],
     applicationsByDay: [] as { label: string; value: number }[],
     approvalCounts: { approved: 0, pending: 0, rejected: 0 },
+    byAssignedAdmin: [] as HorizontalBarRow[],
   });
 
   useEffect(() => {
@@ -56,6 +58,7 @@ export default function AdminDashboard() {
         pending: stats?.pending ?? 0,
         rejected: stats?.rejected ?? 0,
       },
+      byAssignedAdmin: analyticsService.campaignsByAssignedAdmin(campaigns),
     });
     })();
   }, []);
@@ -125,14 +128,12 @@ export default function AdminDashboard() {
 
         <Card>
           <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-4">
-            Assinantes vs Gratuitos
+            Campanhas por admin designado
           </h2>
-          <div className="flex flex-col items-center justify-center py-4">
-            <div className="w-32 h-32 rounded-full border-8 border-border border-dashed" />
-            <p className="text-xs text-text-secondary mt-3 text-center max-w-xs">
-              Disponível após a implementação da feature de Planos. Vamos plugar aqui assim que tivermos o modelo de assinaturas.
-            </p>
-          </div>
+          <HorizontalBarChart
+            data={data.byAssignedAdmin}
+            emptyMessage="Nenhuma campanha tem admin designado ainda. Designe pelo painel da campanha."
+          />
         </Card>
 
         <Card className="lg:col-span-2">

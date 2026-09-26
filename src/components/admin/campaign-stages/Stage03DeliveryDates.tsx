@@ -54,7 +54,8 @@ export default function Stage03DeliveryDates({ rows, onSetDate }: Props) {
       <h3 className="text-base font-semibold mb-1">Etapa 03 — Datas de entrega</h3>
       <p className="text-xs text-text-secondary mb-4">
         Atribua a data de entrega de cada vídeo. Use o campo abaixo para aplicar a mesma data
-        a todos os deliveries que ainda não foram preenchidos.
+        a todos os deliveries que ainda não foram preenchidos. Remover uma data devolve a
+        entrega para a lista de pendentes e o criador volta a ver &quot;aguarde pelas datas&quot;.
       </p>
 
       <div className="mb-4 p-3 rounded-xl bg-background border border-border flex flex-col sm:flex-row sm:items-center gap-3">
@@ -121,8 +122,10 @@ function DeliveryDateRow({
   const [draft, setDraft] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   const dirty = draft !== initial;
+  const busy = saving || removing;
 
   const handleSave = async () => {
     if (!draft) return;
@@ -131,6 +134,23 @@ function DeliveryDateRow({
     setSaving(false);
     setSavedFlash(true);
     setTimeout(() => setSavedFlash(false), 1500);
+  };
+
+  // Data vazia limpa o scheduled_date. No painel do criador a entrega volta a
+  // exibir "Aguarde pelas datas das suas entregas" — e o bloco de envio some
+  // junto, por isso confirmamos quando já existe conteúdo enviado.
+  const handleRemove = async () => {
+    if (
+      delivery.contentUrl &&
+      !confirm(
+        `A entrega ${delivery.index} já tem conteúdo enviado. Remover a data também tira o campo de envio da visão do criador. Remover mesmo assim?`
+      )
+    ) {
+      return;
+    }
+    setRemoving(true);
+    await onSave(delivery.id, '');
+    setRemoving(false);
   };
 
   return (
@@ -142,9 +162,14 @@ function DeliveryDateRow({
         onChange={e => setDraft(e.target.value)}
         className="bg-surface border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-popline-pink"
       />
-      <Button size="sm" variant="secondary" disabled={!dirty || saving} onClick={handleSave}>
+      <Button size="sm" variant="secondary" disabled={!dirty || !draft || busy} onClick={handleSave}>
         {saving ? '...' : savedFlash ? 'Salvo ✓' : 'Salvar'}
       </Button>
+      {initial && (
+        <Button size="sm" variant="ghost" disabled={busy} onClick={handleRemove}>
+          {removing ? 'Removendo...' : 'Remover'}
+        </Button>
+      )}
     </div>
   );
 }

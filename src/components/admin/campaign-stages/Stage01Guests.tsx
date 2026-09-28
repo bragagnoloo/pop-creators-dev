@@ -147,7 +147,7 @@ export default function Stage01Guests({
         {/* Link do grupo do WhatsApp */}
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1.5">
-            Link do grupo do WhatsApp
+            Link do grupo do WhatsApp <span className="font-normal opacity-60">(opcional)</span>
           </label>
           <div className="flex gap-2 flex-col sm:flex-row">
             <input

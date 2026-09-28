@@ -88,13 +88,15 @@ export default function Stage01Selection({
     <Card>
       <h3 className="text-base font-semibold mb-1">Etapa 01 — Seleção</h3>
       <p className="text-xs text-text-secondary mb-4">
-        Cole o link do grupo do WhatsApp e marque cada aprovado conforme confirmar presença.
+        Aprove os candidatos da campanha. O link do grupo e a marcação de presença no
+        WhatsApp são opcionais, servem só para acompanhamento — nenhum dos dois trava a
+        conclusão da etapa. Se preencher o link, ele vira um botão no painel do criador.
       </p>
 
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1.5">
-            Link do grupo do WhatsApp
+            Link do grupo do WhatsApp <span className="font-normal opacity-60">(opcional)</span>
           </label>
           <div className="flex gap-2 flex-col sm:flex-row">
             <input

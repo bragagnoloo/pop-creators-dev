@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Withdrawal, UserProfile } from '@/types';
 import { useLoadOnMount } from '@/hooks/useLoadOnMount';
 import * as walletService from '@/services/wallet';
@@ -32,10 +32,18 @@ export default function AdminSaquesPage() {
   const [creditCampaigns, setCreditCampaigns] =
     useState<Map<string, walletService.CreditCampaign> | null>(null);
   const [filter, setFilter] = useState<Filter>('requested');
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [flagFor, setFlagFor] = useState<Withdrawal | null>(null);
   const [flagReason, setFlagReason] = useState('');
   const [flagLoading, setFlagLoading] = useState(false);
   const [flagError, setFlagError] = useState<string | null>(null);
+
+  // Debounce do search para evitar refiltrar a cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = async () => {
     const all = await walletService.getAllWithdrawals();
@@ -94,45 +102,83 @@ export default function AdminSaquesPage() {
     load();
   };
 
-  const visible = withdrawals.filter(w => (filter === 'all' ? true : w.status === filter));
+  // Busca por nome ou email. Reaproveita normalizeName para ignorar acento e
+  // caixa — "romao" acha "Daniela Romão". Cai no profileNameSnapshot quando o
+  // perfil ainda não chegou ou foi apagado, que é o mesmo nome que o card usa.
+  const searched = useMemo(() => {
+    const query = normalizeName(debouncedSearch);
+    if (!query) return withdrawals;
+    return withdrawals.filter(w => {
+      const profile = profiles[w.userId];
+      const name = profile?.fullName ?? w.profileNameSnapshot ?? '';
+      return normalizeName(`${name} ${profile?.email ?? ''}`).includes(query);
+    });
+  }, [withdrawals, profiles, debouncedSearch]);
 
+  const visible = searched.filter(w => (filter === 'all' ? true : w.status === filter));
+
+  // Contagens seguem a busca: se ficassem no total, a aba mostraria "Pagos 124"
+  // e abriria vazia por causa do filtro de nome.
   const counts = {
-    requested: withdrawals.filter(w => w.status === 'requested').length,
-    paid:      withdrawals.filter(w => w.status === 'paid').length,
-    flagged:   withdrawals.filter(w => w.status === 'flagged').length,
-    all:       withdrawals.length,
+    requested: searched.filter(w => w.status === 'requested').length,
+    paid:      searched.filter(w => w.status === 'paid').length,
+    flagged:   searched.filter(w => w.status === 'flagged').length,
+    all:       searched.length,
   };
+
+  const searching = normalizeName(debouncedSearch).length > 0;
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Saques</h1>
 
-      <div className="inline-flex p-1 bg-white/5 border border-border rounded-xl mb-6 flex-wrap gap-1">
-        {(['requested', 'paid', 'flagged', 'all'] as Filter[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-              filter === f ? 'bg-popline-pink text-white' : 'text-text-secondary hover:text-white'
-            }`}
-          >
-            {f === 'requested' ? 'Pendentes' : f === 'paid' ? 'Pagos' : f === 'flagged' ? 'Notificados' : 'Todos'}
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${filter === f ? 'bg-white/20' : 'bg-white/5'}`}>
-              {counts[f]}
-            </span>
-          </button>
-        ))}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-6">
+        <div className="inline-flex p-1 bg-white/5 border border-border rounded-xl flex-wrap gap-1 self-start">
+          {(['requested', 'paid', 'flagged', 'all'] as Filter[]).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                filter === f ? 'bg-popline-pink text-white' : 'text-text-secondary hover:text-white'
+              }`}
+            >
+              {f === 'requested' ? 'Pendentes' : f === 'paid' ? 'Pagos' : f === 'flagged' ? 'Notificados' : 'Todos'}
+              <span className={`text-xs px-1.5 py-0.5 rounded-full ${filter === f ? 'bg-white/20' : 'bg-white/5'}`}>
+                {counts[f]}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2 sm:flex-1 sm:max-w-[340px]">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar nome ou email..."
+            aria-label="Buscar saque por nome ou email do creator"
+            className="flex-1 min-w-0 bg-background border border-border rounded-xl px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-popline-pink transition-colors min-h-11"
+          />
+          {search && (
+            <Button size="sm" variant="ghost" onClick={() => setSearch('')}>
+              Limpar
+            </Button>
+          )}
+        </div>
       </div>
 
       {visible.length === 0 ? (
         <Card>
-          <p className="text-center text-text-secondary">Nenhum saque nesta aba.</p>
+          <p className="text-center text-text-secondary">
+            {searching ? 'Nenhum saque para essa busca nesta aba.' : 'Nenhum saque nesta aba.'}
+          </p>
         </Card>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-text-secondary pb-1">
             Exibindo <span className="text-text-primary font-medium">{visible.length}</span> de{' '}
-            {counts.all} saque{counts.all === 1 ? '' : 's'} ·{' '}
+            {counts.all} saque{counts.all === 1 ? '' : 's'}
+            {searching && ` (filtrados de ${withdrawals.length})`} ·{' '}
             <span className="text-text-primary font-medium">
               {walletService.formatBRL(visible.reduce((acc, w) => acc + w.amount, 0))}
             </span>{' '}

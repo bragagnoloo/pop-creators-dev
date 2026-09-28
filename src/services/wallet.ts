@@ -250,6 +250,100 @@ export async function markWithdrawalPaid(withdrawalId: string): Promise<Withdraw
   return data ? toWithdrawal(data as WithdrawalRow) : null;
 }
 
+// ---------- Origem do saque (campanhas) ----------
+
+export interface CreditCampaign {
+  campaignId: string;
+  campaignTitle: string;
+}
+
+export interface WithdrawalCampaignItem extends CreditCampaign {
+  amount: number;
+}
+
+export interface WithdrawalBreakdown {
+  items: WithdrawalCampaignItem[];
+  /** Valor cujo crédito não pôde ser resolvido (RLS ou campanha apagada). */
+  unresolved: number;
+}
+
+/**
+ * Mapeia creditId -> campanha para todos os créditos dos usuários informados.
+ * Duas queries fixas independentemente do tamanho da lista — um fetch por saque
+ * viraria N+1, o mesmo motivo que levou a página de saques a usar
+ * getProfilesByIds em vez de um getProfile por creator.
+ *
+ * O filtro é por user_id (dezenas) e não por creditId (centenas) para manter a
+ * URL do PostgREST curta, seguindo o formato do getProfilesByIds.
+ *
+ * Um campaign_admin só enxerga créditos das campanhas que administra (policy
+ * "credits: user reads own" usa can_manage_campaign), então o mapa pode voltar
+ * incompleto de propósito — buildWithdrawalBreakdown trata o que faltar como
+ * valor não atribuído, em vez de sumir com ele.
+ */
+export async function getCreditCampaignsByUsers(
+  userIds: string[]
+): Promise<Map<string, CreditCampaign>> {
+  const map = new Map<string, CreditCampaign>();
+  const ids = [...new Set(userIds)].filter(Boolean);
+  if (ids.length === 0) return map;
+
+  const supabase = createClient();
+  const { data: credits } = await supabase
+    .from('balance_credits')
+    .select('id, campaign_id')
+    .in('user_id', ids);
+  const creditRows = (credits ?? []) as { id: string; campaign_id: string }[];
+  if (creditRows.length === 0) return map;
+
+  const campaignIds = [...new Set(creditRows.map(c => c.campaign_id))];
+  const { data: campaigns } = await supabase
+    .from('campaigns')
+    .select('id, title')
+    .in('id', campaignIds);
+
+  const titles = new Map<string, string>();
+  for (const c of (campaigns ?? []) as { id: string; title: string }[]) {
+    titles.set(c.id, c.title);
+  }
+
+  for (const c of creditRows) {
+    const title = titles.get(c.campaign_id);
+    if (!title) continue;
+    map.set(c.id, { campaignId: c.campaign_id, campaignTitle: title });
+  }
+  return map;
+}
+
+/**
+ * Quebra o valor de um saque por campanha de origem. Agrupa por campanha porque
+ * nada impede um creator de ter mais de um crédito da mesma campanha.
+ */
+export function buildWithdrawalBreakdown(
+  withdrawal: Withdrawal,
+  creditCampaigns: Map<string, CreditCampaign>
+): WithdrawalBreakdown {
+  const byCampaign = new Map<string, WithdrawalCampaignItem>();
+  let unresolved = 0;
+
+  for (const consumed of withdrawal.consumedCredits) {
+    const amount = Number(consumed.amount) || 0;
+    const info = creditCampaigns.get(consumed.creditId);
+    if (!info) {
+      unresolved += amount;
+      continue;
+    }
+    const current = byCampaign.get(info.campaignId);
+    if (current) current.amount += amount;
+    else byCampaign.set(info.campaignId, { ...info, amount });
+  }
+
+  return {
+    items: [...byCampaign.values()].sort((a, b) => b.amount - a.amount),
+    unresolved,
+  };
+}
+
 // ---------- Formatting ----------
 
 export function formatBRL(value: number): string {

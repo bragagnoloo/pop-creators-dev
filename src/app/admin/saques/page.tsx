@@ -27,6 +27,10 @@ function normalizeName(name: string): string {
 export default function AdminSaquesPage() {
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [profiles, setProfiles] = useState<Record<string, UserProfile | null>>({});
+  // null = ainda carregando. Sem essa distinção, o primeiro render mostraria
+  // todo saque como "outras campanhas" antes das campanhas chegarem.
+  const [creditCampaigns, setCreditCampaigns] =
+    useState<Map<string, walletService.CreditCampaign> | null>(null);
   const [filter, setFilter] = useState<Filter>('requested');
   const [flagFor, setFlagFor] = useState<Withdrawal | null>(null);
   const [flagReason, setFlagReason] = useState('');
@@ -42,10 +46,14 @@ export default function AdminSaquesPage() {
     // idas e voltas, e durante todas elas os cards ficavam sem nome, sem email
     // e sem foto — o que faz a lista parecer incompleta enquanto carrega.
     const ids = [...new Set(all.map(w => w.userId))];
-    const byId = await userService.getProfilesByIds(ids);
+    const [byId, credits] = await Promise.all([
+      userService.getProfilesByIds(ids),
+      walletService.getCreditCampaignsByUsers(ids),
+    ]);
     const map: Record<string, UserProfile | null> = {};
     for (const id of ids) map[id] = byId.get(id) ?? null;
     setProfiles(map);
+    setCreditCampaigns(credits);
   };
 
   useLoadOnMount(load);
@@ -171,6 +179,42 @@ export default function AdminSaquesPage() {
                           </p>
                         )}
                       </div>
+                      {creditCampaigns && (() => {
+                        const { items, unresolved } = walletService.buildWithdrawalBreakdown(
+                          w,
+                          creditCampaigns
+                        );
+                        if (items.length === 0 && unresolved === 0) return null;
+                        return (
+                          <div className="mt-2">
+                            <p className="text-[10px] uppercase tracking-wide text-text-secondary font-medium mb-1">
+                              Campanhas neste saque
+                            </p>
+                            <ul className="text-xs space-y-0.5">
+                              {items.map(item => (
+                                <li key={item.campaignId} className="flex items-baseline gap-2">
+                                  <span className="text-text-primary truncate">
+                                    {item.campaignTitle}
+                                  </span>
+                                  <span className="text-text-secondary shrink-0">
+                                    {walletService.formatBRL(item.amount)}
+                                  </span>
+                                </li>
+                              ))}
+                              {unresolved > 0 && (
+                                <li className="flex items-baseline gap-2 text-text-secondary">
+                                  <span className="truncate italic">
+                                    Campanha não identificada
+                                  </span>
+                                  <span className="shrink-0">
+                                    {walletService.formatBRL(unresolved)}
+                                  </span>
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        );
+                      })()}
                       {w.status === 'flagged' && w.flagReason && (
                         <p className="text-xs text-amber-300 mt-2">
                           Motivo: {w.flagReason}

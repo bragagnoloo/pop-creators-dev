@@ -72,10 +72,19 @@ export default function CarteiraPage() {
   if (!profile) return null;
 
   const hasPix = !!profile.pixKey && !!profile.pixKeyType && !!profile.pixHolderName;
+  // Chave aleatória saiu de circulação: quem ainda tem uma precisa trocar antes
+  // do próximo saque. Não basta sumir do form — sem isso, os cadastros antigos
+  // continuariam sacando por um tipo que não aceitamos mais.
+  const pixTypeRetired = hasPix && !walletService.isSelectablePixKeyType(profile.pixKeyType);
+  const canWithdraw = hasPix && !pixTypeRetired;
 
   const openPixForm = () => {
-    setPixKey(profile.pixKey || '');
-    setPixKeyType(profile.pixKeyType || 'cpf');
+    // Com o tipo aposentado, a chave guardada também não serve — zera os dois
+    // para o criador informar um par válido em vez de reenviar o antigo.
+    setPixKey(pixTypeRetired ? '' : profile.pixKey || '');
+    setPixKeyType(
+      walletService.isSelectablePixKeyType(profile.pixKeyType) ? profile.pixKeyType! : 'cpf'
+    );
     setPixHolderName(profile.pixHolderName || profile.fullName || '');
     setPixConfirm(false);
     setShowPixForm(true);
@@ -159,12 +168,12 @@ export default function CarteiraPage() {
       <div className="flex flex-wrap gap-3">
         <Button
           onClick={openWithdraw}
-          disabled={!hasPix || summary.available <= 0}
+          disabled={!canWithdraw || summary.available <= 0}
         >
           Solicitar saque
         </Button>
-        <Button variant="secondary" onClick={openPixForm}>
-          {hasPix ? 'Editar chave PIX' : 'Cadastrar chave PIX'}
+        <Button variant={pixTypeRetired ? 'primary' : 'secondary'} onClick={openPixForm}>
+          {pixTypeRetired ? 'Atualizar chave PIX' : hasPix ? 'Editar chave PIX' : 'Cadastrar chave PIX'}
         </Button>
         <Button variant="ghost" onClick={() => setShowRules(true)}>
           Regras de saque
@@ -188,6 +197,13 @@ export default function CarteiraPage() {
             )}
           </div>
         </div>
+        {pixTypeRetired && (
+          <div className="mt-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+            Não aceitamos mais <strong>chave aleatória</strong> para pagamento. Para voltar a
+            solicitar saque, cadastre uma chave de <strong>CPF, CNPJ, e-mail ou telefone</strong> no
+            seu nome — é o que permite conferir que a conta é sua. Seu saldo continua guardado.
+          </div>
+        )}
       </Card>
 
       {/* History */}
@@ -304,11 +320,11 @@ export default function CarteiraPage() {
                   onChange={e => setPixKeyType(e.target.value as PixKeyType)}
                   className="w-full bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary focus:outline-none focus:border-popline-pink transition-colors"
                 >
-                  <option value="cpf">CPF</option>
-                  <option value="cnpj">CNPJ</option>
-                  <option value="email">E-mail</option>
-                  <option value="phone">Telefone</option>
-                  <option value="random">Chave aleatória</option>
+                  {walletService.SELECTABLE_PIX_KEY_TYPES.map(type => (
+                    <option key={type} value={type}>
+                      {walletService.pixKeyTypeLabels[type]}
+                    </option>
+                  ))}
                 </select>
               </div>
               <Input

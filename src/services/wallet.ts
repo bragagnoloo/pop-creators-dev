@@ -350,6 +350,19 @@ export function formatBRL(value: number): string {
   return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+/**
+ * Tipos que o criador pode cadastrar hoje, na ordem em que aparecem no form.
+ * 'random' ficou de fora: a chave aleatória não carrega o nome do titular, então
+ * a conferência titular-vs-cadastro da tela de saques não tem contra o que
+ * comparar. Continua existindo no enum do Postgres porque saques antigos a
+ * usaram e precisam seguir válidos no histórico.
+ */
+export const SELECTABLE_PIX_KEY_TYPES: PixKeyType[] = ['cpf', 'cnpj', 'email', 'phone'];
+
+export function isSelectablePixKeyType(type: PixKeyType | null | undefined): boolean {
+  return type != null && SELECTABLE_PIX_KEY_TYPES.includes(type);
+}
+
 export const pixKeyTypeLabels: Record<PixKeyType, string> = {
   cpf: 'CPF',
   cnpj: 'CNPJ',

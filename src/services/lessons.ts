@@ -137,24 +137,30 @@ export async function getLessonRatingSummary(
 
 // ---------- Comments ----------
 
+type CommentWithAuthorRow = {
+  id: string;
+  lesson_id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  author_name: string;
+  author_photo: string | null;
+};
+
+// Via RPC: a RLS de profiles só libera o próprio perfil, então o nome/foto dos
+// outros autores vem de uma função que expõe só esses dois campos.
 export async function getLessonComments(lessonId: string): Promise<LessonComment[]> {
   const supabase = createClient();
-  const { data } = await supabase
-    .from('lesson_comments')
-    .select(
-      'id, lesson_id, user_id, content, created_at, author:profiles!user_id(full_name, photo_url, email)'
-    )
-    .eq('lesson_id', lessonId)
-    .order('created_at', { ascending: false });
+  const { data } = await supabase.rpc('get_lesson_comments', { p_lesson_id: lessonId });
   if (!data) return [];
-  return (data as unknown as CommentRow[]).map(r => ({
+  return (data as CommentWithAuthorRow[]).map(r => ({
     id: r.id,
     lessonId: r.lesson_id,
     userId: r.user_id,
     content: r.content,
     createdAt: r.created_at,
-    authorName: r.author?.full_name || r.author?.email || 'Usuário',
-    authorPhoto: r.author?.photo_url ?? null,
+    authorName: r.author_name,
+    authorPhoto: r.author_photo,
   }));
 }
 

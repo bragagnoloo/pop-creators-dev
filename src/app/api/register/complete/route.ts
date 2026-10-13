@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { sendCAPIEvents, sha256, digitsOnly } from '@/lib/meta-capi';
 
 const WEBHOOK_URL = 'https://webhook.mktarmy.com.br/webhook/cadastro-popline-creators';
+const FRESH_SIGNUP_WINDOW_MS = 30 * 60 * 1000;
 
 export async function POST(req: NextRequest) {
   const { userId, email, whatsapp, fullName, fbp, fbc, userAgent } = await req.json() as {
@@ -15,30 +16,45 @@ export async function POST(req: NextRequest) {
     userAgent?: string;
   };
 
-  if (!email) {
+  if (!email || !userId) {
     return NextResponse.json({ error: 'Email é obrigatório.' }, { status: 400 });
   }
 
-  // Salvar dados no perfil (telefone + tracking Meta) só se userId disponível
-  if (userId) {
-    try {
-      const supabase = createAdminClient();
-      const update: Record<string, string> = {};
-      if (whatsapp) update.whatsapp = whatsapp;
-      if (fullName) update.full_name = fullName.trim();
-      if (fbp) update.meta_fbp = fbp;
-      if (fbc) update.meta_fbc = fbc;
-      if (userAgent) update.meta_user_agent = userAgent;
-      if (Object.keys(update).length > 0) {
-        await supabase.from('profiles').update(update).eq('id', userId);
-      }
-    } catch {
-      // Falha no profile não bloqueia o webhook
+  // A rota é pública (no fluxo com confirmação de email ainda não há sessão) e
+  // escreve com service role — então só aceita o par userId+email de um perfil
+  // recém-criado. Sem isso, qualquer um sobrescrevia nome/WhatsApp de qualquer
+  // usuário a partir do UUID (incidente de 2026-10-13).
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('email, created_at')
+    .eq('id', userId)
+    .maybeSingle();
+  const isFreshSignup =
+    !!profile &&
+    profile.email?.toLowerCase() === email.trim().toLowerCase() &&
+    Date.now() - new Date(profile.created_at).getTime() < FRESH_SIGNUP_WINDOW_MS;
+  if (!isFreshSignup) {
+    return NextResponse.json({ ok: true });
+  }
+
+  // Salvar dados no perfil (telefone + tracking Meta)
+  try {
+    const update: Record<string, string> = {};
+    if (whatsapp) update.whatsapp = whatsapp;
+    if (fullName) update.full_name = fullName.trim();
+    if (fbp) update.meta_fbp = fbp;
+    if (fbc) update.meta_fbc = fbc;
+    if (userAgent) update.meta_user_agent = userAgent;
+    if (Object.keys(update).length > 0) {
+      await admin.from('profiles').update(update).eq('id', userId);
     }
+  } catch {
+    // Falha no profile não bloqueia o webhook
   }
 
   // CAPI CompleteRegistration server-side — fire-and-forget
-  if (userId) {
+  {
     const names = (fullName ?? '').trim().split(' ').filter(Boolean);
     const phoneDigits = whatsapp ? digitsOnly(whatsapp) : '';
     const ip = (req.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() || undefined;

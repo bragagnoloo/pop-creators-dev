@@ -130,7 +130,50 @@ function rpcDenied(r: Res): boolean {
 
 type Test = { id: string; description: string; run: (ctx: Ctx) => Promise<{ passed: boolean; detail: string }> };
 
+// Funções que contas logadas podem executar (migration 0049). Função nova que
+// o app precise chamar com o JWT do usuário: conceder EXECUTE na migration E
+// adicionar aqui — senão o teste diário alerta. Visitante (anon) não executa nada.
+const AUTHENTICATED_FUNCTIONS = [
+  'add_campaign_guest', 'apply_with_term', 'can_manage_campaign', 'clear_delivery_content_url',
+  'complete_stage', 'create_notice', 'disqualify_participant', 'flag_withdrawal',
+  'get_admin_application_stats', 'get_admin_user_ranks', 'get_ai_usage_current_month',
+  'get_alltime_ranking', 'get_campaign_archive_impact', 'get_creator_publication_schedule',
+  'get_lesson_comments', 'get_monthly_ranking', 'get_user_ranking_stats', 'init_campaign_schedule',
+  'is_admin', 'is_any_admin', 'is_campaign_participant', 'is_master_admin', 'mark_joined_group',
+  'record_daily_login', 'remove_campaign_guest', 'request_delivery_revision',
+  'request_publication_revision', 'request_withdrawal', 'restore_campaign', 'revert_stage',
+  'set_campaign_assigned_admin', 'set_deliverable_status', 'set_publication_schedule',
+  'set_publication_status', 'set_stage_deadline', 'soft_delete_campaign', 'stage_readiness',
+];
+
 const TESTS: Test[] = [
+  // ---- Quem pode executar funções do banco ----
+  {
+    id: 'grants.anon_functions',
+    description: 'Visitante sem login não executa nenhuma função do banco',
+    run: async ({ admin }) => {
+      const { data, error } = await admin.rpc('audit_function_grants');
+      if (error) return { passed: false, detail: `erro: ${error.message}` };
+      const open = (data as { signature: string; anon: boolean }[]).filter(f => f.anon).map(f => f.signature);
+      return { passed: open.length === 0, detail: open.length ? `abertas: ${open.join(', ')}` : 'nenhuma' };
+    },
+  },
+  {
+    id: 'grants.authenticated_functions',
+    description: 'Contas logadas só executam as funções da lista permitida',
+    run: async ({ admin }) => {
+      const { data, error } = await admin.rpc('audit_function_grants');
+      if (error) return { passed: false, detail: `erro: ${error.message}` };
+      const extra = (data as { name: string; signature: string; authenticated: boolean }[])
+        .filter(f => f.authenticated && !AUTHENTICATED_FUNCTIONS.includes(f.name))
+        .map(f => f.signature);
+      return {
+        passed: extra.length === 0,
+        detail: extra.length ? `fora da lista: ${extra.join(', ')}` : `${AUTHENTICATED_FUNCTIONS.length} permitidas`,
+      };
+    },
+  },
+
   // ---- Controles positivos: se falharem, a suíte não está medindo nada ----
   {
     id: 'control.creator_reads_own_profile',

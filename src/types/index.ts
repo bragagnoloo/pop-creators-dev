@@ -481,8 +481,22 @@ export interface B2BFinanceRow {
   financeStatus: B2BFinanceStatus;
   notes: string | null;
   financeUpdatedAt: string | null;
+  /** Pacote de contratação ao qual a campanha pertence (migration 0050). */
+  packageId: string | null;
+  paymentRoute: B2BPaymentRoute;
+  nfIssuedAt: string | null;                // 'YYYY-MM-DD'
+  repasseDueDate: string | null;            // 'YYYY-MM-DD'
+  repasseDoneAt: string | null;             // 'YYYY-MM-DD'
+  /** POPline já transferiu ao PC (coluna "Status" da planilha). */
+  repasseTransferred: boolean;
+  /** "pgto. realizado" da planilha: quando a marca pagou. */
+  companyLastPaymentAt: string | null;      // 'YYYY-MM-DD'
+  /** Campanha original que esta complementa (migration 0051). */
+  complementsCampaignId: string | null;
 
   // --- derivados do banco ---
+  /** Valor pago já sem o imposto: o "V. repasse PC (V. líquido)" da planilha. */
+  repasseNetValue: number;
   hasCache: boolean;
   cache: number;
   openedOn: string;                         // created_at no fuso de Brasília
@@ -526,6 +540,48 @@ export interface B2BFinancePatch {
   closedAtOverride?: string | null;
   financeStatus?: B2BFinanceStatus;
   notes?: string | null;
+  packageId?: string | null;
+  paymentRoute?: B2BPaymentRoute;
+  nfIssuedAt?: string | null;
+  repasseDueDate?: string | null;
+  repasseDoneAt?: string | null;
+  repasseTransferred?: boolean;
+  companyLastPaymentAt?: string | null;
+  complementsCampaignId?: string | null;
+}
+
+/**
+ * Por onde o dinheiro da marca entra.
+ * - popline: cai na conta do POPline, que retém o imposto e repassa ao PC.
+ * - direto:  cai direto na conta do POPline Creators, sem imposto.
+ * - interna: campanha do próprio POPline (cupom PL, Portal POPline): o POPline
+ *            paga o PC, sem imposto.
+ */
+export type B2BPaymentRoute = 'popline' | 'direto' | 'interna';
+
+/**
+ * Onde o dinheiro está agora — as cores da planilha do financeiro.
+ * - aguardando_contratante: a marca ainda não pagou (linha branca, sem repasse).
+ * - na_popline:            pago ao POPline, falta repassar (branca com repasse).
+ * - recebido_pc:           repassado ao POPline Creators (vermelho claro).
+ * - direto_pc:             caiu direto na conta do PC (verde, "Caiu Nubank").
+ */
+export type B2BMoneyFlow = 'aguardando_contratante' | 'na_popline' | 'recebido_pc' | 'direto_pc';
+
+/** Pacote de contratação (tabela b2b_packages). */
+export interface B2BPackage {
+  id: string;
+  name: string;
+  contractingCompany: string | null;
+  totalValue: number | null;
+  notes: string | null;
+}
+
+export interface B2BPackagePatch {
+  name?: string;
+  contractingCompany?: string | null;
+  totalValue?: number | null;
+  notes?: string | null;
 }
 
 /** Reconciliação nível plataforma (view b2b_finance_platform). */
@@ -554,6 +610,11 @@ export interface B2BFinanceTotals {
   paymentParcial: number;
   paymentPendente: number;
   paymentOverdue: number;
+
+  /** Pago pela marca ao POPline e ainda não repassado ao PC (líquido). */
+  poplineHoldingTotal: number;
+  /** Já na conta do POPline Creators: repassado pelo POPline ou pago direto. */
+  pcReceivedTotal: number;
 
   /** Campanhas com cachê já gerado e empresa ainda devendo: exposição de caixa. */
   exposedRevenueTotal: number;

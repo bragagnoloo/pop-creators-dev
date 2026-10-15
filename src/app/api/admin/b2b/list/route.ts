@@ -14,17 +14,27 @@ export async function GET() {
 
   const supabase = createAdminClient();
 
-  const [overview, platform] = await Promise.all([
+  const [overview, platform, packages] = await Promise.all([
     supabase
       .from('b2b_finance_overview')
       .select('*')
       .order('opened_on', { ascending: false })
       .range(0, MAX_ROWS - 1),
     supabase.from('b2b_finance_platform').select('*').maybeSingle(),
+    supabase
+      .from('b2b_packages')
+      .select('id, name, contracting_company, total_value, notes')
+      .order('name', { ascending: true })
+      .range(0, MAX_ROWS - 1),
   ]);
 
-  if (overview.error) {
-    console.error('[admin/b2b/list] db error', overview.error.message);
+  // Falhar em vez de devolver lista vazia: sem os pacotes, campanhas apareceriam
+  // como avulsas e a conferência de soma sumiria sem aviso.
+  if (overview.error || packages.error) {
+    console.error(
+      '[admin/b2b/list] db error',
+      overview.error?.message ?? packages.error?.message
+    );
     return NextResponse.json(
       { error: 'Erro ao carregar os dados financeiros.' },
       { status: 500 }
@@ -37,5 +47,6 @@ export async function GET() {
   return NextResponse.json({
     data: overview.data ?? [],
     meta: platform.data ?? null,
+    packages: packages.data ?? [],
   });
 }

@@ -132,6 +132,18 @@ export default function B2BBigNumbers({
             valueClass={totals.companyOutstandingTotal > 0 ? 'text-amber-400' : undefined}
           />
           <Line
+            label="No POPline, a repassar"
+            value={formatBRL(totals.poplineHoldingTotal)}
+            valueClass={totals.poplineHoldingTotal > 0 ? 'text-amber-400' : 'text-text-secondary'}
+            title="Pago pela marca ao POPline, ainda não transferido ao POPline Creators (líquido de imposto)."
+          />
+          <Line
+            label="Na conta do PC"
+            value={formatBRL(totals.pcReceivedTotal)}
+            valueClass="text-emerald-400"
+            title="Repassado pelo POPline ou pago direto na conta do POPline Creators (líquido de imposto)."
+          />
+          <Line
             label="Pagamentos"
             value={`${totals.paymentPago} pagos · ${totals.paymentParcial} parciais · ${totals.paymentPendente} pendentes`}
             valueClass="text-text-secondary"

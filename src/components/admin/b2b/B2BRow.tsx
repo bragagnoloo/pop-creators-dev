@@ -11,7 +11,12 @@ import {
   daysOpenWithoutClosing,
   CAMPAIGN_STALE_DAYS,
 } from '@/lib/b2b-risk';
-import { isRevenueExposed } from '@/services/b2b-finance';
+import {
+  isRevenueExposed,
+  moneyFlow,
+  MONEY_FLOW_LABEL,
+  MONEY_FLOW_CLASS,
+} from '@/services/b2b-finance';
 import { formatBRL } from '@/services/wallet';
 import { formatBRDate } from '@/lib/date-br';
 import type { B2BFinanceRow, B2BPaymentStatus } from '@/types';
@@ -26,6 +31,10 @@ import type { B2BFinanceRow, B2BPaymentStatus } from '@/types';
 
 interface Props {
   row: B2BFinanceRow;
+  packageName: string | null;
+  /** Título da campanha original, se esta for complemento. */
+  complementOf: string | null;
+  complementCount: number;
   columns: RenderColumn[];
   selected: boolean;
   onOpen: (campaignId: string) => void;
@@ -81,7 +90,15 @@ function Cell({
   );
 }
 
-export default function B2BRow({ row, columns, selected, onOpen }: Props) {
+export default function B2BRow({
+  row,
+  packageName,
+  complementOf,
+  complementCount,
+  columns,
+  selected,
+  onOpen,
+}: Props) {
   const risk = useMemo(() => assessRisk(row), [row]);
 
   const finalizada = row.financeStatus === 'finalizada';
@@ -139,6 +156,21 @@ export default function B2BRow({ row, columns, selected, onOpen }: Props) {
               </span>
               <CampaignCategoryBadge category={row.campaignType} />
             </div>
+            {packageName && (
+              <span className="block mt-0.5 text-[10px] text-text-secondary truncate" title={packageName}>
+                📦 {packageName}
+              </span>
+            )}
+            {complementOf && (
+              <span className="block mt-0.5 text-[10px] text-sky-400 truncate" title={complementOf}>
+                ↳ complemento de {complementOf.trim()}
+              </span>
+            )}
+            {complementCount > 0 && (
+              <span className="block mt-0.5 text-[10px] text-sky-400">
+                + {complementCount} complemento{complementCount === 1 ? '' : 's'}
+              </span>
+            )}
             {exposta && (
               <span className="block mt-0.5 text-[10px] font-medium text-red-400">
                 ⚠ saldo gerado, empresa não pagou
@@ -219,6 +251,25 @@ export default function B2BRow({ row, columns, selected, onOpen }: Props) {
         ) : (
           <Cell value="—" valueClass={MUTED} />
         );
+
+      case 'dinheiro': {
+        const flow = moneyFlow(row);
+        return (
+          <Cell
+            value={MONEY_FLOW_LABEL[flow]}
+            valueClass={`${MONEY_FLOW_CLASS[flow]} text-xs whitespace-nowrap`}
+            sub={
+              flow === 'na_popline'
+                ? row.repasseDueDate
+                  ? `repassar até ${formatBRDate(row.repasseDueDate)}`
+                  : formatBRL(row.repasseNetValue)
+                : flow === 'recebido_pc' && row.repasseDoneAt
+                  ? formatBRDate(row.repasseDoneAt)
+                  : undefined
+            }
+          />
+        );
+      }
 
       case 'contratados':
         return row.contractedCreators === null ? (

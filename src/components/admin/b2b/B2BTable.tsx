@@ -65,6 +65,7 @@ export type ColumnKey =
   | 'statusPagamento'
   | 'valorPago'
   | 'aReceber'
+  | 'dinheiro'
   | 'contratados'
   | 'aptos'
   | 'cache'
@@ -104,6 +105,7 @@ const COLUMNS: Column[] = [
   { key: 'statusPagamento', label: 'Pagamento', modes: ['receita', 'tudo'] },
   { key: 'valorPago', label: 'Valor pago', sortKey: 'companyPaidValue', align: 'right', modes: ['receita', 'tudo'] },
   { key: 'aReceber', label: 'A receber', sortKey: 'companyOutstanding', align: 'right', modes: ['receita', 'tudo'] },
+  { key: 'dinheiro', label: 'Dinheiro', modes: ['receita', 'tudo'] },
 
   // --- Custo ---
   { key: 'contratados', label: 'Contratados', sortKey: 'contractedCreators', align: 'center', modes: ['custo', 'tudo'] },
@@ -126,14 +128,20 @@ const COLUMNS: Column[] = [
 
 /** Só o modo "tudo" precisa rolar na horizontal. */
 const MIN_WIDTH: Record<ViewMode, string> = {
-  receita: 'min-w-[1050px]',
+  receita: 'min-w-[1180px]',
   custo: 'min-w-[1100px]',
   resultado: 'min-w-[900px]',
-  tudo: 'min-w-[2400px]',
+  tudo: 'min-w-[2530px]',
 };
 
 interface Props {
   rows: B2BFinanceRow[];
+  /** id do pacote → nome, para identificar a campanha na tabela. */
+  packageNames: Record<string, string>;
+  /** id da campanha → título, para rotular complementos. */
+  titles: Record<string, string>;
+  /** id da campanha original → nº de complementos. */
+  complementCounts: Record<string, number>;
   mode: ViewMode;
   selectedId: string | null;
   sort: SortState;
@@ -141,7 +149,17 @@ interface Props {
   onOpen: (campaignId: string) => void;
 }
 
-export default function B2BTable({ rows, mode, selectedId, sort, onSort, onOpen }: Props) {
+export default function B2BTable({
+  rows,
+  packageNames,
+  titles,
+  complementCounts,
+  mode,
+  selectedId,
+  sort,
+  onSort,
+  onOpen,
+}: Props) {
   const columns = COLUMNS.filter(c => c.modes.includes(mode));
 
   return (
@@ -187,6 +205,11 @@ export default function B2BTable({ rows, mode, selectedId, sort, onSort, onOpen 
               <B2BRow
                 key={row.campaignId}
                 row={row}
+                packageName={row.packageId ? (packageNames[row.packageId] ?? null) : null}
+                complementOf={
+                  row.complementsCampaignId ? (titles[row.complementsCampaignId] ?? null) : null
+                }
+                complementCount={complementCounts[row.campaignId] ?? 0}
                 columns={columns}
                 selected={selectedId === row.campaignId}
                 onOpen={onOpen}

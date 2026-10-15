@@ -1,4 +1,8 @@
 import type {
+  B2BMoneyFlow,
+  B2BPackage,
+  B2BPackagePatch,
+  B2BPaymentRoute,
   B2BFinanceRow,
   B2BFinancePatch,
   B2BFinanceTotals,
@@ -25,6 +29,7 @@ export const B2B_LIST_KEY = '/api/admin/b2b/list';
 export interface B2BListResponse {
   data: B2BFinanceRowDTO[];
   meta: B2BPlatformMetaDTO;
+  packages: B2BPackageDTO[];
 }
 
 /** Linha crua da view (snake_case, numéricos como string). */
@@ -71,6 +76,24 @@ export interface B2BFinanceRowDTO {
   days_since_closed: number | null;
   days_to_company_estimate: number | null;
   days_to_agreed_due: number | null;
+  package_id: string | null;
+  payment_route: string;
+  nf_issued_at: string | null;
+  repasse_due_date: string | null;
+  repasse_done_at: string | null;
+  repasse_transferred: boolean;
+  company_last_payment_at: string | null;
+  complements_campaign_id: string | null;
+  repasse_net_value: string | number | null;
+}
+
+/** Linha crua de b2b_packages. */
+export interface B2BPackageDTO {
+  id: string;
+  name: string;
+  contracting_company: string | null;
+  total_value: string | number | null;
+  notes: string | null;
 }
 
 export interface B2BPlatformMetaDTO {
@@ -117,7 +140,19 @@ export function toB2BRow(dto: B2BFinanceRowDTO): B2BFinanceRow {
     financeStatus: dto.finance_status as B2BFinanceStatus,
     notes: dto.notes,
     financeUpdatedAt: dto.finance_updated_at,
+    packageId: dto.package_id,
+    paymentRoute:
+      dto.payment_route === 'direto' || dto.payment_route === 'interna'
+        ? dto.payment_route
+        : 'popline',
+    nfIssuedAt: dto.nf_issued_at,
+    repasseDueDate: dto.repasse_due_date,
+    repasseDoneAt: dto.repasse_done_at,
+    repasseTransferred: Boolean(dto.repasse_transferred),
+    companyLastPaymentAt: dto.company_last_payment_at,
+    complementsCampaignId: dto.complements_campaign_id,
 
+    repasseNetValue: num(dto.repasse_net_value),
     hasCache: dto.has_cache,
     cache: num(dto.cache),
     openedOn: dto.opened_on,
@@ -143,6 +178,16 @@ export function toB2BRow(dto: B2BFinanceRowDTO): B2BFinanceRow {
     daysSinceClosed: dto.days_since_closed,
     daysToCompanyEstimate: dto.days_to_company_estimate,
     daysToAgreedDue: dto.days_to_agreed_due,
+  };
+}
+
+export function toB2BPackage(dto: B2BPackageDTO): B2BPackage {
+  return {
+    id: dto.id,
+    name: dto.name,
+    contractingCompany: dto.contracting_company,
+    totalValue: numOrNull(dto.total_value),
+    notes: dto.notes,
   };
 }
 
@@ -193,6 +238,155 @@ export async function patchFinance(
   }
 }
 
+type PackageResult =
+  | { success: true; data: B2BPackageDTO }
+  | { success: false; error: string };
+
+async function packageRequest(
+  url: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body?: B2BPackagePatch
+): Promise<PackageResult> {
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const payload = await res.json().catch(() => null);
+    if (!res.ok || !payload?.data) {
+      return { success: false, error: payload?.error || 'Falha ao salvar o pacote.' };
+    }
+    return { success: true, data: payload.data as B2BPackageDTO };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Erro de rede.';
+    return { success: false, error: msg };
+  }
+}
+
+export const createPackage = (body: B2BPackagePatch) =>
+  packageRequest('/api/admin/b2b/packages', 'POST', body);
+
+export const updatePackage = (id: string, body: B2BPackagePatch) =>
+  packageRequest(`/api/admin/b2b/packages/${id}`, 'PATCH', body);
+
+/** Apaga só o pacote: as campanhas ficam avulsas, com os valores intactos. */
+export const deletePackage = (id: string) =>
+  packageRequest(`/api/admin/b2b/packages/${id}`, 'DELETE');
+
+// ---------------------------------------------------------------------------
+// Caminho do dinheiro
+// ---------------------------------------------------------------------------
+
+export function moneyFlow(row: B2BFinanceRow): B2BMoneyFlow {
+  if (row.companyPaidValue <= 0) return 'aguardando_contratante';
+  if (row.paymentRoute === 'direto') return 'direto_pc';
+  return row.repasseTransferred ? 'recebido_pc' : 'na_popline';
+}
+
+export const MONEY_FLOW_LABEL: Record<B2BMoneyFlow, string> = {
+  aguardando_contratante: 'Aguardando contratante',
+  na_popline: 'No POPline, a repassar',
+  recebido_pc: 'Recebido no PC',
+  direto_pc: 'Direto no PC',
+};
+
+export const MONEY_FLOW_CLASS: Record<B2BMoneyFlow, string> = {
+  aguardando_contratante: 'text-text-secondary',
+  na_popline: 'text-amber-400',
+  recebido_pc: 'text-emerald-400',
+  direto_pc: 'text-emerald-400',
+};
+
+export const PAYMENT_ROUTE_LABEL: Record<B2BPaymentRoute, string> = {
+  popline: 'Via POPline (com imposto)',
+  direto: 'Direto no POPline Creators (sem imposto)',
+  interna: 'Campanha do POPline (sem imposto)',
+};
+
+/** Rotas em que não há imposto — espelha campaign_finance_rota_sem_imposto. */
+export function isTaxFreeRoute(route: B2BPaymentRoute): boolean {
+  return route !== 'popline';
+}
+
+// ---------------------------------------------------------------------------
+// Complementos
+// ---------------------------------------------------------------------------
+
+export interface ComplementSummary {
+  complements: B2BFinanceRow[];
+  /** Aptos da original + complementos. */
+  eligibleTotal: number;
+  /** Contratados − aptos somados. Null se a original não tem contratados. */
+  gap: number | null;
+  /** Custo com creators da original + complementos. */
+  costTotal: number;
+  /** Receita líquida da original − custo somado. Null sem valor acordado. */
+  contractMargin: number | null;
+}
+
+/** Soma a campanha original com as campanhas que a complementam. */
+export function summarizeComplements(
+  original: B2BFinanceRow,
+  rows: B2BFinanceRow[]
+): ComplementSummary {
+  const complements = rows.filter(r => r.complementsCampaignId === original.campaignId);
+  const eligibleTotal =
+    original.eligibleParticipants + complements.reduce((s, r) => s + r.eligibleParticipants, 0);
+  const costTotal =
+    original.totalDueCreators + complements.reduce((s, r) => s + r.totalDueCreators, 0);
+  const complementsRevenue = complements.reduce((s, r) => s + (r.netRevenue ?? 0), 0);
+  return {
+    complements,
+    eligibleTotal,
+    gap: original.contractedCreators === null ? null : original.contractedCreators - eligibleTotal,
+    costTotal,
+    contractMargin:
+      original.netRevenue === null
+        ? null
+        : Math.round((original.netRevenue + complementsRevenue - costTotal) * 100) / 100,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Pacotes
+// ---------------------------------------------------------------------------
+
+export interface PackageSummary {
+  pkg: B2BPackage;
+  campaigns: B2BFinanceRow[];
+  /** Soma do valor acordado de cada campanha do pacote. */
+  campaignsTotal: number;
+  /** total do pacote − soma das campanhas. Null se o pacote não tem total. */
+  difference: number | null;
+}
+
+export function summarizePackage(pkg: B2BPackage, rows: B2BFinanceRow[]): PackageSummary {
+  const campaigns = rows.filter(r => r.packageId === pkg.id);
+  const campaignsTotal =
+    Math.round(campaigns.reduce((s, r) => s + (r.agreedValue ?? 0), 0) * 100) / 100;
+  const difference =
+    pkg.totalValue === null ? null : Math.round((pkg.totalValue - campaignsTotal) * 100) / 100;
+  return { pkg, campaigns, campaignsTotal, difference };
+}
+
+// ---------------------------------------------------------------------------
+// Meses de abertura
+// ---------------------------------------------------------------------------
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+
+/** '2026-07-24' → '2026-07'. */
+export function monthKey(dateISO: string): string {
+  return dateISO.slice(0, 7);
+}
+
+/** '2026-07' → 'jul/26'. */
+export function formatMonthKey(key: string): string {
+  const [y, m] = key.split('-');
+  return `${MONTHS_PT[Number(m) - 1]}/${y.slice(2)}`;
+}
+
 // ---------------------------------------------------------------------------
 // Exposição de caixa
 // ---------------------------------------------------------------------------
@@ -229,6 +423,8 @@ export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
     paymentParcial: 0,
     paymentPendente: 0,
     paymentOverdue: 0,
+    poplineHoldingTotal: 0,
+    pcReceivedTotal: 0,
     exposedRevenueTotal: 0,
     exposedCampaigns: 0,
     exposedCommittedTotal: 0,
@@ -272,6 +468,10 @@ export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
     ) {
       t.paymentOverdue += 1;
     }
+
+    const flow = moneyFlow(r);
+    if (flow === 'na_popline') t.poplineHoldingTotal += r.repasseNetValue;
+    else if (flow === 'recebido_pc' || flow === 'direto_pc') t.pcReceivedTotal += r.repasseNetValue;
 
     if (isRevenueExposed(r)) {
       t.exposedCampaigns += 1;

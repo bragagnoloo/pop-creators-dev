@@ -7,6 +7,8 @@ import Button from '@/components/ui/Button';
 import B2BBigNumbers from '@/components/admin/b2b/B2BBigNumbers';
 import B2BTriageBar from '@/components/admin/b2b/B2BTriageBar';
 import B2BDetailPanel from '@/components/admin/b2b/B2BDetailPanel';
+import B2BPackagesPanel from '@/components/admin/b2b/B2BPackagesPanel';
+import B2BCardsView from '@/components/admin/b2b/B2BCardsView';
 import B2BTable, {
   VIEW_MODES,
   type SortKey,
@@ -17,14 +19,25 @@ import { useRequireMasterAdmin } from '@/lib/hooks/useRequireMasterAdmin';
 import { assessRisk } from '@/lib/b2b-risk';
 import { matchesAlert, type B2BAlertKey } from '@/lib/b2b-alerts';
 import { formatBRDate } from '@/lib/date-br';
+import { formatBRL } from '@/services/wallet';
 import { CAMPAIGN_CATEGORIES, CAMPAIGN_CATEGORY_ORDER } from '@/lib/campaign-categories';
 import {
   B2B_LIST_KEY,
   b2bFetcher,
   toB2BRow,
   toPlatformMeta,
+  toB2BPackage,
   computeTotals,
   patchFinance,
+  createPackage,
+  updatePackage,
+  deletePackage,
+  summarizePackage,
+  moneyFlow,
+  monthKey,
+  formatMonthKey,
+  MONEY_FLOW_LABEL,
+  PAYMENT_ROUTE_LABEL,
   type B2BListResponse,
 } from '@/services/b2b-finance';
 import type {
@@ -33,7 +46,11 @@ import type {
   B2BFinancePatch,
   B2BFinanceRow,
   B2BFinanceStatus,
+  B2BPackagePatch,
 } from '@/types';
+
+/** Valor do filtro de pacote para "campanhas sem pacote". */
+const NO_PACKAGE = '__avulsa';
 
 const SELECT_CLASS =
   'bg-background border border-border rounded-lg px-3 py-1.5 text-sm text-text-primary ' +
@@ -66,15 +83,55 @@ export default function AdminB2BPage() {
 
   const [openId, setOpenId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('receita');
+  // Cards por mês é a visão padrão; a tabela fica para conferência detalhada.
+  const [layout, setLayout] = useState<'cards' | 'tabela'>('cards');
   const [alertFilter, setAlertFilter] = useState<B2BAlertKey | null>(null);
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState<'' | B2BCampaignType>('');
   const [statusFilter, setStatusFilter] = useState<'' | B2BFinanceStatus>('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [packageFilter, setPackageFilter] = useState('');
+  const [packagesOpen, setPackagesOpen] = useState(false);
   // Risco decrescente por padrão: problema sempre no topo.
   const [sort, setSort] = useState<SortState>({ key: 'risk', dir: 'desc' });
 
   const rows = useMemo(() => (data?.data ?? []).map(toB2BRow), [data]);
   const meta = useMemo(() => (data?.meta ? toPlatformMeta(data.meta) : null), [data]);
+  const packages = useMemo(() => (data?.packages ?? []).map(toB2BPackage), [data]);
+  const packageById = useMemo(() => new Map(packages.map(p => [p.id, p])), [packages]);
+  const packageNames = useMemo(
+    () => Object.fromEntries(packages.map(p => [p.id, p.name])),
+    [packages]
+  );
+
+  const titles = useMemo(
+    () => Object.fromEntries(rows.map(r => [r.campaignId, r.title])),
+    [rows]
+  );
+  const complementCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      if (r.complementsCampaignId) {
+        counts[r.complementsCampaignId] = (counts[r.complementsCampaignId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }, [rows]);
+
+  // Meses de abertura existentes, do mais recente para o mais antigo.
+  const months = useMemo(
+    () => [...new Set(rows.map(r => monthKey(r.openedOn)))].sort().reverse(),
+    [rows]
+  );
+
+  // Contratante = empresa da campanha ou contratante do pacote dela.
+  const companies = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of rows) if (r.payingCompany) set.add(r.payingCompany);
+    for (const p of packages) if (p.contractingCompany) set.add(p.contractingCompany);
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }, [rows, packages]);
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -82,8 +139,23 @@ export default function AdminB2BPage() {
       if (typeFilter && r.campaignType !== typeFilter) return false;
       if (statusFilter && r.financeStatus !== statusFilter) return false;
       if (alertFilter && !matchesAlert(r, alertFilter)) return false;
+      if (monthFilter && monthKey(r.openedOn) !== monthFilter) return false;
+      const pkg = r.packageId ? packageById.get(r.packageId) : undefined;
+      if (packageFilter) {
+        if (packageFilter === NO_PACKAGE ? Boolean(pkg) : r.packageId !== packageFilter) {
+          return false;
+        }
+      }
+      if (
+        companyFilter &&
+        r.payingCompany !== companyFilter &&
+        pkg?.contractingCompany !== companyFilter
+      ) {
+        return false;
+      }
       if (term) {
-        const haystack = `${r.title} ${r.payingCompany ?? ''}`.toLowerCase();
+        const haystack =
+          `${r.title} ${r.payingCompany ?? ''} ${pkg?.name ?? ''} ${pkg?.contractingCompany ?? ''}`.toLowerCase();
         if (!haystack.includes(term)) return false;
       }
       return true;
@@ -105,7 +177,22 @@ export default function AdminB2BPage() {
       if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
       return String(va).localeCompare(String(vb), 'pt-BR') * dir;
     });
-  }, [rows, search, typeFilter, statusFilter, alertFilter, sort]);
+  }, [
+    rows,
+    search,
+    typeFilter,
+    statusFilter,
+    alertFilter,
+    monthFilter,
+    companyFilter,
+    packageFilter,
+    packageById,
+    sort,
+  ]);
+
+  const filteredPackage =
+    packageFilter && packageFilter !== NO_PACKAGE ? (packageById.get(packageFilter) ?? null) : null;
+  const filteredPackageSummary = filteredPackage ? summarizePackage(filteredPackage, rows) : null;
 
   // O painel aberto é também o filtro dos indicadores: uma interação, dois efeitos.
   const openRow = openId ? (rows.find(r => r.campaignId === openId) ?? null) : null;
@@ -150,18 +237,56 @@ export default function AdminB2BPage() {
     return null;
   };
 
+  /** Atualiza só a lista de pacotes no cache, sem refazer a busca. */
+  const handlePackageResult = async (
+    result: Awaited<ReturnType<typeof createPackage>>,
+    mode: 'upsert' | 'delete'
+  ): Promise<string | null> => {
+    if (!result.success) return result.error;
+    const saved = result.data;
+    if (mode === 'delete') {
+      if (packageFilter === saved.id) setPackageFilter('');
+      // O banco desligou as campanhas do pacote (on delete set null): recarrega.
+      await mutate();
+      return null;
+    }
+    await mutate(
+      prev => {
+        if (!prev) return prev;
+        const others = (prev.packages ?? []).filter(p => p.id !== saved.id);
+        const list = [...others, saved].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+        return { ...prev, packages: list };
+      },
+      { revalidate: false }
+    );
+    return null;
+  };
+
+  const handleCreatePackage = async (body: B2BPackagePatch) =>
+    handlePackageResult(await createPackage(body), 'upsert');
+  const handleUpdatePackage = async (id: string, body: B2BPackagePatch) =>
+    handlePackageResult(await updatePackage(id, body), 'upsert');
+  const handleDeletePackage = async (id: string) =>
+    handlePackageResult(await deletePackage(id), 'delete');
+
   const exportCSV = () => {
     const headers = [
-      'Campanha', 'Tipo', 'Status da campanha', 'Empresa', 'Valor acordado',
+      'Campanha', 'Tipo', 'Status da campanha', 'Mês de abertura', 'Pacote',
+      'Contratante do pacote', 'Empresa', 'Valor acordado',
       'Prazo pagamento', 'Estimativa pagamento', 'Status pagamento', 'Valor pago',
       'A receber', 'Creators contratados', 'Aptos', 'Abertura', 'Encerramento',
       'Prazo creators', 'Cache', 'Total a creators', 'A gerar', 'Imposto %',
       'Margem R$', 'Margem %', 'Em carteira', 'Pago aos creators',
-      'Status financeiro', 'Risco',
+      'Status financeiro', 'Risco', 'Recebimento', 'Complemento de', 'Emissão NF', 'Pagamento realizado',
+      'Repasse líquido PC', 'Limite repasse', 'Status repasse', 'Repasse efetivo',
+      'Onde está o dinheiro',
     ];
     const lines = visible.map(r =>
       [
         r.title, TYPE_LABEL(r.campaignType), CAMPAIGN_STATUS_LABEL[r.campaignStatus],
+        formatMonthKey(monthKey(r.openedOn)),
+        r.packageId ? (packageById.get(r.packageId)?.name ?? '') : '',
+        r.packageId ? (packageById.get(r.packageId)?.contractingCompany ?? '') : '',
         r.payingCompany ?? '', r.agreedValue ?? '', r.agreedPaymentDueDate ?? '',
         r.companyPaymentEstimate ?? '', r.companyPaymentStatus,
         r.companyPaidValue, r.companyOutstanding,
@@ -170,6 +295,11 @@ export default function AdminB2BPage() {
         formatBRDate(r.creatorPaymentDeadline), r.cache, r.totalDueCreators,
         r.pendingToGenerate, r.taxRate, r.marginValue ?? '', r.marginPct ?? '',
         r.walletTotal, r.paidTotal, r.financeStatus, assessRisk(r).score,
+        PAYMENT_ROUTE_LABEL[r.paymentRoute],
+        r.complementsCampaignId ? (titles[r.complementsCampaignId] ?? '') : '',
+        formatBRDate(r.nfIssuedAt), formatBRDate(r.companyLastPaymentAt), r.repasseNetValue,
+        formatBRDate(r.repasseDueDate), r.repasseTransferred ? 'Transferido' : 'Não transferido',
+        formatBRDate(r.repasseDoneAt), MONEY_FLOW_LABEL[moneyFlow(r)],
       ].map(csvEscape).join(';')
     );
     const csv = '﻿' + [headers.map(csvEscape).join(';'), ...lines].join('\r\n');
@@ -211,12 +341,17 @@ export default function AdminB2BPage() {
         <div>
           <h1 className="text-2xl font-bold">B2B</h1>
           <p className="text-sm text-text-secondary mt-1">
-            Controle financeiro das campanhas. Clique numa linha para ver e editar.
+            Controle financeiro das campanhas. Clique numa campanha para ver e editar.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={exportCSV}>
-          Exportar CSV
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setPackagesOpen(true)}>
+            Pacotes{packages.length > 0 ? ` (${packages.length})` : ''}
+          </Button>
+          <Button variant="secondary" size="sm" onClick={exportCSV}>
+            Exportar CSV
+          </Button>
+        </div>
       </div>
 
       <B2BBigNumbers
@@ -228,29 +363,31 @@ export default function AdminB2BPage() {
 
       <B2BTriageBar rows={rows} active={alertFilter} onToggle={setAlertFilter} />
 
-      {/* Modos de visão */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
+      <div className="flex gap-2 mb-4 flex-wrap">
         <div className="inline-flex bg-surface border border-border rounded-lg p-1">
-          {VIEW_MODES.map(m => (
+          {(['cards', 'tabela'] as const).map(l => (
             <button
-              key={m.key}
+              key={l}
               type="button"
-              onClick={() => setViewMode(m.key)}
-              title={m.description}
-              className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
-                viewMode === m.key
+              onClick={() => {
+                setLayout(l);
+                // Mês e pacote viram seções/cards na visão por cards.
+                if (l === 'cards') {
+                  setMonthFilter('');
+                  setPackageFilter('');
+                  setTypeFilter('');
+                }
+              }}
+              className={`px-3 py-1 rounded-md text-sm transition-colors ${
+                layout === l
                   ? 'bg-popline-pink text-white font-medium'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
-              {m.label}
+              {l === 'cards' ? 'Por mês' : 'Tabela'}
             </button>
           ))}
         </div>
-        <p className="text-xs text-text-secondary">{activeMode.description}</p>
-      </div>
-
-      <div className="flex gap-2 mb-4 flex-wrap">
         <input
           type="text"
           value={search}
@@ -258,6 +395,7 @@ export default function AdminB2BPage() {
           placeholder="Buscar campanha ou empresa..."
           className={`${SELECT_CLASS} flex-1 min-w-[200px]`}
         />
+        {layout === 'tabela' && (
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value as '' | B2BCampaignType)}
@@ -270,6 +408,7 @@ export default function AdminB2BPage() {
             </option>
           ))}
         </select>
+        )}
         <select
           value={statusFilter}
           onChange={e => setStatusFilter(e.target.value as '' | B2BFinanceStatus)}
@@ -279,24 +418,164 @@ export default function AdminB2BPage() {
           <option value="em_aberto">Em Aberto</option>
           <option value="finalizada">Finalizada</option>
         </select>
+        {layout === 'tabela' && (
+        <select
+          value={monthFilter}
+          onChange={e => setMonthFilter(e.target.value)}
+          className={SELECT_CLASS}
+          title="Mês de abertura da campanha"
+        >
+          <option value="">Todos os meses</option>
+          {months.map(m => (
+            <option key={m} value={m}>
+              {formatMonthKey(m)}
+            </option>
+          ))}
+        </select>
+        )}
+        <select
+          value={companyFilter}
+          onChange={e => setCompanyFilter(e.target.value)}
+          className={`${SELECT_CLASS} max-w-[200px]`}
+        >
+          <option value="">Todos os contratantes</option>
+          {companies.map(c => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        {layout === 'tabela' && (
+        <select
+          value={packageFilter}
+          onChange={e => setPackageFilter(e.target.value)}
+          className={`${SELECT_CLASS} max-w-[220px]`}
+        >
+          <option value="">Todos os pacotes</option>
+          <option value={NO_PACKAGE}>Sem pacote (avulsas)</option>
+          {packages.map(p => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        )}
       </div>
 
-      <B2BTable
-        rows={visible}
-        mode={viewMode}
-        selectedId={openId}
-        sort={sort}
-        onSort={handleSort}
-        onOpen={setOpenId}
-      />
+      {layout === 'tabela' && (
+        <div>
+          {/* Modos de visão */}
+        <div className="flex items-center gap-3 mb-3 flex-wrap">
+          <div className="inline-flex bg-surface border border-border rounded-lg p-1">
+            {VIEW_MODES.map(m => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setViewMode(m.key)}
+                title={m.description}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors ${
+                  viewMode === m.key
+                    ? 'bg-popline-pink text-white font-medium'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-text-secondary">{activeMode.description}</p>
+        </div>
+        </div>
+      )}
+
+      {layout === 'tabela' && filteredPackageSummary && (
+        <Card className="p-3 mb-4 flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+          <span className="font-medium text-text-primary">
+            📦 {filteredPackageSummary.pkg.name}
+            {filteredPackageSummary.pkg.contractingCompany &&
+              ` · ${filteredPackageSummary.pkg.contractingCompany}`}
+          </span>
+          <span className="text-text-secondary">
+            Total do pacote:{' '}
+            <span className="text-text-primary tabular-nums">
+              {filteredPackageSummary.pkg.totalValue === null
+                ? '—'
+                : formatBRL(filteredPackageSummary.pkg.totalValue)}
+            </span>
+          </span>
+          <span className="text-text-secondary">
+            Soma das {filteredPackageSummary.campaigns.length} campanhas:{' '}
+            <span className="text-text-primary tabular-nums">
+              {formatBRL(filteredPackageSummary.campaignsTotal)}
+            </span>
+          </span>
+          {filteredPackageSummary.difference !== null && (
+            <span
+              className={
+                filteredPackageSummary.difference === 0 ? 'text-emerald-400' : 'text-amber-400'
+              }
+            >
+              {filteredPackageSummary.difference === 0
+                ? '✓ bate com o total'
+                : `⚠ ${filteredPackageSummary.difference > 0 ? 'faltam' : 'sobram'} ${formatBRL(
+                    Math.abs(filteredPackageSummary.difference)
+                  )}`}
+            </span>
+          )}
+        </Card>
+      )}
+
+      {layout === 'cards' ? (
+        <B2BCardsView
+          rows={visible}
+          allRows={rows}
+          packages={packages}
+          titles={titles}
+          selectedId={openId}
+          onOpen={setOpenId}
+        />
+      ) : (
+        <B2BTable
+          rows={visible}
+          packageNames={packageNames}
+          titles={titles}
+          complementCounts={complementCounts}
+          mode={viewMode}
+          selectedId={openId}
+          sort={sort}
+          onSort={handleSort}
+          onOpen={setOpenId}
+        />
+      )}
 
       <p className="mt-3 text-xs text-text-secondary">
-        {visible.length} de {rows.length} campanha{rows.length === 1 ? '' : 's'} · sem
-        paginação · datas no fuso de Brasília
+        {visible.length} de {rows.length} campanha{rows.length === 1 ? '' : 's'} · datas no
+        fuso de Brasília
       </p>
 
       {openRow && (
-        <B2BDetailPanel row={openRow} onClose={() => setOpenId(null)} onPatch={handlePatch} />
+        <B2BDetailPanel
+          row={openRow}
+          rows={rows}
+          packages={packages}
+          onClose={() => setOpenId(null)}
+          onPatch={handlePatch}
+        />
+      )}
+
+      {packagesOpen && (
+        <B2BPackagesPanel
+          packages={packages}
+          rows={rows}
+          onClose={() => setPackagesOpen(false)}
+          onCreate={handleCreatePackage}
+          onUpdate={handleUpdatePackage}
+          onDelete={handleDeletePackage}
+          onShow={id => {
+            setPackageFilter(id);
+            setPackagesOpen(false);
+          }}
+        />
       )}
     </div>
   );

@@ -1,60 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireMasterAdmin } from '@/lib/auth-guard';
 import { createAdminClient } from '@/lib/supabase/server';
-import { isDateISO } from '@/lib/date-br';
+import {
+  UUID_RE,
+  ValidationError,
+  parseText,
+  parseMoney,
+  parseDate,
+  parseEnum,
+} from '@/lib/b2b-validation';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const FINANCE_STATUS = ['em_aberto', 'finalizada'] as const;
 const PAYMENT_STATUS = ['pendente', 'parcial', 'pago'] as const;
-
-const MAX_MONEY = 99_999_999.99;
-
-class ValidationError extends Error {}
-
-function parseText(value: unknown, max: number, label: string): string | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value !== 'string') throw new ValidationError(`${label} inválido.`);
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (trimmed.length > max) {
-    throw new ValidationError(`${label} deve ter no máximo ${max} caracteres.`);
-  }
-  return trimmed;
-}
-
-function parseMoney(value: unknown, label: string, nullable: boolean): number | null {
-  if (value === null || value === undefined || value === '') {
-    return nullable ? null : 0;
-  }
-  const n = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(n)) throw new ValidationError(`${label} inválido.`);
-  if (n < 0) throw new ValidationError(`${label} não pode ser negativo.`);
-  if (n > MAX_MONEY) throw new ValidationError(`${label} excede o limite permitido.`);
-  return Math.round(n * 100) / 100;
-}
-
-function parseDate(value: unknown, label: string): string | null {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value !== 'string' || !isDateISO(value)) {
-    throw new ValidationError(`${label} deve ser uma data válida (AAAA-MM-DD).`);
-  }
-  return value;
-}
-
-function parseEnum<T extends string>(
-  value: unknown,
-  allowed: readonly T[],
-  label: string
-): T {
-  if (typeof value !== 'string' || !allowed.includes(value as T)) {
-    throw new ValidationError(`${label} inválido.`);
-  }
-  return value as T;
-}
+const PAYMENT_ROUTE = ['popline', 'direto', 'interna'] as const;
+const TAX_FREE_LABEL: Record<string, string> = {
+  direto: 'Pagamento direto no POPline Creators não tem imposto.',
+  interna: 'Campanha do POPline não tem imposto.',
+};
 
 export async function PATCH(
   req: NextRequest,
@@ -141,6 +106,52 @@ export async function PATCH(
     if ('notes' in body) {
       patch.notes = parseText(body.notes, 2000, 'Observações');
     }
+    if ('packageId' in body) {
+      const raw = body.packageId;
+      if (raw === null || raw === undefined || raw === '') {
+        patch.package_id = null;
+      } else if (typeof raw !== 'string' || !UUID_RE.test(raw)) {
+        throw new ValidationError('Pacote inválido.');
+      } else {
+        patch.package_id = raw;
+      }
+    }
+    if ('paymentRoute' in body) {
+      patch.payment_route = parseEnum(body.paymentRoute, PAYMENT_ROUTE, 'Recebimento');
+    }
+    if ('nfIssuedAt' in body) {
+      patch.nf_issued_at = parseDate(body.nfIssuedAt, 'Emissão da NF');
+    }
+    if ('repasseDueDate' in body) {
+      patch.repasse_due_date = parseDate(body.repasseDueDate, 'Data limite do repasse');
+    }
+    if ('repasseDoneAt' in body) {
+      patch.repasse_done_at = parseDate(body.repasseDoneAt, 'Data efetiva do repasse');
+    }
+    if ('complementsCampaignId' in body) {
+      const raw = body.complementsCampaignId;
+      if (raw === null || raw === undefined || raw === '') {
+        patch.complements_campaign_id = null;
+      } else if (typeof raw !== 'string' || !UUID_RE.test(raw)) {
+        throw new ValidationError('Campanha original inválida.');
+      } else if (raw === campaignId) {
+        throw new ValidationError('Uma campanha não pode complementar a si mesma.');
+      } else {
+        patch.complements_campaign_id = raw;
+      }
+    }
+    if ('repasseTransferred' in body) {
+      if (typeof body.repasseTransferred !== 'boolean') {
+        throw new ValidationError('Status do repasse inválido.');
+      }
+      patch.repasse_transferred = body.repasseTransferred;
+    }
+    if ('companyLastPaymentAt' in body) {
+      patch.company_last_payment_at = parseDate(
+        body.companyLastPaymentAt,
+        'Data do pagamento realizado'
+      );
+    }
   } catch (err) {
     const msg = err instanceof ValidationError ? err.message : 'Dados inválidos.';
     return NextResponse.json({ error: msg }, { status: 400 });
@@ -160,6 +171,52 @@ export async function PATCH(
     .maybeSingle();
   if (!campaign) {
     return NextResponse.json({ error: 'Campanha não encontrada.' }, { status: 404 });
+  }
+
+  if (typeof patch.package_id === 'string') {
+    const { data: pkg } = await supabase
+      .from('b2b_packages')
+      .select('id')
+      .eq('id', patch.package_id)
+      .maybeSingle();
+    if (!pkg) {
+      return NextResponse.json({ error: 'Pacote não encontrado.' }, { status: 404 });
+    }
+  }
+
+  if (typeof patch.complements_campaign_id === 'string') {
+    const { data: original } = await supabase
+      .from('campaigns')
+      .select('id')
+      .eq('id', patch.complements_campaign_id)
+      .maybeSingle();
+    if (!original) {
+      return NextResponse.json({ error: 'Campanha original não encontrada.' }, { status: 404 });
+    }
+  }
+
+  // Direto no PC e campanha do POPline não pagam imposto. A constraint
+  // campaign_finance_rota_sem_imposto garante no banco; aqui vira mensagem clara.
+  const route = patch.payment_route as string | undefined;
+  if (route && route !== 'popline') {
+    if (typeof patch.tax_rate === 'number' && patch.tax_rate > 0) {
+      return NextResponse.json({ error: TAX_FREE_LABEL[route] }, { status: 400 });
+    }
+    patch.tax_rate = 0;
+  } else if (route === undefined && typeof patch.tax_rate === 'number' && patch.tax_rate > 0) {
+    const { data: current } = await supabase
+      .from('campaign_finance')
+      .select('payment_route')
+      .eq('campaign_id', campaignId)
+      .maybeSingle();
+    if (current && current.payment_route !== 'popline') {
+      return NextResponse.json(
+        {
+          error: `${TAX_FREE_LABEL[current.payment_route]} Mude o recebimento para "Via POPline" antes.`,
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const { error: upsertError } = await supabase

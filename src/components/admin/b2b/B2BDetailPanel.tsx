@@ -1,18 +1,37 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import CampaignCategoryBadge from '@/components/ui/CampaignCategoryBadge';
 import EditableCell from './EditableCell';
 import RiskThermometer from './RiskThermometer';
 import { assessRisk, pendingToRelease, daysOpenWithoutClosing } from '@/lib/b2b-risk';
 import { rowAlerts } from '@/lib/b2b-alerts';
-import { isRevenueExposed } from '@/services/b2b-finance';
+import {
+  isRevenueExposed,
+  moneyFlow,
+  summarizePackage,
+  summarizeComplements,
+  isTaxFreeRoute,
+  PAYMENT_ROUTE_LABEL,
+  MONEY_FLOW_LABEL,
+  MONEY_FLOW_CLASS,
+} from '@/services/b2b-finance';
 import { formatBRL } from '@/services/wallet';
 import { formatBRDate } from '@/lib/date-br';
-import type { B2BFinancePatch, B2BFinanceRow, B2BPaymentStatus } from '@/types';
+import type {
+  B2BFinancePatch,
+  B2BFinanceRow,
+  B2BMoneyFlow,
+  B2BPackage,
+  B2BPaymentRoute,
+  B2BPaymentStatus,
+} from '@/types';
 
 interface Props {
   row: B2BFinanceRow;
+  /** Todas as linhas: para somar as campanhas do pacote desta. */
+  rows: B2BFinanceRow[];
+  packages: B2BPackage[];
   onClose: () => void;
   onPatch: (campaignId: string, patch: B2BFinancePatch) => Promise<string | null>;
 }
@@ -80,8 +99,65 @@ function ReadOnly({
   );
 }
 
-export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
+export default function B2BDetailPanel({ row, rows, packages, onClose, onPatch }: Props) {
   const patch = (p: B2BFinancePatch) => onPatch(row.campaignId, p);
+  const flow = moneyFlow(row);
+  const direto = row.paymentRoute === 'direto';
+  const semImposto = isTaxFreeRoute(row.paymentRoute);
+  const original = row.complementsCampaignId
+    ? (rows.find(r => r.campaignId === row.complementsCampaignId) ?? null)
+    : null;
+  const compl = summarizeComplements(row, rows);
+  // Candidatas a original: qualquer outra campanha que não complemente esta
+  // (evita ciclo A→B→A), mais recentes primeiro.
+  const originalOptions = rows
+    .filter(r => r.campaignId !== row.campaignId && r.complementsCampaignId !== row.campaignId)
+    .sort((a, b) => b.openedOn.localeCompare(a.openedOn));
+  const pkg = row.packageId ? (packages.find(p => p.id === row.packageId) ?? null) : null;
+  const pkgSummary = pkg ? summarizePackage(pkg, rows) : null;
+  const [flowError, setFlowError] = useState<string | null>(null);
+
+  /**
+   * Escolher onde o dinheiro está preenche os campos que definem isso
+   * (valor pago, recebimento e status do repasse) — o status continua sendo
+   * derivado deles, então tabela, totais e CSV ficam coerentes.
+   */
+  const changeFlow = async (next: B2BMoneyFlow) => {
+    setFlowError(null);
+    let p: B2BFinancePatch;
+    if (next === 'aguardando_contratante') {
+      if (
+        row.companyPaidValue > 0 &&
+        !window.confirm(
+          `Isso zera o valor pago (${formatBRL(row.companyPaidValue)}) e volta o pagamento para pendente. Continuar?`
+        )
+      ) {
+        return;
+      }
+      p = { companyPaidValue: 0, companyPaymentStatus: 'pendente', repasseTransferred: false };
+    } else {
+      p = {
+        paymentRoute:
+          next === 'direto_pc'
+            ? 'direto'
+            : row.paymentRoute === 'interna'
+              ? 'interna'
+              : 'popline',
+        repasseTransferred: next === 'recebido_pc',
+      };
+      // Sem pagamento registrado, assume que a marca pagou o valor acordado.
+      if (row.companyPaidValue <= 0) {
+        if (!row.agreedValue) {
+          setFlowError('Preencha o valor acordado ou o valor pago primeiro.');
+          return;
+        }
+        p.companyPaidValue = row.agreedValue;
+        p.companyPaymentStatus = 'pago';
+      }
+    }
+    const err = await patch(p);
+    if (err) setFlowError(err);
+  };
   const risk = assessRisk(row);
   const alerts = rowAlerts(row);
   const exposta = isRevenueExposed(row);
@@ -176,7 +252,45 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
                 onCommit={v => patch({ payingCompany: v as string | null })}
               />
             </Field>
-            <Field label="Valor acordado">
+            <Field
+              label="Pacote"
+              hint={
+                pkgSummary ? (
+                  <span
+                    className={
+                      pkgSummary.difference !== null && pkgSummary.difference !== 0
+                        ? 'text-amber-400'
+                        : 'text-text-secondary'
+                    }
+                  >
+                    {pkgSummary.campaigns.length} campanha
+                    {pkgSummary.campaigns.length === 1 ? '' : 's'} ·{' '}
+                    {formatBRL(pkgSummary.campaignsTotal)}
+                    {pkg?.totalValue !== null && pkg?.totalValue !== undefined
+                      ? ` de ${formatBRL(pkg.totalValue)}`
+                      : ' · pacote sem valor total'}
+                    {pkgSummary.difference !== null &&
+                      pkgSummary.difference !== 0 &&
+                      ` · ⚠ ${pkgSummary.difference > 0 ? 'faltam' : 'sobram'} ${formatBRL(Math.abs(pkgSummary.difference))}`}
+                  </span>
+                ) : undefined
+              }
+            >
+              <select
+                value={row.packageId ?? ''}
+                onChange={e => void patch({ packageId: e.target.value || null })}
+                className={`${SELECT} ${pkg ? 'text-text-primary border-border' : 'text-text-secondary border-border'}`}
+              >
+                <option value="">Avulsa (sem pacote)</option>
+                {packages.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.contractingCompany ? ` · ${p.contractingCompany}` : ''}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label={pkg ? 'Valor desta campanha' : 'Valor acordado'}>
               <EditableCell
                 kind="currency"
                 value={row.agreedValue}
@@ -251,6 +365,102 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
                 onCommit={commitPaidValue}
               />
             </Field>
+            <Field label="Pagamento realizado em">
+              <EditableCell
+                kind="date"
+                value={row.companyLastPaymentAt}
+                onCommit={v => patch({ companyLastPaymentAt: v as string | null })}
+              />
+            </Field>
+            <Field label="Recebimento">
+              <select
+                value={row.paymentRoute}
+                onChange={e => void patch({ paymentRoute: e.target.value as B2BPaymentRoute })}
+                className={`${SELECT} text-text-primary border-border`}
+              >
+                {(Object.keys(PAYMENT_ROUTE_LABEL) as B2BPaymentRoute[]).map(k => (
+                  <option key={k} value={k}>
+                    {PAYMENT_ROUTE_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Emissão da NF">
+              <EditableCell
+                kind="date"
+                value={row.nfIssuedAt}
+                onCommit={v => patch({ nfIssuedAt: v as string | null })}
+              />
+            </Field>
+            {!direto && (
+              <>
+                <ReadOnly
+                  label="Repasse líquido ao PC"
+                  value={formatBRL(row.repasseNetValue)}
+                  valueClass={row.repasseNetValue > 0 ? 'text-text-primary' : 'text-text-secondary'}
+                  hint="Valor pago menos o imposto"
+                />
+                <Field label="Data limite do repasse">
+                  <EditableCell
+                    kind="date"
+                    value={row.repasseDueDate}
+                    onCommit={v => patch({ repasseDueDate: v as string | null })}
+                  />
+                </Field>
+                <Field label="Status do repasse">
+                  <select
+                    value={row.repasseTransferred ? 'sim' : 'nao'}
+                    onChange={e => void patch({ repasseTransferred: e.target.value === 'sim' })}
+                    className={`${SELECT} ${
+                      row.repasseTransferred
+                        ? 'text-emerald-400 border-emerald-500/30'
+                        : 'text-text-secondary border-border'
+                    }`}
+                  >
+                    <option value="nao">Não transferido</option>
+                    <option value="sim">Transferido ao PC</option>
+                  </select>
+                </Field>
+                <Field label="Data efetiva do repasse">
+                  <EditableCell
+                    kind="date"
+                    value={row.repasseDoneAt}
+                    // Data efetiva preenchida implica transferido.
+                    onCommit={v =>
+                      patch(
+                        v && !row.repasseTransferred
+                          ? { repasseDoneAt: v as string, repasseTransferred: true }
+                          : { repasseDoneAt: v as string | null }
+                      )
+                    }
+                  />
+                </Field>
+              </>
+            )}
+            <Field
+              label="Onde está o dinheiro"
+              hint={
+                flowError ? (
+                  <span className="text-red-400">{flowError}</span>
+                ) : row.paymentRoute === 'popline' &&
+                  (flow === 'na_popline' || flow === 'recebido_pc') &&
+                  row.taxRate === 0 ? (
+                  <span className="text-amber-400">imposto em 0% — confira em Resultado</span>
+                ) : undefined
+              }
+            >
+              <select
+                value={flow}
+                onChange={e => void changeFlow(e.target.value as B2BMoneyFlow)}
+                className={`${SELECT} ${MONEY_FLOW_CLASS[flow]} border-border`}
+              >
+                {(Object.keys(MONEY_FLOW_LABEL) as B2BMoneyFlow[]).map(k => (
+                  <option key={k} value={k}>
+                    {MONEY_FLOW_LABEL[k]}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {exposta && (
               <p className="text-[11px] text-red-400">
                 ⚠ {formatBRL(row.creditedTotal)} de cachê já saiu do caixa e a empresa
@@ -260,6 +470,56 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
           </Section>
 
           <Section title="Creators">
+            <Field
+              label="Complemento de"
+              hint={
+                original ? (
+                  <span className="text-text-secondary">
+                    o custo desta campanha conta na original
+                  </span>
+                ) : undefined
+              }
+            >
+              <select
+                value={row.complementsCampaignId ?? ''}
+                onChange={e => void patch({ complementsCampaignId: e.target.value || null })}
+                className={`${SELECT} ${original ? 'text-text-primary' : 'text-text-secondary'} border-border`}
+              >
+                <option value="">Não é complemento</option>
+                {originalOptions.map(r => (
+                  <option key={r.campaignId} value={r.campaignId}>
+                    {r.title.trim()} · {formatBRDate(r.openedOn)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            {compl.complements.length > 0 && (
+              <div className="rounded-lg border border-border p-2.5 space-y-1">
+                <p className="text-[11px] text-text-secondary">
+                  Complementada por {compl.complements.length} campanha
+                  {compl.complements.length === 1 ? '' : 's'}:
+                </p>
+                {compl.complements.map(c => (
+                  <p key={c.campaignId} className="text-xs text-text-primary flex justify-between gap-2">
+                    <span className="truncate">↳ {c.title.trim()}</span>
+                    <span className="tabular-nums text-text-secondary shrink-0">
+                      {c.eligibleParticipants} aptos · {formatBRL(c.totalDueCreators)}
+                    </span>
+                  </p>
+                ))}
+                <p className="text-xs text-text-secondary pt-1 border-t border-border">
+                  Aptos somados:{' '}
+                  <span className="text-text-primary font-medium">{compl.eligibleTotal}</span>
+                  {row.contractedCreators !== null && ` de ${row.contractedCreators} contratados`}
+                  {compl.gap !== null && compl.gap !== 0 && (
+                    <span className={compl.gap > 0 ? 'text-red-400' : 'text-emerald-400'}>
+                      {' '}
+                      ({compl.gap > 0 ? `faltam ${compl.gap}` : `${Math.abs(compl.gap)} a mais`})
+                    </span>
+                  )}
+                </p>
+              </div>
+            )}
             <Field
               label="Creators contratados"
               hint={
@@ -365,13 +625,26 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
           </Section>
 
           <Section title="Resultado">
-            <Field label="Imposto">
-              <EditableCell
-                kind="percent"
-                value={row.taxRate}
-                onCommit={v => patch({ taxRate: v as number | null })}
+            {semImposto ? (
+              <ReadOnly
+                label="Imposto"
+                value={direto ? '0% · direto no PC' : '0% · campanha do POPline'}
+                valueClass="text-text-secondary"
+                hint={
+                  direto
+                    ? 'Pagamento direto na conta do POPline Creators não tem imposto'
+                    : 'Campanha do próprio POPline não tem imposto'
+                }
               />
-            </Field>
+            ) : (
+              <Field label="Imposto">
+                <EditableCell
+                  kind="percent"
+                  value={row.taxRate}
+                  onCommit={v => patch({ taxRate: v as number | null })}
+                />
+              </Field>
+            )}
             <ReadOnly
               label="Receita líquida"
               value={row.netRevenue === null ? '—' : formatBRL(row.netRevenue)}
@@ -393,6 +666,26 @@ export default function B2BDetailPanel({ row, onClose, onPatch }: Props) {
                     : 'text-emerald-400'
               }
             />
+            {compl.complements.length > 0 && (
+              <ReadOnly
+                label="Margem do contrato"
+                value={compl.contractMargin === null ? '—' : formatBRL(compl.contractMargin)}
+                valueClass={
+                  compl.contractMargin === null
+                    ? 'text-text-secondary'
+                    : compl.contractMargin < 0
+                      ? 'text-red-400'
+                      : 'text-emerald-400'
+                }
+                hint={`Receita líquida menos o custo desta campanha e dos complementos (${formatBRL(compl.costTotal)})`}
+              />
+            )}
+            {original && (
+              <p className="text-[11px] text-text-secondary">
+                Complemento de <span className="text-text-primary">{original.title.trim()}</span>:
+                o custo desta campanha entra na margem do contrato de lá.
+              </p>
+            )}
             <Field label="Status financeiro">
               <select
                 value={row.financeStatus}

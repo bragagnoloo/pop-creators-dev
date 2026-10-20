@@ -632,13 +632,15 @@ export interface B2BFinanceTotals {
   marginPct: number | null;
   companyPaidPct: number | null;
 
-  // --- Concretizado: só o que de fato entrou/saiu ---
+  // --- Resultado: só campanhas que já pagaram (ver campaignResult) ---
   /** Recebido das empresas já descontado o imposto de cada campanha. */
   realizedNetRevenueTotal: number;
-  /** Recebido líquido menos o cachê já gerado (comprometido com os creators). */
-  realizedMarginTotal: number;
-  /** Margem concretizada sobre o que foi recebido. Null se nada entrou. */
-  realizedMarginPct: number | null;
+  /** Custo com creators (aptos × cachê) das campanhas que já pagaram. */
+  resultCostTotal: number;
+  /** Recebido líquido − custo dessas campanhas. */
+  resultTotal: number;
+  /** Resultado sobre o recebido bruto. Null se nada entrou. */
+  resultPct: number | null;
   /** Quanto do cachê previsto já virou crédito. Null se nada é devido. */
   creditedPct: number | null;
 }

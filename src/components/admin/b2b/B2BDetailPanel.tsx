@@ -11,6 +11,9 @@ import {
   moneyFlow,
   summarizePackage,
   summarizeComplements,
+  campaignResult,
+  campaignForecast,
+  indexComplements,
   isTaxFreeRoute,
   PAYMENT_ROUTE_LABEL,
   MONEY_FLOW_LABEL,
@@ -104,6 +107,9 @@ export default function B2BDetailPanel({ row, rows, packages, onClose, onPatch }
   const flow = moneyFlow(row);
   const direto = row.paymentRoute === 'direto';
   const semImposto = isTaxFreeRoute(row.paymentRoute);
+  const complementIdx = indexComplements(rows);
+  const result = campaignResult(row, complementIdx);
+  const forecast = campaignForecast(row, complementIdx);
   const original = row.complementsCampaignId
     ? (rows.find(r => r.campaignId === row.complementsCampaignId) ?? null)
     : null;
@@ -290,7 +296,18 @@ export default function B2BDetailPanel({ row, rows, packages, onClose, onPatch }
                 ))}
               </select>
             </Field>
-            <Field label={pkg ? 'Valor desta campanha' : 'Valor acordado'}>
+            <Field
+              label={pkg ? 'Valor desta campanha' : 'Valor acordado'}
+              hint={
+                original ? (
+                  <span className={row.agreedValue ? 'text-amber-400' : 'text-text-secondary'}>
+                    {row.agreedValue
+                      ? '⚠ complemento usa o valor da matriz — deixe vazio para não contar duas vezes'
+                      : `usa o valor de ${original.title.trim()}`}
+                  </span>
+                ) : undefined
+              }
+            >
               <EditableCell
                 kind="currency"
                 value={row.agreedValue}
@@ -649,42 +666,53 @@ export default function B2BDetailPanel({ row, rows, packages, onClose, onPatch }
               label="Receita líquida"
               value={row.netRevenue === null ? '—' : formatBRL(row.netRevenue)}
             />
-            <ReadOnly
-              label="Margem"
-              value={
-                row.marginValue === null
-                  ? '—'
-                  : `${formatBRL(row.marginValue)} · ${
-                      row.marginPct === null ? '—' : `${row.marginPct.toFixed(1)}%`
-                    }`
-              }
-              valueClass={
-                row.marginValue === null
-                  ? 'text-text-secondary'
-                  : row.marginValue < 0
-                    ? 'text-red-400'
-                    : 'text-emerald-400'
-              }
-            />
-            {compl.complements.length > 0 && (
-              <ReadOnly
-                label="Margem do contrato"
-                value={compl.contractMargin === null ? '—' : formatBRL(compl.contractMargin)}
-                valueClass={
-                  compl.contractMargin === null
-                    ? 'text-text-secondary'
-                    : compl.contractMargin < 0
-                      ? 'text-red-400'
-                      : 'text-emerald-400'
-                }
-                hint={`Receita líquida menos o custo desta campanha e dos complementos (${formatBRL(compl.costTotal)})`}
-              />
-            )}
-            {original && (
+            {original ? (
               <p className="text-[11px] text-text-secondary">
                 Complemento de <span className="text-text-primary">{original.title.trim()}</span>:
-                o custo desta campanha entra na margem do contrato de lá.
+                usa o valor e o pagamento de lá, e os aptos e o custo desta campanha entram no
+                resultado da matriz.
               </p>
+            ) : (
+              <>
+                <ReadOnly
+                  label="Resultado"
+                  value={
+                    result === null
+                      ? '— · marca ainda não pagou'
+                      : `${formatBRL(result)} · ${((result / row.companyPaidValue) * 100).toFixed(1)}%`
+                  }
+                  valueClass={
+                    result === null
+                      ? 'text-text-secondary'
+                      : result < 0
+                        ? 'text-red-400'
+                        : 'text-emerald-400'
+                  }
+                  hint={
+                    compl.complements.length > 0
+                      ? `Recebido sem imposto menos o custo desta campanha e dos complementos (${formatBRL(compl.costTotal)})`
+                      : 'Recebido sem imposto menos o custo com creators (aptos × cachê)'
+                  }
+                />
+                <ReadOnly
+                  label="Margem prevista"
+                  value={
+                    forecast === null
+                      ? '—'
+                      : `${formatBRL(forecast)}${
+                          row.agreedValue ? ` · ${((forecast / row.agreedValue) * 100).toFixed(1)}%` : ''
+                        }`
+                  }
+                  valueClass={
+                    forecast === null
+                      ? 'text-text-secondary'
+                      : forecast < 0
+                        ? 'text-red-400'
+                        : 'text-emerald-400'
+                  }
+                  hint="Se todo o valor acordado for pago"
+                />
+              </>
             )}
             <Field label="Status financeiro">
               <select

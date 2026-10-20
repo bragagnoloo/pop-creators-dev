@@ -181,26 +181,27 @@ export default function B2BBigNumbers({
 
         <Block
           title="Resultado"
-          heroLabel="Margem concretizada"
-          hero={formatBRL(totals.realizedMarginTotal)}
-          heroClass={totals.realizedMarginTotal < 0 ? 'text-red-400' : 'text-emerald-400'}
-          heroCaption={`${pct(totals.realizedMarginPct)} sobre o que foi recebido`}
+          heroLabel="Resultado do que já foi recebido"
+          hero={formatBRL(totals.resultTotal)}
+          heroClass={totals.resultTotal < 0 ? 'text-red-400' : 'text-emerald-400'}
+          heroCaption={`${pct(totals.resultPct)} sobre o que foi recebido`}
         >
           <Line
-            label="Recebido líquido"
+            label="Recebido sem imposto"
             value={formatBRL(totals.realizedNetRevenueTotal)}
-            title="Recebido das empresas menos o imposto de cada campanha."
+            title="O que as marcas já pagaram, menos o imposto de cada campanha."
           />
           <Line
-            label="− Cachê gerado"
-            value={formatBRL(totals.creditedTotal)}
+            label="− Custo com creators"
+            value={formatBRL(totals.resultCostTotal)}
             valueClass="text-text-secondary"
+            title="Aptos × cachê das campanhas que já pagaram (inclusive o cachê que ainda vai ser gerado)."
           />
           <Line
-            label="Margem estimada"
+            label="Previsto (se tudo for pago)"
             value={`${formatBRL(totals.marginTotal)} · ${pct(totals.marginPct)}`}
             valueClass="text-text-secondary"
-            title="Se tudo que foi acordado entrar e todo o cachê previsto for pago."
+            title="Valor acordado menos imposto e custo de todas as campanhas com valor, pagas ou não."
           />
         </Block>
       </div>

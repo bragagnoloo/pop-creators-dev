@@ -6,7 +6,11 @@ import { rowAlerts } from '@/lib/b2b-alerts';
 import { formatBRL } from '@/services/wallet';
 import { formatBRDate } from '@/lib/date-br';
 import {
+  campaignForecast,
+  campaignResult,
   computeTotals,
+  indexComplements,
+  type ComplementIndex,
   monthKey,
   moneyFlow,
   summarizePackage,
@@ -70,6 +74,39 @@ function Margin({ value, pct }: { value: number | null; pct?: number | null }) {
   );
 }
 
+/**
+ * Resultado (recebido − imposto − custo) quando a marca já pagou; senão a
+ * margem prevista, apagada, para não parecer dinheiro que entrou.
+ */
+function ResultLine({
+  result,
+  resultPct,
+  forecast,
+}: {
+  result: number | null;
+  resultPct?: number | null;
+  forecast: number | null;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border text-xs">
+      {result !== null ? (
+        <>
+          <span className="text-text-secondary">Resultado</span>
+          <Margin value={result} pct={resultPct} />
+        </>
+      ) : (
+        <>
+          <span className="text-text-secondary">Previsto</span>
+          <span className="text-text-secondary">
+            {forecast === null ? '—' : formatBRL(forecast)}
+            <span className="text-[10px]"> · ainda não recebido</span>
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 function Chevron({ open }: { open: boolean }) {
   return (
     <span
@@ -83,16 +120,22 @@ function Chevron({ open }: { open: boolean }) {
 
 function CampaignCard({
   row,
+  idx,
   complementOf,
   selected,
   onOpen,
 }: {
   row: B2BFinanceRow;
+  idx: ComplementIndex;
   complementOf: string | null;
   selected: boolean;
   onOpen: (id: string) => void;
 }) {
   const alerts = rowAlerts(row);
+  const result = campaignResult(row, idx);
+  const complements = idx.get(row.campaignId) ?? [];
+  const eligibleTotal =
+    row.eligibleParticipants + complements.reduce((s, c) => s + c.eligibleParticipants, 0);
   return (
     <button
       type="button"
@@ -118,16 +161,29 @@ function CampaignCard({
         <div>
           <p className="text-[10px] uppercase tracking-wide text-text-secondary">Valor</p>
           <p className="text-lg font-bold text-text-primary leading-tight">
-            {row.agreedValue === null ? '—' : formatBRL(row.agreedValue)}
+            {row.agreedValue !== null ? formatBRL(row.agreedValue) : complementOf ? 'da matriz' : '—'}
           </p>
         </div>
         <FlowChip flow={moneyFlow(row)} />
       </div>
 
-      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border text-xs">
-        <span className="text-text-secondary">Margem</span>
-        <Margin value={row.marginValue} pct={row.marginPct} />
-      </div>
+      {complements.length > 0 && (
+        <p className="text-[11px] text-sky-400 mt-1">
+          + {complements.length} complemento{complements.length === 1 ? '' : 's'} · {eligibleTotal}{' '}
+          aptos somados
+        </p>
+      )}
+      {complementOf ? (
+        <p className="mt-2 pt-2 border-t border-border text-[11px] text-text-secondary">
+          Valor, pagamento e resultado ficam na matriz
+        </p>
+      ) : (
+        <ResultLine
+          result={result}
+          resultPct={result === null ? null : (result / row.companyPaidValue) * 100}
+          forecast={campaignForecast(row, idx)}
+        />
+      )}
 
       {alerts.length > 0 && (
         <p className="text-[11px] text-red-400 mt-1.5">
@@ -155,8 +211,9 @@ function PackageCard({
   onOpen: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const idx = indexComplements(allRows);
   const summary = summarizePackage(pkg, allRows);
-  const t = computeTotals(rows);
+  const t = computeTotals(rows, allRows);
   const alertCount = rows.filter(r => rowAlerts(r).length > 0).length;
   const flows = new Set(rows.map(moneyFlow));
   const flow: B2BMoneyFlow | null = flows.size === 1 ? [...flows][0] : null;
@@ -195,10 +252,11 @@ function PackageCard({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-border text-xs">
-          <span className="text-text-secondary">Margem</span>
-          <Margin value={t.agreedTotal > 0 ? t.marginTotal : null} pct={t.marginPct} />
-        </div>
+        <ResultLine
+          result={t.companyPaidTotal > 0 ? t.resultTotal : null}
+          resultPct={t.resultPct}
+          forecast={t.agreedTotal > 0 ? t.marginTotal : null}
+        />
 
         {summary.difference !== null && summary.difference !== 0 && (
           <p className="text-[11px] text-amber-400 mt-1.5">
@@ -219,6 +277,7 @@ function PackageCard({
             <CampaignCard
               key={r.campaignId}
               row={r}
+              idx={idx}
               complementOf={r.complementsCampaignId ? (titles[r.complementsCampaignId] ?? null) : null}
               selected={selectedId === r.campaignId}
               onOpen={onOpen}
@@ -241,6 +300,7 @@ interface MonthGroup {
 }
 
 export default function B2BCardsView({ rows, allRows, packages, titles, selectedId, onOpen }: Props) {
+  const idx = useMemo(() => indexComplements(allRows), [allRows]);
   const groups = useMemo<MonthGroup[]>(() => {
     const pkgById = new Map(packages.map(p => [p.id, p]));
 
@@ -306,7 +366,7 @@ export default function B2BCardsView({ rows, allRows, packages, titles, selected
     <div className="space-y-3">
       {groups.map(g => {
         const open = isOpen(g.key);
-        const t = computeTotals(g.rows);
+        const t = computeTotals(g.rows, allRows);
         const alertCount = g.rows.filter(r => rowAlerts(r).length > 0).length;
         return (
           <section key={g.key} className="rounded-2xl border border-border bg-surface/40">
@@ -330,7 +390,10 @@ export default function B2BCardsView({ rows, allRows, packages, titles, selected
                 <span className="text-emerald-400 font-medium">{formatBRL(t.companyPaidTotal)}</span>
               </span>
               <span className="text-xs text-text-secondary">
-                Margem <Margin value={t.agreedTotal > 0 ? t.marginTotal : null} />
+                Resultado <Margin value={t.companyPaidTotal > 0 ? t.resultTotal : null} />
+              </span>
+              <span className="text-xs text-text-secondary">
+                Previsto {t.agreedTotal > 0 ? formatBRL(t.marginTotal) : '—'}
               </span>
               {alertCount > 0 && (
                 <span className="text-xs text-red-400">⚠ {alertCount} precisa{alertCount === 1 ? '' : 'm'} de ação</span>
@@ -344,6 +407,7 @@ export default function B2BCardsView({ rows, allRows, packages, titles, selected
                     <CampaignCard
                       key={item.row.campaignId}
                       row={item.row}
+                      idx={idx}
                       complementOf={
                         item.row.complementsCampaignId
                           ? (titles[item.row.complementsCampaignId] ?? null)

@@ -310,6 +310,56 @@ export function isTaxFreeRoute(route: B2BPaymentRoute): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// Resultado
+// ---------------------------------------------------------------------------
+
+/**
+ * Contrato = campanha matriz + as campanhas que a complementam. O complemento
+ * usa o valor acordado e o pagamento da matriz; os aptos e o custo somam.
+ * Por isso receita, resultado e margem só existem na matriz, já descontando
+ * o custo dos complementos — e o complemento não tem resultado próprio.
+ */
+export type ComplementIndex = Map<string, B2BFinanceRow[]>;
+
+/** matriz → complementos, a partir de TODAS as linhas (não só as filtradas). */
+export function indexComplements(rows: B2BFinanceRow[]): ComplementIndex {
+  const idx: ComplementIndex = new Map();
+  for (const r of rows) {
+    if (!r.complementsCampaignId) continue;
+    const list = idx.get(r.complementsCampaignId) ?? [];
+    list.push(r);
+    idx.set(r.complementsCampaignId, list);
+  }
+  return idx;
+}
+
+/** Custo com creators do contrato: matriz + complementos (aptos × cachê). */
+export function contractCost(row: B2BFinanceRow, idx: ComplementIndex): number {
+  const complements = idx.get(row.campaignId) ?? [];
+  return row.totalDueCreators + complements.reduce((s, c) => s + c.totalDueCreators, 0);
+}
+
+/**
+ * Resultado: recebido líquido (pago − imposto) menos o custo do contrato. Só
+ * existe quando a marca já pagou algo — antes disso há só a margem prevista.
+ *
+ * O custo entra inteiro mesmo em pagamento parcial: postura conservadora, o
+ * cachê é devido aos creators independente de quanto a marca já pagou.
+ */
+export function campaignResult(row: B2BFinanceRow, idx: ComplementIndex): number | null {
+  if (row.complementsCampaignId) return null;
+  if (row.companyPaidValue <= 0) return null;
+  return Math.round((row.repasseNetValue - contractCost(row, idx)) * 100) / 100;
+}
+
+/** Margem prevista (se tudo for pago): receita líquida − custo do contrato. */
+export function campaignForecast(row: B2BFinanceRow, idx: ComplementIndex): number | null {
+  if (row.complementsCampaignId) return null;
+  if (row.netRevenue === null) return null;
+  return Math.round((row.netRevenue - contractCost(row, idx)) * 100) / 100;
+}
+
+// ---------------------------------------------------------------------------
 // Complementos
 // ---------------------------------------------------------------------------
 
@@ -330,21 +380,16 @@ export function summarizeComplements(
   original: B2BFinanceRow,
   rows: B2BFinanceRow[]
 ): ComplementSummary {
-  const complements = rows.filter(r => r.complementsCampaignId === original.campaignId);
+  const idx = indexComplements(rows);
+  const complements = idx.get(original.campaignId) ?? [];
   const eligibleTotal =
     original.eligibleParticipants + complements.reduce((s, r) => s + r.eligibleParticipants, 0);
-  const costTotal =
-    original.totalDueCreators + complements.reduce((s, r) => s + r.totalDueCreators, 0);
-  const complementsRevenue = complements.reduce((s, r) => s + (r.netRevenue ?? 0), 0);
   return {
     complements,
     eligibleTotal,
     gap: original.contractedCreators === null ? null : original.contractedCreators - eligibleTotal,
-    costTotal,
-    contractMargin:
-      original.netRevenue === null
-        ? null
-        : Math.round((original.netRevenue + complementsRevenue - costTotal) * 100) / 100,
+    costTotal: contractCost(original, idx),
+    contractMargin: campaignForecast(original, idx),
   };
 }
 
@@ -406,7 +451,16 @@ export function isRevenueExposed(row: B2BFinanceRow): boolean {
 // Totais (big numbers)
 // ---------------------------------------------------------------------------
 
-export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
+/**
+ * `allRows` (todas as linhas, não só as filtradas) alimenta o índice de
+ * complementos: o custo de um complemento entra na matriz mesmo que ele esteja
+ * em outro mês ou fora do filtro.
+ */
+export function computeTotals(
+  rows: B2BFinanceRow[],
+  allRows: B2BFinanceRow[] = rows
+): B2BFinanceTotals {
+  const idx = indexComplements(allRows);
   const t: B2BFinanceTotals = {
     campaigns: rows.length,
     finalizadas: 0,
@@ -437,8 +491,9 @@ export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
     marginPct: null,
     companyPaidPct: null,
     realizedNetRevenueTotal: 0,
-    realizedMarginTotal: 0,
-    realizedMarginPct: null,
+    resultCostTotal: 0,
+    resultTotal: 0,
+    resultPct: null,
     creditedPct: null,
   };
 
@@ -486,17 +541,17 @@ export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
       t.pendingToGenerateTotal += r.pendingToGenerate;
       t.pendingToGenerateCampaigns += 1;
     }
-    t.marginTotal += r.marginValue ?? 0;
+    t.marginTotal += campaignForecast(r, idx) ?? 0;
 
-    // Concretizado: o imposto incide sobre o que foi efetivamente recebido,
-    // por isso a alíquota é aplicada linha a linha e não sobre o total.
-    t.realizedNetRevenueTotal += r.companyPaidValue * (1 - r.taxRate / 100);
+    // Resultado: o imposto incide sobre o que foi efetivamente recebido, por
+    // isso a alíquota é aplicada linha a linha e não sobre o total.
+    if (r.companyPaidValue > 0 && !r.complementsCampaignId) {
+      t.realizedNetRevenueTotal += r.repasseNetValue;
+      t.resultCostTotal += contractCost(r, idx);
+    }
   }
 
-  // Postura conservadora: conta a receita só quando entra, mas o custo assim
-  // que vira crédito — uma vez creditado, o POPline deve e não tem como voltar
-  // atrás. É o número que responde "estou ganhando dinheiro de fato?".
-  t.realizedMarginTotal = t.realizedNetRevenueTotal - t.creditedTotal;
+  t.resultTotal = t.realizedNetRevenueTotal - t.resultCostTotal;
 
   // Divisão por zero: sem base, o percentual é indefinido — nunca Infinity/NaN.
   if (t.agreedTotal > 0) {
@@ -504,7 +559,7 @@ export function computeTotals(rows: B2BFinanceRow[]): B2BFinanceTotals {
     t.companyPaidPct = (t.companyPaidTotal / t.agreedTotal) * 100;
   }
   if (t.companyPaidTotal > 0) {
-    t.realizedMarginPct = (t.realizedMarginTotal / t.companyPaidTotal) * 100;
+    t.resultPct = (t.resultTotal / t.companyPaidTotal) * 100;
   }
   if (t.dueCreatorsTotal > 0) {
     t.creditedPct = (t.creditedTotal / t.dueCreatorsTotal) * 100;

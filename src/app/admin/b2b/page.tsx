@@ -198,8 +198,8 @@ export default function AdminB2BPage() {
   const openRow = openId ? (rows.find(r => r.campaignId === openId) ?? null) : null;
 
   const totals = useMemo(
-    () => computeTotals(openRow ? [openRow] : visible),
-    [visible, openRow]
+    () => computeTotals(openRow ? [openRow] : visible, rows),
+    [visible, openRow, rows]
   );
 
   const handleSort = (key: SortKey) => {

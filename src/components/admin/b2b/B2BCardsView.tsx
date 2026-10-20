@@ -9,7 +9,11 @@ import {
   campaignForecast,
   campaignResult,
   computeTotals,
+  creditStatus,
   indexComplements,
+  isContractCreditGenerated,
+  CREDIT_STATUS_LABEL,
+  type CreditStatus,
   type ComplementIndex,
   monthKey,
   moneyFlow,
@@ -59,6 +63,34 @@ function FlowChip({ flow }: { flow: B2BMoneyFlow }) {
     >
       {MONEY_FLOW_LABEL[flow]}
     </span>
+  );
+}
+
+const CREDIT_CLASS: Record<CreditStatus, string> = {
+  gerado: 'text-emerald-400',
+  parcial: 'text-amber-400',
+  nao_gerado: 'text-text-secondary',
+  sem_cache: 'text-text-secondary',
+};
+
+const CREDIT_ICON: Record<CreditStatus, string> = {
+  gerado: '✓',
+  parcial: '◐',
+  nao_gerado: '○',
+  sem_cache: '–',
+};
+
+function CreditLine({ row }: { row: B2BFinanceRow }) {
+  const st = creditStatus(row);
+  return (
+    <p
+      className={`text-[11px] mt-0.5 ${CREDIT_CLASS[st]}`}
+      title={`Creditado ${formatBRL(row.creditedTotal)} de ${formatBRL(row.totalDueCreators)} (aptos × cachê)`}
+    >
+      {CREDIT_ICON[st]} {CREDIT_STATUS_LABEL[st]}
+      {st === 'parcial' &&
+        ` · ${formatBRL(row.creditedTotal)} de ${formatBRL(row.totalDueCreators)}`}
+    </p>
   );
 }
 
@@ -156,6 +188,7 @@ function CampaignCard({
       {complementOf && (
         <p className="text-[11px] text-sky-400 mt-0.5 truncate">↳ complemento de {complementOf.trim()}</p>
       )}
+      <CreditLine row={row} />
 
       <div className="flex items-end justify-between gap-2 mt-3">
         <div>
@@ -367,6 +400,9 @@ export default function B2BCardsView({ rows, allRows, packages, titles, selected
       {groups.map(g => {
         const open = isOpen(g.key);
         const t = computeTotals(g.rows, allRows);
+        // Mesmo resumo, só com os contratos cujo cachê já foi todo creditado.
+        const generatedRows = g.rows.filter(r => isContractCreditGenerated(r, idx));
+        const tg = computeTotals(generatedRows, allRows);
         const alertCount = g.rows.filter(r => rowAlerts(r).length > 0).length;
         return (
           <section key={g.key} className="rounded-2xl border border-border bg-surface/40">
@@ -398,6 +434,29 @@ export default function B2BCardsView({ rows, allRows, packages, titles, selected
               {alertCount > 0 && (
                 <span className="text-xs text-red-400">⚠ {alertCount} precisa{alertCount === 1 ? '' : 'm'} de ação</span>
               )}
+              <span className="basis-full flex flex-wrap items-center gap-x-5 gap-y-1 mt-1 pt-1.5 border-t border-border/60 text-xs text-text-secondary">
+                <span className="min-w-[170px] text-emerald-400/90">✓ Com saldo gerado</span>
+                {generatedRows.length === 0 ? (
+                  <span>nenhuma campanha com o cachê todo creditado ainda</span>
+                ) : (
+                  <>
+                    <span>
+                      {generatedRows.length} campanha{generatedRows.length === 1 ? '' : 's'}
+                    </span>
+                    <span>
+                      Valor{' '}
+                      <span className="text-text-primary font-medium">{formatBRL(tg.agreedTotal)}</span>
+                    </span>
+                    <span>
+                      Recebido{' '}
+                      <span className="text-emerald-400 font-medium">{formatBRL(tg.companyPaidTotal)}</span>
+                    </span>
+                    <span>
+                      Resultado <Margin value={tg.companyPaidTotal > 0 ? tg.resultTotal : null} />
+                    </span>
+                  </>
+                )}
+              </span>
             </button>
 
             {open && (

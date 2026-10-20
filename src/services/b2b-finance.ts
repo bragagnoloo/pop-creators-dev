@@ -352,6 +352,44 @@ export function campaignResult(row: B2BFinanceRow, idx: ComplementIndex): number
   return Math.round((row.repasseNetValue - contractCost(row, idx)) * 100) / 100;
 }
 
+// ---------------------------------------------------------------------------
+// Saldo gerado (cachê creditado na carteira dos creators)
+// ---------------------------------------------------------------------------
+
+/**
+ * - gerado:     todo o cachê devido (aptos × cachê) já virou crédito;
+ * - parcial:    parte já virou crédito;
+ * - nao_gerado: nada creditado ainda;
+ * - sem_cache:  campanha sem cachê (permuta/comissão), nada a gerar.
+ */
+export type CreditStatus = 'gerado' | 'parcial' | 'nao_gerado' | 'sem_cache';
+
+export function creditStatus(row: B2BFinanceRow): CreditStatus {
+  if (row.totalDueCreators <= 0) return row.creditedTotal > 0 ? 'gerado' : 'sem_cache';
+  // Tolerância de meio centavo contra arredondamento de numeric.
+  if (row.creditedTotal >= row.totalDueCreators - 0.005) return 'gerado';
+  return row.creditedTotal > 0 ? 'parcial' : 'nao_gerado';
+}
+
+export const CREDIT_STATUS_LABEL: Record<CreditStatus, string> = {
+  gerado: 'Saldo gerado',
+  parcial: 'Saldo parcial',
+  nao_gerado: 'Saldo não gerado',
+  sem_cache: 'Sem cachê',
+};
+
+/**
+ * Saldo gerado no contrato inteiro: a campanha e todos os complementos dela.
+ * Campanha sem cachê nenhum não conta como gerada (não há o que gerar).
+ */
+export function isContractCreditGenerated(row: B2BFinanceRow, idx: ComplementIndex): boolean {
+  if (creditStatus(row) !== 'gerado') return false;
+  return (idx.get(row.campaignId) ?? []).every(c => {
+    const st = creditStatus(c);
+    return st === 'gerado' || st === 'sem_cache';
+  });
+}
+
 /** Margem prevista (se tudo for pago): receita líquida − custo do contrato. */
 export function campaignForecast(row: B2BFinanceRow, idx: ComplementIndex): number | null {
   if (row.complementsCampaignId) return null;

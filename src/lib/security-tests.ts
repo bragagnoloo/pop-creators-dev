@@ -278,7 +278,7 @@ const TESTS: Test[] = [
       },
     })
   ),
-  ...(['audit_log', 'security_alerts'] as const).map(
+  ...(['audit_log', 'security_alerts', 'purchase_access', 'account_access_tokens'] as const).map(
     (table): Test => ({
       id: `creator.read.${table}`,
       description: `Criador não lê ${table}`,

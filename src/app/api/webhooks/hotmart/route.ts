@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { PLANS } from '@/services/subscriptions';
 import { sendCAPIEvents, sha256, digitsOnly } from '@/lib/meta-capi';
+import {
+  ensurePurchaseAccount, markUnconfirmedForAccess, syncPurchaseRecord, sendAccessEmail,
+  sendLeadToMktarmy, alertStuckSale, needsFirstAccess, isUnconfirmedSignup, accessVariant,
+  type Buyer,
+} from '@/lib/purchase-access';
+import type { User } from '@supabase/supabase-js';
 import type { PlanId } from '@/types';
 
 // =============================================================================
@@ -16,7 +22,7 @@ type HotmartPayload = {
   event?: string;
   data?: {
     product?: { id?: number | string; name?: string };
-    buyer?: { email?: string; name?: string; checkout_phone?: string };
+    buyer?: { email?: string; name?: string; checkout_phone?: string; phone?: string };
     purchase?: {
       transaction?: string;
       status?: string;
@@ -120,16 +126,18 @@ export async function POST(req: NextRequest) {
   const plan           = resolvePlan(payload);
 
   // Localiza o usuário por email (dados completos para o CAPI)
+  const PROFILE_FIELDS = 'id, email, whatsapp, full_name, meta_fbp, meta_fbc, meta_user_agent, city, state, cep';
   let profile: ProfileRow | null = null;
   if (email) {
     const { data } = await supabase
       .from('profiles')
-      .select('id, email, whatsapp, full_name, meta_fbp, meta_fbc, meta_user_agent, city, state, cep')
+      .select(PROFILE_FIELDS)
       .eq('email', email)
       .single();
     profile = (data as ProfileRow | null) ?? null;
   }
-  const userId = profile?.id ?? null;
+  // `let`: o fluxo alternativo da compra pode criar a conta durante o PURCHASE_APPROVED.
+  let userId = profile?.id ?? null;
 
   // Loga o evento normalizado (nome cru preservado em raw_payload)
   async function logEvent(eventType: string) {
@@ -192,10 +200,63 @@ export async function POST(req: NextRequest) {
       if (existing) return NextResponse.json({ ok: true, skipped: 'duplicate' });
     }
 
+    const buyer: Buyer | null = email
+      ? {
+          email,
+          name:        payload.data?.buyer?.name ?? null,
+          phone:       payload.data?.buyer?.checkout_phone ?? payload.data?.buyer?.phone ?? null,
+          transaction,
+        }
+      : null;
+
+    // Fluxo alternativo: comprou sem conta (afiliado, ou trocou o e-mail no
+    // checkout). Cria a conta e segue o fluxo normal com ela. Erro permanente
+    // cai no comportamento antigo; só erro temporário pede reenvio à Hotmart.
+    let authUser: User | null = null;
+    let accountCreated = false;
+    if ((!userId || !profile) && buyer) {
+      const ensured = await ensurePurchaseAccount(supabase, buyer);
+      if (ensured.kind === 'transient') {
+        alertStuckSale({ motivo: `Conta não criada (vai tentar de novo): ${ensured.reason}`, email, transacao: transaction });
+        return NextResponse.json({ error: 'account_creation_failed' }, { status: 500 });
+      }
+      if (ensured.kind === 'permanent') {
+        alertStuckSale({ motivo: `Conta não criada: ${ensured.reason}`, email, transacao: transaction });
+      } else {
+        const { data } = await supabase.from('profiles').select(PROFILE_FIELDS).eq('id', ensured.profileId).single();
+        if (data) {
+          profile        = data as ProfileRow;
+          userId         = profile.id;
+          authUser       = ensured.user;
+          accountCreated = ensured.created;
+        } else {
+          alertStuckSale({ motivo: 'Conta criada, mas o perfil não apareceu (vai tentar de novo)', email, transacao: transaction });
+          return NextResponse.json({ error: 'profile_missing' }, { status: 500 });
+        }
+      }
+    }
+
     if (!userId || !profile) {
       await logEvent('order_approved');
       console.warn('[webhook/hotmart] user not found for email', email);
       return NextResponse.json({ ok: true, skipped: 'user_not_found' });
+    }
+
+    // Quem ainda não consegue entrar recebe o e-mail de acesso em vez do
+    // "plano ativado": conta criada pela compra que nunca entrou, ou cadastro
+    // feito pelo site que nunca confirmou o e-mail. Para as demais contas
+    // `firstAccess` é falso e nada muda. Falha ao consultar o Auth também.
+    if (!authUser) {
+      const { data } = await supabase.auth.admin.getUserById(userId);
+      authUser = data.user ?? null;
+    }
+    if (authUser && isUnconfirmedSignup(authUser) && authUser.app_metadata?.first_access_pending !== true) {
+      authUser = (await markUnconfirmedForAccess(supabase, authUser)) ?? authUser;
+    }
+    const firstAccess = !!authUser && needsFirstAccess(authUser);
+    if (firstAccess && buyer) {
+      await syncPurchaseRecord(supabase, profile, authUser!, buyer);
+      if (accountCreated) sendLeadToMktarmy(buyer);
     }
 
     // Novo vs renovação: recorrência Hotmart > 1 OU já tem histórico de pagamento
@@ -251,7 +312,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await supabase.from('payments').insert({
+    // O erro só é lido para o fluxo alternativo: 23505 = outro request da mesma
+    // venda gravou o pagamento antes (reenvio concorrente), e é ele quem manda o
+    // e-mail de acesso. Para o resto do fluxo, nada muda.
+    const { error: paymentError } = await supabase.from('payments').insert({
       user_id:         userId,
       kiwify_order_id: transaction,
       plan,
@@ -328,6 +392,25 @@ export async function POST(req: NextRequest) {
       })
       .eq('id', userId)
       .is('first_subscribed_at', null);
+
+    // Fluxo alternativo: quem ainda não consegue entrar recebe o link de acesso
+    // (com o plano vigente) no lugar do "plano ativado".
+    if (firstAccess) {
+      if (paymentError?.code !== '23505') {
+        const accessPlan    = applyToSubscription ? plan : (current?.plan ?? plan);
+        const accessExpires = applyToSubscription ? exp : (current?.expires_at ?? exp);
+        await sendAccessEmail(supabase, {
+          userId,
+          email:       authUser!.email ?? profile.email,
+          fullName:    profile.full_name || buyer?.name || '',
+          planName:    PLANS[accessPlan].name,
+          expiresAt:   new Date(accessExpires).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+          variant:     accessVariant(authUser!, isRenewal),
+          transaction,
+        });
+      }
+      return NextResponse.json({ ok: true, applied: applyToSubscription, firstAccess: true });
+    }
 
     // Só avisa quando o plano realmente mudou. Mandar "seu plano mensal foi
     // ativado" para quem segue no anual seria pior que não mandar nada.

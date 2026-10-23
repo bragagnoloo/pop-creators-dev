@@ -9,48 +9,75 @@ import { getUserSubscription, PLANS } from '@/services/subscriptions';
 
 const COMMUNITY_URL = 'https://chat.whatsapp.com/Hims22XDcjQL8N9AwV7dI3';
 
+// Quem vem do checkout sempre vê a confirmação. A Comunidade VIP só aparece
+// quando a assinatura está confirmada na conta logada ('full'): a URL com
+// ?ref=hotmart é pública, então mostrar o link no modo 'pending' abriria o
+// grupo para qualquer um. Quem comprou sem conta, ou com outro e-mail, recebe o
+// link da comunidade no e-mail de acesso.
+type View = 'loading' | 'full' | 'pending-guest' | 'pending-user';
+
 function ObrigadoContent() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [allowed, setAllowed] = useState(false);
+  const [userView, setView] = useState<View>('loading');
+  const ref = searchParams.get('ref');
+  const isPaidRedirect = ref === 'hotmart' || ref === 'kiwify';
+  // Sem login e vindo do checkout: não há o que consultar, a versão é fixa.
+  const view: View = !isLoading && !user && isPaidRedirect ? 'pending-guest' : userView;
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
-      router.replace('/dashboard/planos');
+      if (!isPaidRedirect) router.replace('/dashboard/planos');
       return;
     }
 
-    const ref = searchParams.get('ref');
-    const isPaidRedirect = ref === 'hotmart' || ref === 'kiwify';
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    getUserSubscription(user.id).then(sub => {
-      if (sub.plan === 'free') {
-        // Webhook pode ainda não ter processado — se veio do gateway, vai para
-        // /planos com ?payment=success para ativar o polling e disparar o pixel
-        // quando o plano ativar.
-        router.replace(isPaidRedirect ? '/dashboard/planos?payment=success' : '/dashboard/planos');
-        return;
-      }
-      setAllowed(true);
-      if (isPaidRedirect) {
-        fetch('/api/tracking/latest-order')
-          .then(r => r.json())
-          .then(({ orderId }: { orderId: string | null }) => {
-            pixelPurchase({
-              value:        PLANS[sub.plan].priceTotal,
-              currency:     'BRL',
-              content_name: PLANS[sub.plan].name,
-            }, orderId ?? undefined);
-          })
-          .catch(() => {});
-      }
-    });
-  }, [user, isLoading, router, searchParams]);
+    const firePurchase = (plan: Exclude<keyof typeof PLANS, 'free'>) => {
+      fetch('/api/tracking/latest-order')
+        .then(r => r.json())
+        .then(({ orderId }: { orderId: string | null }) => {
+          pixelPurchase({
+            value:        PLANS[plan].priceTotal,
+            currency:     'BRL',
+            content_name: PLANS[plan].name,
+          }, orderId ?? undefined);
+        })
+        .catch(() => {});
+    };
 
-  if (!allowed) {
+    const check = () => {
+      getUserSubscription(user.id).then(sub => {
+        if (cancelled) return;
+        if (sub.plan === 'free') {
+          if (!isPaidRedirect) {
+            router.replace('/dashboard/planos');
+            return;
+          }
+          // Webhook ainda processando, ou a compra foi feita com outro e-mail
+          // (a conta nova recebe o acesso por e-mail). Segue consultando: se o
+          // plano ativar nesta conta, troca para a versão completa.
+          setView('pending-user');
+          timer = setTimeout(check, 3000);
+          return;
+        }
+        setView('full');
+        if (isPaidRedirect) firePurchase(sub.plan);
+      });
+    };
+    check();
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, isLoading, router, isPaidRedirect]);
+
+  if (view === 'loading') {
     return (
       <main className="min-h-screen flex items-center justify-center noise-overlay grid-bg">
         <div className="w-8 h-8 rounded-full border-2 border-popline-pink border-t-transparent animate-spin" />
@@ -122,7 +149,41 @@ function ObrigadoContent() {
           e muito mais.
         </p>
 
+        {view === 'pending-guest' && (
+          <div className="animate-slide-up-delay-3 w-full max-w-md glass-card border border-popline-pink/20 rounded-2xl p-6 text-left space-y-3">
+            <p className="text-text-primary font-semibold">Próximo passo: acesse seu e-mail</p>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Enviamos o acesso para o <strong className="text-text-primary">e-mail usado na compra</strong>. Procure
+              pela mensagem &quot;Sua conta na POPline Creators está pronta&quot;, clique em{' '}
+              <strong className="text-text-primary">Acessar minha conta</strong> e crie sua senha. No e-mail também
+              está o link da Comunidade VIP.
+            </p>
+            <p className="text-xs text-text-secondary">Não chegou em alguns minutos? Confira a caixa de spam e promoções.</p>
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center w-full mt-2 px-6 py-3 rounded-xl font-semibold text-sm border border-border text-text-primary hover:border-popline-pink/40 transition-colors"
+            >
+              Já tenho conta: entrar
+            </Link>
+          </div>
+        )}
+
+        {view === 'pending-user' && (
+          <div className="animate-slide-up-delay-3 w-full max-w-md glass-card border border-popline-pink/20 rounded-2xl p-6 text-left space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-4 h-4 border-2 border-popline-pink border-t-transparent rounded-full animate-spin" />
+              <p className="text-text-primary font-semibold">Estamos liberando seu acesso</p>
+            </div>
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Isso costuma levar alguns segundos e esta página atualiza sozinha. Se você usou{' '}
+              <strong className="text-text-primary">outro e-mail na compra</strong>, a assinatura fica na conta desse
+              e-mail: enviamos para ele o link de acesso e o da Comunidade VIP.
+            </p>
+          </div>
+        )}
+
         {/* CTAs */}
+        {view === 'full' && (
         <div className="animate-slide-up-delay-3 flex flex-col items-center gap-3 w-full max-w-xs">
           <a
             href={COMMUNITY_URL}
@@ -145,6 +206,7 @@ function ObrigadoContent() {
             Acessar a plataforma →
           </Link>
         </div>
+        )}
 
       </div>
 

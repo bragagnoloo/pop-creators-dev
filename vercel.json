@@ -1,6 +1,7 @@
 {
   "regions": ["gru1"],
   "crons": [
-    { "path": "/api/cron/security-tests", "schedule": "0 10 * * *" }
+    { "path": "/api/cron/security-tests", "schedule": "0 10 * * *" },
+    { "path": "/api/cron/rec-overdue", "schedule": "0 12 * * *" }
   ]
 }

@@ -7,6 +7,7 @@ import {
   sendLeadToMktarmy, alertStuckSale, needsFirstAccess, isUnconfirmedSignup, accessVariant,
   type Buyer,
 } from '@/lib/purchase-access';
+import { isRecAnnualPlan, recNextCharge, recExpiresAt, recordRecPayment } from '@/lib/rec-annual';
 import type { User } from '@supabase/supabase-js';
 import type { PlanId } from '@/types';
 
@@ -31,10 +32,12 @@ type HotmartPayload = {
       full_price?: { value?: number };
       payment?: { type?: string; method?: string };
       offer?: { code?: string };
+      /** Epoch ms da próxima tentativa de cobrança (ciclo real do gateway). */
+      date_next_charge?: number;
     };
     subscription?: {
       subscriber?: { code?: string };
-      plan?: { name?: string };
+      plan?: { id?: number | string; name?: string };
     };
     // Estrutura do SUBSCRIPTION_CANCELLATION (difere dos eventos de compra)
     subscriber?: { code?: string; email?: string };
@@ -93,9 +96,30 @@ function resolvePlan(payload: HotmartPayload): PlanId | null {
   return null;
 }
 
-function expiresAt(plan: PlanId): string {
-  const months = PLANS[plan].durationMonths;
-  return new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString();
+/**
+ * Vencimento do acesso = a data em que a Hotmart tenta a próxima cobrança.
+ *
+ * Antes era sempre `now + durationMonths * 30 dias`. Isso desalinha do gateway,
+ * que cobra por mês-calendário: num mês de 31 dias o acesso vencia ~1 dia ANTES
+ * da renovação e o assinante em dia batia na tela de "assinatura expirada".
+ * Aconteceu em 04/09/2026 com dois mensais (cobrança 05/09, acesso morto 04/09).
+ * O payload já traz `date_next_charge`; usá-lo mantém acesso e cobrança no mesmo
+ * calendário, sem folga — o acesso termina exatamente quando a cobrança ocorre.
+ *
+ * O valor vem de fora, então passa por sanidade: precisa estar no futuro e caber
+ * na duração do plano. Fora disso, cai no cálculo antigo. Isso não é margem de
+ * cortesia, é limite do que se aceita de um campo não confiável.
+ */
+function expiresAt(plan: PlanId, dateNextCharge?: number): string {
+  const months   = PLANS[plan].durationMonths;
+  const fallback = new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  if (typeof dateNextCharge !== 'number' || !Number.isFinite(dateNextCharge)) return fallback;
+  const next  = dateNextCharge;
+  const teto  = Date.now() + (months * 31 + 2) * 24 * 60 * 60 * 1000;
+  if (next <= Date.now() || next > teto) return fallback;
+
+  return new Date(next).toISOString();
 }
 
 export async function POST(req: NextRequest) {
@@ -123,7 +147,10 @@ export async function POST(req: NextRequest) {
   const email          = (payload.data?.buyer?.email ?? payload.data?.subscriber?.email)?.toLowerCase().trim();
   const rawMethod      = purchase?.payment?.type ?? purchase?.payment?.method ?? null;
   const paymentMethod  = rawMethod ? rawMethod.toLowerCase() : null;
-  const plan           = resolvePlan(payload);
+  // REC_Plano Anual (recuperação de carrinho): libera o anual mesmo que a oferta
+  // venha com um código que a lista não conhece.
+  const isRecAnnual    = isRecAnnualPlan(payload.data?.subscription?.plan);
+  const plan           = resolvePlan(payload) ?? (isRecAnnual ? 'yearly' : null);
 
   // Localiza o usuário por email (dados completos para o CAPI)
   const PROFILE_FIELDS = 'id, email, whatsapp, full_name, meta_fbp, meta_fbc, meta_user_agent, city, state, cep';
@@ -271,7 +298,10 @@ export async function POST(req: NextRequest) {
     }
     await logEvent(isRenewal ? 'subscription_renewed' : 'order_approved');
 
-    const exp    = expiresAt(plan);
+    // REC_Plano Anual é cobrado mês a mês: o acesso vai até a próxima parcela
+    // (+3 dias de folga), e não um ano por parcela. Demais planos: sem mudança.
+    const recCharge = isRecAnnual ? recNextCharge(purchase?.date_next_charge) : null;
+    const exp    = recCharge ? recExpiresAt(recCharge) : expiresAt(plan, purchase?.date_next_charge);
     const amount = purchase?.price?.value ?? PLANS[plan].priceTotal;
 
     // Guarda contra rebaixamento: a cobrança de uma assinatura ANTIGA não pode
@@ -299,6 +329,7 @@ export async function POST(req: NextRequest) {
         kiwify_subscription_id: subscriberCode,
         payment_method:         paymentMethod,
       });
+      if (recCharge) await recordRecPayment(supabase, userId, subscriberCode, recCharge);
     } else {
       // O pagamento abaixo é registrado de qualquer forma: o dinheiro foi cobrado.
       console.warn('[webhook/hotmart] compra nao aplicada ao acesso (nao estende a cobertura vigente)', {

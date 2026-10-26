@@ -7,6 +7,7 @@ import {
   sendLeadToMktarmy, alertStuckSale, needsFirstAccess, isUnconfirmedSignup, accessVariant,
   type Buyer,
 } from '@/lib/purchase-access';
+import { resolvePlan } from '@/lib/hotmart-plan';
 import { isRecAnnualPlan, recNextCharge, recExpiresAt, recordRecPayment } from '@/lib/rec-annual';
 import type { User } from '@supabase/supabase-js';
 import type { PlanId } from '@/types';
@@ -57,44 +58,6 @@ type ProfileRow = {
   cep: string | null;
 };
 
-// offer.code → PlanId. Padrões = o `off=` de cada oferta (público); env sobrescreve.
-// ⚠️ Confirmar no 1º payload real que data.purchase.offer.code == estes códigos.
-const OFFER_MAP: Record<string, PlanId> = {
-  [process.env.HOTMART_OFFER_MONTHLY  || 'hp9j1u5w']: 'monthly',
-  [process.env.HOTMART_OFFER_SEMESTER || '9fs5f41h']: 'semester',
-  [process.env.HOTMART_OFFER_YEARLY   || '47tdmvul']: 'yearly',
-  // Ofertas da promo "20 anos" (cupom 20% OFF). Mantidas permanentemente para
-  // que compras via cupom liberem o plano correto — o preço com desconto NÃO
-  // casaria com o fallback de preço de tabela. Reconhecer códigos a mais é
-  // inofensivo mesmo após a promo terminar.
-  qe0i73w3: 'monthly',
-  pcg3ywkl: 'semester',
-  rxeqtcod: 'yearly',
-};
-
-function resolvePlan(payload: HotmartPayload): PlanId | null {
-  const purchase = payload.data?.purchase;
-  const code = purchase?.offer?.code;
-  if (code) {
-    if (OFFER_MAP[code]) return OFFER_MAP[code];
-    // A Hotmart pode enviar o código com sufixo (visto em produção:
-    // 'rxeqtcodJWT' para a oferta 'rxeqtcod'), o que derrubava a ativação —
-    // o preço com cupom também não casa com a tabela, então caía em null.
-    // Casar por prefixo cobre esse caso e sufixos futuros.
-    const byPrefix = Object.keys(OFFER_MAP).find(k => k && code.startsWith(k));
-    if (byPrefix) return OFFER_MAP[byPrefix];
-  }
-  // Rede de segurança: casa pelo preço de tabela (os 3 planos têm valores
-  // distintos), caso o offer.code real difira do configurado.
-  const listValue = purchase?.full_price?.value ?? purchase?.price?.value;
-  if (typeof listValue === 'number') {
-    const match = (['monthly', 'semester', 'yearly'] as PlanId[]).find(
-      p => Math.abs(PLANS[p].priceTotal - listValue) < 0.01,
-    );
-    if (match) return match;
-  }
-  return null;
-}
 
 /**
  * Vencimento do acesso = a data em que a Hotmart tenta a próxima cobrança.
@@ -147,10 +110,8 @@ export async function POST(req: NextRequest) {
   const email          = (payload.data?.buyer?.email ?? payload.data?.subscriber?.email)?.toLowerCase().trim();
   const rawMethod      = purchase?.payment?.type ?? purchase?.payment?.method ?? null;
   const paymentMethod  = rawMethod ? rawMethod.toLowerCase() : null;
-  // REC_Plano Anual (recuperação de carrinho): libera o anual mesmo que a oferta
-  // venha com um código que a lista não conhece.
   const isRecAnnual    = isRecAnnualPlan(payload.data?.subscription?.plan);
-  const plan           = resolvePlan(payload) ?? (isRecAnnual ? 'yearly' : null);
+  const plan           = resolvePlan(payload);
 
   // Localiza o usuário por email (dados completos para o CAPI)
   const PROFILE_FIELDS = 'id, email, whatsapp, full_name, meta_fbp, meta_fbc, meta_user_agent, city, state, cep';
@@ -214,6 +175,16 @@ export async function POST(req: NextRequest) {
     if (!plan) {
       await logEvent('order_approved');
       console.error('[webhook/hotmart] unresolved plan for offer', purchase?.offer?.code);
+      // Venda paga sem plano reconhecido = comprador sem acesso. Não pode ficar
+      // só no log: avisa a equipe para ativar à mão e cadastrar o código.
+      alertStuckSale({
+        motivo:        'Venda aprovada com plano não reconhecido: assinatura NÃO ativada',
+        email,
+        transacao:     transaction,
+        oferta:        purchase?.offer?.code ?? null,
+        plano_hotmart: [payload.data?.subscription?.plan?.id, payload.data?.subscription?.plan?.name].filter(Boolean).join(' · ') || null,
+        valor:         purchase?.price?.value != null ? String(purchase.price.value) : null,
+      });
       return NextResponse.json({ ok: true, skipped: 'unresolved_plan' });
     }
 

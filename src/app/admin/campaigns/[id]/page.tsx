@@ -53,6 +53,28 @@ interface Row {
   badges: badgesService.CreatorBadgeData | null;
 }
 
+interface CreditAmount {
+  amount: number;
+  confirmed: number;
+  total: number;
+}
+
+// O cachê da campanha é o valor de todas as entregas somadas. Em campanha com
+// mais de uma entrega, o criador recebe só pelas entregas com publicação
+// confirmada (Etapa 06): quem fez 2 de 3 recebe 2/3 do cachê. Campanha de
+// entrega única segue pagando o cachê cheio, como antes.
+function computeCreditAmount(row: Row, cache: number, deliveryCount: number): CreditAmount {
+  const total = Math.max(deliveryCount, 1);
+  if (total === 1) return { amount: cache, confirmed: 1, total };
+  const confirmed = Math.min(
+    row.deliveries.filter(d => d.publicationStatus === 'confirmed').length,
+    total
+  );
+  // Todas confirmadas → cachê exato, sem resíduo de arredondamento (ex.: 500/3).
+  const amount = confirmed === total ? cache : Math.round((cache / total) * confirmed * 100) / 100;
+  return { amount, confirmed, total };
+}
+
 export default function CampaignControlPanel({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user } = useAuth();
@@ -189,14 +211,25 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
     // a_guard_credit_not_disqualified (migration 0037), porque o insert sai do
     // navegador direto no PostgREST.
     const target = rows.find(r => r.application.userId === userId);
-    if (target?.application.disqualifiedAt) return;
-    await walletService.createCredit(userId, campaign.id, campaign.cache);
+    if (!target || target.application.disqualifiedAt) return;
+    const { amount } = computeCreditAmount(target, campaign.cache, campaign.deliveryCount ?? 1);
+    if (amount <= 0) return;
+    let created: BalanceCredit | null = null;
+    try {
+      created = await walletService.createCredit(userId, campaign.id, amount);
+    } catch (err) {
+      alert(`Não foi possível gerar o saldo: ${err instanceof Error ? err.message : 'erro desconhecido'}`);
+    }
+    if (!created) {
+      load();
+      return;
+    }
     fetch('/api/email/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         event: 'credit-processing',
-        data: { userId, campaignTitle: campaign.title, amount: campaign.cache },
+        data: { userId, campaignTitle: campaign.title, amount },
       }),
     }).catch(() => {});
     load();
@@ -656,7 +689,7 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
               <ParticipantRow
                 key={row.application.id}
                 row={row}
-                campaignCache={campaign.cache}
+                creditAmount={computeCreditAmount(row, campaign.cache, campaign.deliveryCount ?? 1)}
                 hasCache={campaign.hasCache && campaign.cache > 0}
                 onCreate={() => handleCreate(row.application.userId)}
                 onRelease={row.credit ? () => handleRelease(row.credit!.id) : undefined}
@@ -782,13 +815,13 @@ export default function CampaignControlPanel({ params }: { params: Promise<{ id:
 
 function ParticipantRow({
   row,
-  campaignCache,
+  creditAmount,
   hasCache,
   onCreate,
   onRelease,
 }: {
   row: Row;
-  campaignCache: number;
+  creditAmount: CreditAmount;
   hasCache: boolean;
   onCreate: () => void;
   onRelease?: () => void;
@@ -798,6 +831,9 @@ function ParticipantRow({
   // (gerado antes da desclassificação) continua visível e sacável — o valor já
   // era devido; o que se fecha aqui é gerar/liberar dali em diante.
   const disqualified = !!row.application.disqualifiedAt;
+  const multiDelivery = creditAmount.total > 1;
+  const noneConfirmed = multiDelivery && creditAmount.confirmed === 0;
+  const deliveriesLabel = `${creditAmount.confirmed}/${creditAmount.total} entregas`;
 
   return (
     <div className="p-4 rounded-xl bg-background border border-border space-y-4">
@@ -826,12 +862,24 @@ function ParticipantRow({
             <>
               <Button
                 size="sm"
-                disabled={!!credit || disqualified}
+                disabled={!!credit || disqualified || noneConfirmed}
                 onClick={onCreate}
                 variant={credit ? 'secondary' : 'primary'}
-                title={disqualified ? 'Participante desclassificado nesta campanha' : undefined}
+                title={
+                  disqualified
+                    ? 'Participante desclassificado nesta campanha'
+                    : noneConfirmed
+                      ? 'Nenhuma publicação confirmada na Etapa 06'
+                      : multiDelivery
+                        ? `Proporcional às publicações confirmadas na Etapa 06 (${deliveriesLabel})`
+                        : undefined
+                }
               >
-                {credit ? 'Saldo gerado' : `Gerar saldo (${walletService.formatBRL(campaignCache)})`}
+                {credit
+                  ? 'Saldo gerado'
+                  : multiDelivery
+                    ? `Gerar saldo (${walletService.formatBRL(creditAmount.amount)} · ${deliveriesLabel})`
+                    : `Gerar saldo (${walletService.formatBRL(creditAmount.amount)})`}
               </Button>
               {credit && credit.status === 'processing' && onRelease && (
                 <Button size="sm" onClick={onRelease} disabled={disqualified}>Liberar saque</Button>

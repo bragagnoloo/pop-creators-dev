@@ -110,11 +110,13 @@ export async function createCredit(
   const existing = await getCreditForUserCampaign(userId, campaignId);
   if (existing) return null;
   const supabase = createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('balance_credits')
     .insert({ user_id: userId, campaign_id: campaignId, amount, status: 'processing' })
     .select(C_SELECT)
     .single();
+  // Recusa dos guards (0037/0055) volta como erro: quem chama mostra o motivo.
+  if (error) throw new Error(error.message);
   return data ? toCredit(data as CreditRow) : null;
 }
 

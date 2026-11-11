@@ -10,6 +10,7 @@ import CampaignsMarquee from '@/components/landing/CampaignsMarquee';
 import FaqSection from '@/components/landing/FaqSection';
 import CTASection from '@/components/landing/CTASection';
 import Footer from '@/components/landing/Footer';
+import { isPromoActive } from '@/services/subscriptions';
 
 // A home é pré-renderizada. Sem isto, as campanhas abertas e as oficinas
 // publicadas só mudariam na LP quando saísse um deploy novo. Com a
@@ -45,17 +46,22 @@ export default async function Home() {
       thumbnail_url: (w.thumbnail_url as string | null) ?? null,
     }));
 
+  // Decidido no servidor para navbar (faixa) e hero (recuo) baterem desde o
+  // primeiro paint. Com a revalidação de 5 min, a faixa pode entrar/sair até
+  // 5 min depois do horário; o contador da faixa se esconde sozinho no fim.
+  const promo = isPromoActive();
+
   return (
     <>
-      <Navbar />
+      <Navbar promo={promo} />
       <main className="flex-1">
-        <HeroSection />
+        <HeroSection promo={promo} />
         <CampaignsMarquee campaigns={(campaigns ?? []).map(c => ({ id: c.id as string, title: c.title as string }))} />
         <ExperiencesSection />
         <FeaturesSection />
         <ExpertsSection experts={experts} />
         <HowItWorksSection />
-        <PlansSection />
+        <PlansSection promo={promo} />
         <FaqSection />
         <CTASection />
       </main>

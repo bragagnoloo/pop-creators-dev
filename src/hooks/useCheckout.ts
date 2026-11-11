@@ -29,7 +29,7 @@ export function useCheckout(user: User | null | undefined): {
   const [busy, setBusy] = useState(false);
 
   // eligibleForPromo (default true): quando false, força o link de preço normal
-  // mesmo com a promo ativa — usado p/ assinantes na aba Planos.
+  // mesmo com a promo ativa.
   const subscribeTo = useCallback(async (plan: PlanId, eligibleForPromo: boolean = true) => {
     if (!user || plan === 'free' || busy) return;
     const checkoutUrl = getCheckoutUrl(plan, eligibleForPromo);

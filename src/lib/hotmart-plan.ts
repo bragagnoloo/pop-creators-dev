@@ -37,6 +37,8 @@ const OFFER_MAP: Record<string, PlanId> = {
   qe0i73w3: 'monthly',
   pcg3ywkl: 'semester',
   rxeqtcod: 'yearly',
+  // Oferta Black Friday 2026 (30% OFF no Anual).
+  axbmz79q: 'yearly',
 };
 
 // Plano da assinatura na Hotmart (produto 8038052). REC_Plano Anual é a

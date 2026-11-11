@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import UgcLogo from '@/components/ui/UgcLogo';
 import Sidebar, { useSidebarState } from '@/components/ui/Sidebar';
@@ -21,15 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { collapsed, toggle } = useSidebarState();
   const dailyLoginRecorded = useRef(false);
 
-  // Assinatura do usuário — usado só para exibir o banner promo a quem é free.
-  const { data: subscription } = useSWR(
-    user ? ['subscription', user.id] : null,
-    ([, uid]) => subService.getUserSubscription(uid),
-  );
-  // Só mostra depois de confirmar o plano (para não "piscar" p/ pagantes) e
-  // enquanto a promo 20 anos estiver no ar (some sozinho após o prazo).
-  const showPromoBanner =
-    subscription != null && subscription.plan === 'free' && subService.isPromoActive();
+  // Banner da Black Friday para qualquer plano (free ou assinante), enquanto
+  // a promo estiver no ar (some sozinho após o prazo).
+  const showPromoBanner = user != null && subService.isPromoActive();
 
   useEffect(() => {
     if (!isLoading && !user) {

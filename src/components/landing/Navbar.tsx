@@ -4,8 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { ROUTES } from '@/lib/constants';
+import PromoStrip from './PromoStrip';
 
-export default function Navbar() {
+export default function Navbar({ promo = false }: { promo?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const links = [
@@ -17,6 +18,7 @@ export default function Navbar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-40 bg-background/70 backdrop-blur-2xl border-b border-white/5">
+      {promo && <PromoStrip />}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}

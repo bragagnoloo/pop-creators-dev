@@ -79,47 +79,46 @@ export const CHECKOUT_URLS: Record<PlanId, string> = {
 };
 
 // ============================================================================
-// Promoção "POPline 20 anos" — 20% OFF.
-// Ativa até 02/08/2026 23:59:59 no horário de Brasília (UTC-3). Passado o
-// prazo, isPromoActive() vira false e TODA a UI volta ao normal sozinha:
-// banner de topo, links de checkout, preços "de/por" e o texto do botão.
-// Para prorrogar/encerrar antes, basta mudar PROMO_DEADLINE_MS.
-// A promo só é exibida a quem NÃO tem assinatura ativa (plano free): o banner
-// já é gated no layout e a aba Planos passa `eligible` p/ preço/contador/link.
-// ⚠️ Os códigos de oferta dos links promo (qe0i73w3/pcg3ywkl/rxeqtcod) também
-// precisam estar mapeados no webhook (OFFER_MAP em api/webhooks/hotmart) para
-// que a compra via cupom libere o plano — senão a ativação é ignorada.
+// Promoção "Black Friday" — 30% OFF só no Plano Anual.
+// No ar de 11/11/2026 00:00 até 01/12/2026 00:00 (exclusive) no horário de
+// Brasília (UTC-3). Fora da janela, isPromoActive() é false e TODA a UI volta ao normal
+// sozinha: faixa da LP, banner do dashboard, links de checkout, preços
+// "de/por" e o texto do botão. Para prorrogar/encerrar, mude as datas abaixo.
+// A promo vale para qualquer plano (free e assinantes): banner, preço,
+// contador e link com desconto aparecem para todos.
+// NEXT_PUBLIC_PROMO_PREVIEW=1 (só no .env.local) ignora a data de início para
+// revisar a promo antes de ela entrar no ar. Nunca definir em produção.
+// ⚠️ O código da oferta do link promo também precisa estar mapeado no webhook
+// (OFFER_MAP em api/webhooks/hotmart) para que a compra com desconto libere o
+// plano — senão a ativação é ignorada.
 // ============================================================================
-export const PROMO_DEADLINE_MS = new Date('2026-08-02T23:59:59-03:00').getTime();
+export const PROMO_START_MS = new Date('2026-11-11T00:00:00-03:00').getTime();
+export const PROMO_DEADLINE_MS = new Date('2026-12-01T00:00:00-03:00').getTime();
+export const PROMO_LABEL = '30% OFF';
+const PROMO_PREVIEW = process.env.NEXT_PUBLIC_PROMO_PREVIEW === '1';
 
 export function isPromoActive(now: number = Date.now()): boolean {
-  return now < PROMO_DEADLINE_MS;
+  return now < PROMO_DEADLINE_MS && (PROMO_PREVIEW || now >= PROMO_START_MS);
 }
 
-// Preço "por" (com 20% OFF) por plano — exibido só enquanto a promo está ativa.
-export const PROMO_PRICES: Record<PlanId, { priceTotal: number; monthlyEquivalent: number }> = {
-  free:     { priceTotal: 0,      monthlyEquivalent: 0 },
-  monthly:  { priceTotal: 39.92,  monthlyEquivalent: 39.92 },
-  semester: { priceTotal: 191.52, monthlyEquivalent: 31.92 },
-  yearly:   { priceTotal: 287.04, monthlyEquivalent: 23.92 },
+// Preço "por" (com desconto) dos planos em promo — exibido só enquanto a promo
+// está ativa. Plano fora do mapa não tem desconto e mostra o preço normal.
+export const PROMO_PRICES: Partial<Record<PlanId, { priceTotal: number; monthlyEquivalent: number }>> = {
+  yearly: { priceTotal: 251.16, monthlyEquivalent: 20.93 },
 };
 
-// Links de checkout com o cupom 20 anos aplicado (mesmo produto, ofertas novas).
-const CHECKOUT_URLS_PROMO: Record<PlanId, string> = {
-  free:     '',
-  monthly:  'https://pay.hotmart.com/J106555340X?off=qe0i73w3',
-  semester: 'https://pay.hotmart.com/J106555340X?off=pcg3ywkl',
-  yearly:   'https://pay.hotmart.com/J106555340X?off=rxeqtcod',
+// Links de checkout com o desconto aplicado (mesmo produto, oferta nova).
+// Sem link aqui, o plano segue no checkout normal mesmo com a promo ativa.
+const CHECKOUT_URLS_PROMO: Partial<Record<PlanId, string>> = {
+  yearly: 'https://pay.hotmart.com/J106555340X?off=axbmz79q',
 };
 
-// Link vigente: com cupom enquanto a promo está ativa E o usuário é elegível
-// (não-assinante). `eligible` default true preserva o comportamento de quem
-// chama sem contexto de plano (ex.: Paywall, que só aparece p/ free). A aba
-// Planos passa `eligible=false` para assinantes ativos, que veem o link normal.
+// Link vigente: com desconto enquanto a promo está ativa. `eligible=false`
+// força o link de preço normal (hoje ninguém passa false: a Black Friday vale
+// para free e assinantes).
 export function getCheckoutUrl(plan: PlanId, eligible: boolean = true): string {
-  return eligible && isPromoActive() && CHECKOUT_URLS_PROMO[plan]
-    ? CHECKOUT_URLS_PROMO[plan]
-    : CHECKOUT_URLS[plan];
+  const promoUrl = CHECKOUT_URLS_PROMO[plan];
+  return eligible && isPromoActive() && promoUrl ? promoUrl : CHECKOUT_URLS[plan];
 }
 
 type Row = {

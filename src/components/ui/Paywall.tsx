@@ -5,7 +5,7 @@ import Button from './Button';
 import PromoCountdown from './PromoCountdown';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCheckout } from '@/hooks/useCheckout';
-import { PLANS, PLAN_ORDER, isPromoActive, PROMO_PRICES } from '@/services/subscriptions';
+import { PLANS, PLAN_ORDER, isPromoActive, PROMO_PRICES, PROMO_LABEL } from '@/services/subscriptions';
 import { PAYWALL_TITLE, PAYWALL_PRESETS, type PaywallContext } from '@/lib/paywall-presets';
 import type { PlanId } from '@/types';
 
@@ -88,24 +88,26 @@ export default function Paywall({ isOpen, onClose, feature, description, context
 
             {paidPlans.map(planId => {
               const plan = PLANS[planId];
-              const pr = PROMO_PRICES[planId];
+              const pr = promo ? PROMO_PRICES[planId] : undefined;
               const isHighlight = planId === 'yearly';
               return (
+                // Anual em destaque: borda em degradê e brilho rosa, como na aba Planos.
                 <div
                   key={planId}
-                  className={`relative p-4 rounded-2xl border transition-colors ${
+                  className={`relative rounded-2xl transition-colors ${
                     isHighlight
-                      ? 'border-popline-pink/60 bg-popline-pink/5'
-                      : 'border-border bg-background'
+                      ? 'p-[1.5px] gradient-bg shadow-[0_0_40px_-10px] shadow-popline-pink/60 mt-2'
+                      : 'border border-border'
                   }`}
                 >
+                <div className={`relative rounded-[calc(1rem-1.5px)] ${isHighlight ? 'bg-surface p-5' : 'bg-background p-4'}`}>
                   {isHighlight && (
-                    <span className="absolute -top-2 left-4 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-popline-pink text-white">
-                      Mais popular
+                    <span className="absolute -top-3 left-4 text-[10px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full bg-black text-white ring-1 ring-popline-pink whitespace-nowrap">
+                      {pr ? <>Black Friday · <span className="text-popline-pink">{PROMO_LABEL}</span></> : 'Mais popular'}
                     </span>
                   )}
                   <div className="flex items-baseline justify-between gap-2 mb-2">
-                    <span className="text-base font-bold">{plan.name}</span>
+                    <span className={`font-bold ${isHighlight ? 'text-lg' : 'text-base'}`}>{plan.name}</span>
                     {plan.modifier > 0 && (
                       <span className="text-[11px] text-text-secondary">
                         {plan.modifier}x prioridade em campanhas
@@ -113,35 +115,36 @@ export default function Paywall({ isOpen, onClose, feature, description, context
                     )}
                   </div>
                   <div className="mb-3">
-                    {promo && (
+                    {pr && (
                       <span className="mr-2 text-sm text-text-secondary line-through">
                         {formatBRL(plan.monthlyEquivalent)}
                       </span>
                     )}
-                    <span className="text-2xl font-bold">
-                      {formatBRL(promo ? pr.monthlyEquivalent : plan.monthlyEquivalent)}
+                    <span className={`font-bold ${isHighlight ? 'text-3xl' : 'text-2xl'}`}>
+                      {formatBRL(pr ? pr.monthlyEquivalent : plan.monthlyEquivalent)}
                     </span>
                     <span className="text-sm text-text-secondary">/mês</span>
-                    {promo && (
+                    {pr && (
                       <span className="ml-2 align-middle text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-popline-pink text-white">
-                        20% OFF
+                        {PROMO_LABEL}
                       </span>
                     )}
                     {plan.durationMonths > 1 && (
                       <p className="text-[11px] text-text-secondary mt-0.5">
-                        Pago {formatBRL(promo ? pr.priceTotal : plan.priceTotal)} a cada {plan.durationMonths} meses
+                        Pago {formatBRL(pr ? pr.priceTotal : plan.priceTotal)} a cada {plan.durationMonths} meses
                       </p>
                     )}
                   </div>
-                  {promo && <PromoCountdown className="mb-2" />}
+                  {pr && <PromoCountdown className="mb-2" />}
                   <Button
                     className="w-full min-h-11"
                     variant={isHighlight ? 'primary' : 'secondary'}
                     onClick={() => subscribeTo(planId)}
                     disabled={busy}
                   >
-                    {busy ? 'Redirecionando...' : promo ? 'Aplicar Cupom Agora' : 'Assinar'}
+                    {busy ? 'Redirecionando...' : pr ? `Garantir ${PROMO_LABEL}` : 'Assinar'}
                   </Button>
+                </div>
                 </div>
               );
             })}

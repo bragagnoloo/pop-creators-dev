@@ -6,12 +6,10 @@ import { pixelViewContent, pixelPurchase } from '@/lib/pixel';
 import useSWR from 'swr';
 import { useAuth } from '@/providers/AuthProvider';
 import { useCheckout } from '@/hooks/useCheckout';
-import { PlanId } from '@/types';
 import * as subService from '@/services/subscriptions';
 import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
-import PromoCountdown from '@/components/ui/PromoCountdown';
+import PlanOfferCard, { PLAN_DISPLAY_ORDER, PLAN_GRID_CLASS } from '@/components/plans/PlanOfferCard';
 
 export default function PlanosPage() {
   const { user } = useAuth();
@@ -26,7 +24,8 @@ export default function PlanosPage() {
   );
 
   const currentPlan = sub?.plan ?? 'free';
-  const isFree = currentPlan === 'free'; // só free vê promo (de/por, contador, link c/ cupom)
+  // Promo (de/por, contador, link com desconto) vale para free e assinantes.
+  const promo = subService.isPromoActive();
   const expiresAt = sub?.expiresAt ? new Date(sub.expiresAt) : null;
 
   // Polling: quando voltar com ?payment=success, aguardar plano ativar
@@ -108,11 +107,18 @@ export default function PlanosPage() {
         </div>
       </Card>
 
-      {/* Grade de planos */}
-      <div className="grid md:grid-cols-3 gap-5">
-        <PlanCard plan="monthly"  current={currentPlan} onSubscribe={() => handleSubscribe('monthly', isFree)} />
-        <PlanCard plan="semester" current={currentPlan} onSubscribe={() => handleSubscribe('semester', isFree)} highlighted />
-        <PlanCard plan="yearly"   current={currentPlan} onSubscribe={() => handleSubscribe('yearly', isFree)} />
+      {/* Grade de planos: mesmo card da LP, com a promo para qualquer plano. */}
+      <div className={`${PLAN_GRID_CLASS} pt-4`}>
+        {PLAN_DISPLAY_ORDER.map(planId => (
+          <PlanOfferCard
+            key={planId}
+            planId={planId}
+            promo={promo}
+            onClick={() => handleSubscribe(planId)}
+            disabled={currentPlan === planId}
+            ctaLabel={currentPlan === planId ? 'Plano atual' : promo && subService.PROMO_PRICES[planId] ? undefined : 'Assinar'}
+          />
+        ))}
       </div>
 
       {/* Tabela comparativa */}
@@ -141,82 +147,6 @@ export default function PlanosPage() {
         </div>
       </Card>
     </div>
-  );
-}
-
-function PlanCard({
-  plan, current, onSubscribe, highlighted = false,
-}: {
-  plan: PlanId; current: PlanId; onSubscribe: () => void; highlighted?: boolean;
-}) {
-  const info = subService.PLANS[plan];
-  const isCurrent = current === plan;
-  // Promo só aparece para quem não é assinante ativo (plano free). Assinantes
-  // veem preço padrão, sem contador e com o botão normal.
-  const promo = subService.isPromoActive() && current === 'free';
-  const promoPrice = subService.PROMO_PRICES[plan];
-  const suffix = plan === 'monthly' ? '/mês' : plan === 'semester' ? '/6 meses' : '/ano';
-
-  return (
-    <div className={`relative rounded-3xl border p-6 flex flex-col gap-4 transition-all ${
-      highlighted
-        ? 'border-popline-pink bg-popline-pink/[0.04] shadow-lg shadow-popline-pink/10'
-        : 'border-border bg-surface'
-    }`}>
-      {highlighted && (
-        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full gradient-bg text-white">
-          Mais popular
-        </span>
-      )}
-      <div>
-        <h3 className="text-lg font-bold">{info.name}</h3>
-        <p className="text-xs text-text-secondary mt-1">{info.tagline}</p>
-      </div>
-      <div>
-        {promo && (
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm text-text-secondary line-through">
-              {subService.formatBRL(info.priceTotal)}
-            </span>
-            <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-popline-pink text-white">
-              20% OFF
-            </span>
-          </div>
-        )}
-        <p className="text-3xl font-bold">
-          {subService.formatBRL(promo ? promoPrice.priceTotal : info.priceTotal)}
-          <span className="text-sm text-text-secondary font-normal">{suffix}</span>
-        </p>
-        {plan !== 'monthly' && (
-          <p className="text-xs text-text-secondary mt-1">
-            equivale a {subService.formatBRL(promo ? promoPrice.monthlyEquivalent : info.monthlyEquivalent)}/mês
-          </p>
-        )}
-      </div>
-      <ul className="space-y-2 text-sm flex-1">
-        <FeatureLine label="Candidaturas ilimitadas" />
-        <FeatureLine label="Todas as aulas" />
-        <FeatureLine label="IA de Roteiros" />
-        <FeatureLine label={`${info.modifier}x prioridade na seleção`} highlight={info.modifier > 1} />
-        {info.prizes && <FeatureLine label="Oportunidades exclusivas" highlight />}
-        {plan === 'yearly' && <FeatureLine label="Destaque VIP nas campanhas" highlight />}
-      </ul>
-      {promo && <PromoCountdown />}
-      <Button onClick={onSubscribe} disabled={isCurrent} className="w-full">
-        {isCurrent ? 'Plano atual' : promo ? 'Aplicar Cupom Agora' : 'Assinar'}
-      </Button>
-    </div>
-  );
-}
-
-function FeatureLine({ label, highlight = false }: { label: string; highlight?: boolean }) {
-  return (
-    <li className="flex items-center gap-2">
-      <svg className={`w-4 h-4 shrink-0 ${highlight ? 'text-popline-pink' : 'text-green-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-      <span className={highlight ? 'font-medium' : ''}>{label}</span>
-    </li>
   );
 }
 

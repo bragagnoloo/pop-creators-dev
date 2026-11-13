@@ -38,6 +38,38 @@ const statusLabel: Record<Campaign['status'], string> = {
   completed: 'Finalizada',
 };
 
+type StatusFilter = 'all' | Campaign['status'];
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: 'all', label: 'Todas' },
+  { value: 'open', label: 'Inscricoes Abertas' },
+  { value: 'in_progress', label: 'Em Andamento' },
+  { value: 'completed', label: 'Finalizadas' },
+];
+
+// Busca sem acento e sem caixa: "chitaozinho" encontra "Chitãozinho".
+const normalize = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
+// Mês de abertura (created_at) no fuso de Brasília, como "2026-11". Em UTC uma
+// campanha criada 31/10 às 22h cairia em novembro.
+const openingMonthKey = (iso: string) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(new Date(iso));
+  const y = parts.find(p => p.type === 'year')?.value;
+  const m = parts.find(p => p.type === 'month')?.value;
+  return `${y}-${m}`;
+};
+
+const monthKeyLabel = (key: string) => {
+  const [y, m] = key.split('-').map(Number);
+  const label = new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  return label.charAt(0).toUpperCase() + label.slice(1);
+};
+
 export default function AdminCampaignsPage() {
   const { user } = useAuth();
   const isCampaignAdmin = user?.role === 'campaign_admin';
@@ -50,6 +82,11 @@ export default function AdminCampaignsPage() {
   const [viewingApplications, setViewingApplications] = useState<string | null>(null);
   const [applications, setApplications] = useState<(CampaignApplication & { profile: UserProfile | null })[]>([]);
   const [appCounts, setAppCounts] = useState<Record<string, number>>({});
+
+  // Filtros da lista
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [monthFilter, setMonthFilter] = useState('all');
 
   // Form state
   const [title, setTitle] = useState('');
@@ -136,6 +173,34 @@ export default function AdminCampaignsPage() {
         .filter((n): n is string => Boolean(n))
     )
   ).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+  // Meses de abertura que existem na lista, do mais recente ao mais antigo.
+  const openingMonths = Array.from(new Set(campaigns.map(c => openingMonthKey(c.createdAt))))
+    .sort((a, b) => b.localeCompare(a));
+
+  const searchTerm = normalize(search);
+  // Status e contagem por status respeitam busca + mês, para os números dos
+  // botões baterem com o que aparece ao clicar.
+  const matchesSearchAndMonth = campaigns.filter(c =>
+    (!searchTerm || normalize(c.title).includes(searchTerm)) &&
+    (monthFilter === 'all' || openingMonthKey(c.createdAt) === monthFilter)
+  );
+  const statusCounts: Record<StatusFilter, number> = {
+    all: matchesSearchAndMonth.length,
+    open: matchesSearchAndMonth.filter(c => c.status === 'open').length,
+    in_progress: matchesSearchAndMonth.filter(c => c.status === 'in_progress').length,
+    completed: matchesSearchAndMonth.filter(c => c.status === 'completed').length,
+  };
+  const filteredCampaigns = statusFilter === 'all'
+    ? matchesSearchAndMonth
+    : matchesSearchAndMonth.filter(c => c.status === statusFilter);
+  const hasActiveFilters = Boolean(searchTerm) || statusFilter !== 'all' || monthFilter !== 'all';
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+    setMonthFilter('all');
+  };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -608,9 +673,60 @@ export default function AdminCampaignsPage() {
         </Modal>
       )}
 
+      {/* Filtros */}
+      {campaigns.length > 0 && (
+        <div className="mb-6 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="search"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Buscar campanha pelo nome..."
+              className="flex-1 bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary placeholder:text-text-secondary/60 focus:outline-none focus:border-popline-pink transition-colors"
+            />
+            <select
+              value={monthFilter}
+              onChange={e => setMonthFilter(e.target.value)}
+              aria-label="Mes de abertura"
+              className="sm:w-56 bg-background border border-border rounded-xl px-4 py-2.5 text-text-primary focus:outline-none focus:border-popline-pink transition-colors"
+            >
+              <option value="all">Abertura: todos os meses</option>
+              {openingMonths.map(key => (
+                <option key={key} value={key}>{monthKeyLabel(key)}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {STATUS_FILTERS.map(f => (
+              <button
+                key={f.value}
+                type="button"
+                onClick={() => setStatusFilter(f.value)}
+                className={`px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                  statusFilter === f.value
+                    ? 'bg-popline-pink/15 border-popline-pink text-text-primary'
+                    : 'border-border text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {f.label} <span className="opacity-60">({statusCounts[f.value]})</span>
+              </button>
+            ))}
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="px-3 py-1.5 text-sm text-text-secondary hover:text-text-primary underline underline-offset-2"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Campaigns List */}
       <div className="space-y-4">
-        {campaigns.map(campaign => (
+        {filteredCampaigns.map(campaign => (
           <Card key={campaign.id}>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4 flex-1">
@@ -646,6 +762,15 @@ export default function AdminCampaignsPage() {
                   <div className="flex items-center gap-4 mt-2 text-xs text-text-secondary">
                     <span>
                       Inscricoes: {appCounts[campaign.id] || 0}
+                    </span>
+                    <span>
+                      Aberta em{' '}
+                      {new Date(campaign.createdAt).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        timeZone: 'America/Sao_Paulo',
+                      })}
                     </span>
                   </div>
                 </div>
@@ -684,6 +809,15 @@ export default function AdminCampaignsPage() {
             <Button size="sm" variant="secondary" className="mt-3" onClick={loadCampaigns}>
               Tentar de novo
             </Button>
+          </Card>
+        )}
+
+        {!loadError && campaigns.length > 0 && filteredCampaigns.length === 0 && (
+          <Card>
+            <p className="text-center text-text-secondary">Nenhuma campanha encontrada com esses filtros.</p>
+            <div className="flex justify-center mt-3">
+              <Button size="sm" variant="secondary" onClick={clearFilters}>Limpar filtros</Button>
+            </div>
           </Card>
         )}
 
